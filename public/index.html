@@ -1,0 +1,3995 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JUST FUCKING TETRIS</title>
+<style>
+  :root{
+    --bg:#06004f;
+    --white:#f2f2f2;
+    --panel:#06004f;
+    --cell-bg:#0b0767;
+    --I:#38bdee;
+    --J:#2a7fff;
+    --L:#ff9800;
+    --O:#f7dd16;
+    --S:#48d62f;
+    --T:#b144f7;
+    --Z:#ff0d62;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--white);
+    font-family:Arial,Helvetica,sans-serif;
+    overflow:hidden;
+  }
+  .viewport{
+    width:100vw;
+    height:100vh;
+    overflow:hidden;
+    position:relative;
+    padding: 24px 40px;
+  }
+  .logo-word{
+    font-weight:900;
+    font-size:66px;
+    line-height:.9;
+    letter-spacing:-3px;
+    color:var(--white);
+    text-transform:uppercase;
+    user-select:none;
+  }
+  .registered{font-size:.22em;vertical-align:super;margin-left:4px}
+  canvas{display:block;image-rendering:pixelated}
+  #game,#next-canvas,#hold-canvas,#queue-canvas{background:var(--bg)}
+
+  .wing-inner{
+    width:100%;
+    display:flex;
+    justify-content:center;
+  }
+
+    .controls-section{
+    width:310px;
+  }
+    .sidebar{
+    width:286px;
+  }
+
+  .info-card:last-child{ margin-bottom:0; }
+
+  .info-title{
+    margin:0 0 8px;
+    font-size:18px;
+    font-weight:900;
+    letter-spacing:1px;
+  }
+  .score-value{
+    font-size:46px;
+    font-weight:900;
+    line-height:1;
+  }
+  .meta-row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:8px;
+    font-weight:800;
+  }
+  .mini-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .controls-grid{
+    display:grid;
+    grid-template-columns:auto auto 1fr;
+    gap:14px 12px;
+    align-items:center;
+    font-size:16px;
+  }
+  .key{
+    width: 66px;  /* 強制所有按鍵寬度相同 */
+    height: 38px; /* 強制所有按鍵高度相同 */
+    display: flex;
+    align-items: center;
+    justify-content: center; /* 讓按鍵內的文字完美置中 */
+    border: 3px solid var(--white);
+    font-weight: 800;
+    font-size: 14px;
+    padding: 0;
+  }
+  .wide{ width: 100%; } /* 讓寬按鍵自動填滿跨越的空間 */
+  .hidden{visibility:hidden}
+  .footer-note{
+    margin-top:10px;
+    font-size:13px;
+    opacity:.85;
+    line-height:1.4;
+  }
+
+  /* =========================================
+     全新的 Tetris Battle 佈局 CSS
+     ========================================= */
+  .viewport {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden; /* 防止捲軸 */
+  }
+
+  /* 全場主標題 (TETRIS) */
+  .match-title-container {
+    position: static; 
+    text-align: center;
+    width: 100%;
+    margin-bottom: 25px;
+  }
+  .match-title {
+    font-size: 68px;
+    font-weight: 900;
+    letter-spacing: 15px;
+    color: var(--white);
+    text-shadow: 0 0 20px var(--I);
+    margin-bottom: 0;
+  }
+
+  /* 戰鬥競技場 (用來置中與縮放) */
+  .battle-layout {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 30px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+  }
+
+  .wing {
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  
+  /* 單人模式的置中：強制左右兩邊等寬 (260+20+260 = 540px) */
+  .left-wing {
+    width: 540px; 
+    flex-direction: column !important;
+    justify-content: center;
+    gap: 15px;
+  }
+  .right-wing {
+    width: 540px; 
+    justify-content: flex-start;
+  }
+
+  /* 當進入連線模式時，釋放右翼的寬度限制，讓對手畫面自然展開 */
+  .battle-layout.is-multiplayer .right-wing {
+    width: max-content;
+  }
+
+  .battle-arena {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 30px;
+    flex-wrap: nowrap !important;
+  }
+
+  /* 關鍵：flex-shrink: 0 確保對手跟你的框一模一樣大，絕對不縮水！ */
+  .game-section {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(0,0,0,0.4);
+    padding: 15px;
+    border-radius: 10px;
+    border: 2px solid var(--white);
+    flex-shrink: 0; 
+  }
+
+  .board-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .side-col { display: flex; flex-direction: column; gap: 15px; flex-shrink: 0; margin-top: 60px}
+  
+  /* You / OPPONENT 標題 */
+  .game-title {
+    font-size: 25px;
+    font-weight: 900;
+    color: var(--T);
+    text-shadow: 0 0 10px var(--T);
+    letter-spacing: 2px;
+    
+    height: 65px;          /* 設定一個足夠容納兩行文字的固定高度 */
+    display: flex;         /* 使用 Flex 排版 */
+    flex-direction: column;/* 讓內容上下排列 */
+    justify-content: center;/* 讓內容在 55px 高度內垂直置中 */
+    align-items: center;   /* 讓內容水平置中 */
+    margin-bottom: 5px;    /* 稍微調整與底下拉鋸 */
+    line-height: 1.2;      /* 設定行高，避免兩行貼太近 */
+  }
+
+  /* 遊戲主畫布 */
+  #game, #opp-game { 
+    border: 4px solid var(--white); 
+    background: var(--cell-bg);
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* 小框框 (Hold/Next/Queue) */
+  .mini-block-canvas {
+    border: 2px solid var(--white);
+    background: rgba(0,0,0,0.6); /* 稍微深一點的底色 */
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .mini-title {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 900;
+    margin-bottom: 5px;
+    letter-spacing: 2px;
+    color: var(--white);
+  }
+
+  /* 中間資訊面板與左側連線/控制面板 */
+  .info-panel {
+    background: rgba(0,0,0,0.6);
+    border: 2px solid var(--white);
+    padding: 15px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .hidden { display: none !important; }
+
+  @media (max-height: 760px){
+    .logo-word{font-size:58px}
+    .info-card{padding:12px;margin-bottom:10px}
+    .score-value{font-size:40px}
+    .controls-grid{font-size:14px;gap:6px 8px}
+    .key{min-width:32px;padding:5px 8px;border-width:2px}
+    .wide{min-width:68px}
+    .controls-section{width:248px}
+    .sidebar{width:292px}
+  }
+
+  /* === 雙人連線版面緊湊優化 === */
+  .battle-layout { gap: 30px; }
+
+  /* 單人模式：維持 510px */
+  .left-wing, .right-wing { width: 540px; }
+
+  /* 雙人模式下，解除無意義的強制寬度，並榨乾多餘縫隙 */
+  .battle-layout.is-multiplayer { 
+    gap: 45px !important; 
+  }
+  .battle-layout.is-multiplayer .left-wing {
+    width: 540px !important; /* 拔除幽靈寬度，恢復原本大小 */
+    align-items: flex-end; /* 讓左邊的選單靠右貼緊，畫面更集中 */
+  }
+  .battle-layout.is-multiplayer .right-wing {
+    width: max-content !important; /* 讓右邊自然包覆對手 */
+  }
+  
+  /* 稍微縮小雙人模式的框線內距，為遊戲主體爭取最大化空間 */
+  .battle-layout.is-multiplayer .game-section {
+    padding: 12px !important;
+    gap: 10px !important;
+  }
+
+  /* 右側上線玩家面板 */
+  .online-panel {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    width: 200px;
+    background: rgba(0,0,0,0.6);
+    border: 2px solid var(--white);
+    padding: 15px;
+    border-radius: 8px;
+    z-index: 100;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+  .online-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .online-dot {
+    width: 10px;
+    height: 10px;
+    background-color: var(--S); /* 亮綠色代表上線 */
+    border-radius: 50%;
+    box-shadow: 0 0 5px var(--S);
+  }
+
+  /* 新增：連線邀請通知 (Toast) */
+  .invite-toast {
+    background: rgba(0,0,0,0.95);
+    border: 2px solid var(--I);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px; /* 與上方 Emoji 面板保持距離 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 0 15px var(--I);
+    animation: popIn 0.3s ease-out;
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .invite-btns { display: flex; gap: 10px; width: 100%; }
+  .invite-btn {
+    flex: 1;
+    padding: 6px 0;
+    font-weight: 900;
+    border: 2px solid var(--white);
+    cursor: pointer;
+    text-align: center;
+  }
+  .btn-accept { background: var(--S); color: var(--bg); }
+  .btn-reject { background: var(--Z); color: var(--white); }
+
+  </style>
+
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+</head>
+<body>
+<div class="viewport" id="viewport">
+
+  <button id="mp-leave-btn" class="hidden" style="position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: var(--Z); border: 2px solid var(--Z); padding: 8px 16px; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 4px; z-index: 1000; letter-spacing: 1px;">🚪 LEAVE ROOM</button>
+
+  <div id="online-panel" class="online-panel hidden">
+    <h2 style="text-align:center; color:var(--S); margin:0 0 10px 0; font-size:16px;">🟢 ONLINE (<span id="online-count">0</span>)</h2>
+    <div id="online-users-list"></div>
+  </div>
+
+  <div class="battle-layout" id="layout" style="transform-origin: center center;">
+    
+    <div id="vs-timer" class="hidden" style="position: absolute; top: -75px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; width: 200px;">
+      <div style="font-size: 16px; font-weight: 900; color: var(--O); letter-spacing: 4px; text-shadow: 0 0 10px var(--O); margin-bottom: -5px;">TIME</div>
+      <div id="battle-timer" style="font-size: 48px; font-weight: 900; color: var(--white); text-shadow: 0 0 15px var(--white); line-height: 1.1;">02:00</div>
+    </div>
+
+    <div class="wing left-wing" id="left-wing">
+      <div class="match-title-container">
+        <div class="logo-word match-title">TETRIS</div>
+      </div>
+      <div style="display: flex; gap: 20px; width: 100%;">
+        <div style="width: 260px; display: flex; flex-direction: column; gap: 20px; flex-shrink: 0;">
+          <div class="info-panel" id="score-leaderboard-section">
+            <h2 style="text-align:center; color:var(--O); margin:0 0 10px 0; font-size:18px;">TOP 5 SCORE</h2>
+            <div id="score-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+          </div>
+          <div class="info-panel" id="wins-leaderboard-section">
+            <h2 style="text-align:center; color:var(--Z); margin:0 0 10px 0; font-size:18px;">TOP 5 RANK</h2>
+            <div id="wins-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+          </div>
+        </div>
+
+        <div class="left-sidebar" style="width: 260px; display: flex; flex-direction: column; gap: 20px; flex-shrink: 0;">
+          <div class="info-panel" id="player-profile-section">
+            <h2 style="text-align:center; color:var(--T); margin:0 0 10px 0;">PLAYER</h2>
+            <div id="login-form">
+              <input type="text" id="username-input" placeholder="Username (中/英文皆可)" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px; font-weight: bold;">
+              <input type="password" id="password-input" placeholder="Password (至少6位)" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px;">
+              <button id="login-btn" style="width:100%; background: var(--T); color: var(--white); border: 2px solid var(--white); font-weight: 900; padding: 6px; cursor: pointer;">Login / Register</button>
+              <p style="font-size: 11px; margin-top: 8px; margin-bottom: 0; color: rgba(255,255,255,0.6); text-align: center;">Play as Guest (No Save)</p>
+            </div>
+            <div id="logged-in-info" class="hidden" style="text-align: center;">
+              <div style="font-size: 12px; color: rgba(255,255,255,0.7);">Welcome back,</div>
+              <div id="display-username" style="font-size: 20px; font-weight: 900; color: var(--T); margin: 5px 0 10px 0;">---</div>
+
+              <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>RANK:</span>
+                  <span id="display-rank" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5);">銅牌 <span style="font-size:12px">(0 LP)</span></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
+                  <span>WIN RATE: <span id="display-winrate" style="color: var(--S); font-weight: bold;">0%</span></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>STREAK: <span id="display-streak" style="color: var(--T); font-weight: bold;">0 W</span></span>
+                </div>
+              </div>
+
+              <button id="change-pwd-btn" style="width:100%; background: transparent; color: var(--I); border: 1px solid var(--I); margin-bottom: 8px; padding: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">CHANGE PASSWORD</button>
+              
+              <button id="logout-btn" style="width:100%; background: transparent; color: var(--Z); border: 2px solid var(--Z); font-weight: bold; padding: 4px; cursor: pointer; font-size: 12px;">LOGOUT</button>
+
+              <div class="info-panel hidden" id="admin-panel" style="border-color: #ff0000; box-shadow: 0 0 10px rgba(255,0,0,0.5); margin-top: 15px;">
+                <h2 style="text-align:center; color:#ff0000; margin:0 0 10px 0; letter-spacing: 2px;">🛠️ ADMIN</h2>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <input type="text" id="admin-target-user" placeholder="Target Username" style="background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid #ff0000; padding: 4px; font-weight: bold;">
+                  <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                    <input type="number" id="admin-set-highscore" placeholder="High Score" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                    <input type="number" id="admin-set-lp" placeholder="LP" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                    <input type="number" id="admin-set-wins" placeholder="Wins" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                    <input type="number" id="admin-set-streak" placeholder="Streak" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                  </div>
+                  <button id="admin-update-btn" style="background: #ff0000; color: var(--white); border: none; font-weight: bold; padding: 6px; cursor: pointer;">Update Player Stats</button>
+                  <hr style="border-color: rgba(255,0,0,0.3); width: 100%; margin: 5px 0;">
+                  <button id="admin-reset-btn" style="background: transparent; color: #ff0000; border: 1px solid #ff0000; font-weight: bold; padding: 6px; cursor: pointer;">⚠️ RESET SEASON</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-panel" id="network-section">
+            <h2 style="text-align:center; color:var(--J); margin:0 0 10px 0;">MULTIPLAYER</h2>
+            <p style="font-size: 14px;">My ID: <span id="my-id" style="color:var(--O); cursor:pointer; font-weight: bold;" title="點擊自動複製 ID">Loading...</span></p>
+            <div id="mp-input-group" style="display:flex; gap:5px; margin-bottom:10px;">
+              <input type="text" id="opp-id-input" placeholder="Opponent ID" style="width:60%; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 4px;">
+              <button id="connect-btn" style="width:40%; background: var(--I); color: var(--bg); border: 2px solid var(--white); font-weight: 900; cursor: pointer;">CONNECT</button>
+            </div>
+            <div id="mp-ready-group" style="display:none; margin-bottom:10px;">
+              <button id="ready-btn" style="width:100%; padding:8px; background:var(--S); color:var(--bg); font-weight:bold; border:2px solid var(--white); cursor:pointer;">READY</button>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top:10px;">
+              <p id="conn-status" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Offline</p>
+              <div id="ping-display" style="font-size: 12px; font-weight: bold; display: none;"></div>
+            </div>
+            <div id="scoreboard" style="display: none; background: rgba(0,0,0,0.3); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
+              <div style="font-size: 14px; color: var(--O); font-weight: bold; margin-bottom: 4px;">MATCH SCORE</div>
+              <div style="font-size: 24px; font-weight: 900; display: flex; justify-content: center;gap: 16px;">
+                <div><span style="font-size: 11px; display:block; color:rgba(255,255,255,0.7);">YOU</span><span id="my-wins-el" style="color: var(--S);">0</span></div>
+                <span style="color: rgba(255,255,255,0.5);">-</span>
+                <div><span style="font-size: 11px; display:block; color:rgba(255,255,255,0.7);">OPP</span><span id="opp-wins-el" style="color: var(--Z);">0</span></div>
+              </div>
+            </div>
+
+            <div id="emoji-hint-panel" class="hidden" style="background: rgba(0,0,0,0.3); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px; border-radius: 4px;">
+              <div style="font-size: 12px; color: var(--J); font-weight: bold; margin-bottom: 6px; letter-spacing: 1px;">EMOJI HOTKEYS</div>
+              <div style="display: flex; justify-content: space-around; font-size: 18px;">
+                <span title="按 1">1️⃣😅</span>
+                <span title="按 2">2️⃣😡</span>
+                <span title="按 3">3️⃣🥶</span>
+                <span title="按 4">4️⃣🤣</span>
+              </div>
+            </div>
+
+            <div id="invite-toast" class="invite-toast hidden">
+              <div style="font-size: 14px; font-weight: bold; color: var(--white); margin-bottom: 5px;">
+                <span id="invite-sender-name" style="color: var(--O);">Player</span> 邀請對戰！
+              </div>
+              <div class="invite-btns">
+                <button id="invite-accept-btn" class="invite-btn btn-accept">接受</button>
+                <button id="invite-reject-btn" class="invite-btn btn-reject">拒絕</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-section player-section" style="flex-shrink: 0;">
+      <div class="side-col">
+        <div><div class="mini-title">HOLD</div><canvas id="hold-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+        
+        <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+          <div class="mini-title" style="color: var(--Z); margin-bottom: 8px;">KO</div>
+          <div style="width: 70px; height: 70px; border-radius: 50%; border: 4px solid var(--Z); display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 0 15px rgba(255,13,98,0.5), inset 0 0 10px rgba(255,13,98,0.5); background: rgba(255,13,98,0.15);">
+            <span id="my-ko-display" style="font-size: 32px; font-weight: 900; color: var(--white); text-shadow: 0 0 5px var(--white);">0</span>
+          </div>
+        </div>
+        <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+          <div class="mini-title" style="color: var(--I); margin-bottom: 4px; line-height: 1.2;">LINES<br>SENT</div>
+          <div id="my-lines-sent-display" style="font-size: 36px; font-weight: 900; color: var(--I); text-shadow: 0 0 10px var(--I);">0</div>
+        </div>
+      </div>
+      
+      <div class="board-col">
+        <div class="game-title" id="my-name-display">You</div> <canvas id="game" width="340" height="680"></canvas>
+      </div>
+      
+      <div class="side-col">
+        <div><div class="mini-title">NEXT</div><canvas id="next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+        <div><div class="mini-title">QUEUE</div><canvas id="queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
+      </div>
+    </div>
+
+    <div class="wing right-wing" id="right-wing">
+
+      <div id="singleplayer-ui" style="display: flex; flex-direction: column; gap: 20px; width: 220px; flex-shrink: 0;">
+
+        <div class="info-panel" id="singleplayer-score" style="width: 100%; display: flex; flex-direction: column; justify-content: center; flex-shrink: 0;">
+          <h2 style="text-align:center; margin:0 0 10px 0;">SCORE</h2>
+          <div id="score" style="font-size:32px; font-weight:bold; text-align:center; color:var(--O);">0</div>
+          
+          <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:14px; font-weight:bold;">
+            <span>HIGH SCORE</span><span id="high-score" style="color:var(--O);">0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>LINES</span><span id="lines">0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>LEVEL</span><span id="level">1</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>MUSIC</span><span id="bgm-status">ON</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>SFX</span><span id="sfx-status">ON</span>
+          </div>
+          
+          <div id="action-msg" style="color:var(--T); font-size:16px; font-weight:900; text-align:center; min-height:22px; margin-top:12px; text-transform:uppercase;"></div>
+        </div>
+
+        <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 ENTER PRACTICE MODE</button>
+
+        <div class="info-panel" id="controls-section">
+            <h2 style="text-align:center; color:var(--I); margin:0 0 10px 0;">CONTROLS</h2>
+            <p><b>← →</b> : Move</p>
+            <p><b>↓</b> : Soft Drop</p>
+            <p><b>Space</b> : Hard Drop</p>
+            <p><b>↑ / X</b> : Rotate CW</p>
+            <p><b>Z</b> : Rotate CCW</p>
+            <p><b>C / Shift</b> : Hold</p>
+            <p><b>R</b> : Restart</p>
+            <p><b>M</b> : Mute Music</p>
+            <p><b>N</b> : Mute SFX</p>
+            <p><b>+ / -</b> : Volume Up / Down</p>
+        </div>
+
+      </div>
+
+      <div class="game-section hidden" id="opp-panel">
+        <div class="side-col">
+          <div><div class="mini-title">HOLD</div><canvas id="opp-hold-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+          
+          <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+            <div class="mini-title" style="color: var(--Z); margin-bottom: 8px;">KO</div>
+            <div style="width: 70px; height: 70px; border-radius: 50%; border: 4px solid var(--Z); display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 0 15px rgba(255,13,98,0.5), inset 0 0 10px rgba(255,13,98,0.5); background: rgba(255,13,98,0.15);">
+              <span id="opp-ko-display" style="font-size: 32px; font-weight: 900; color: var(--white); text-shadow: 0 0 5px var(--white);">0</span>
+            </div>
+          </div>
+          <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+            <div class="mini-title" style="color: var(--I); margin-bottom: 4px; line-height: 1.2;">LINES<br>SENT</div>
+            <div id="opp-lines-sent-display" style="font-size: 36px; font-weight: 900; color: var(--I); text-shadow: 0 0 10px var(--I);">0</div>
+          </div>
+        </div>
+        
+        <div class="board-col">
+          <div class="game-title" id="opp-name-display" style="color:var(--Z); text-align: center; line-height: 1.2;">OPPONENT</div> 
+          <canvas id="opp-game" width="340" height="680"></canvas>
+        </div>
+        <div class="side-col">
+          <div><div class="mini-title">NEXT</div><canvas id="opp-next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+          <div><div class="mini-title">QUEUE</div><canvas id="opp-queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script>
+
+
+
+(() => {
+  const COLS = 10;
+  const ROWS = 40;           // 陣列總高度改為 40 (官方標準)
+  const VISIBLE_ROWS = 20;   // 畫面只顯示下半部 20 行
+  const SIZE = 34;
+  const BG = '#06004f';
+  const CELL_BG = '#0b0767';
+  const COLORS = {
+    I:'#38bdee', J:'#2a7fff', L:'#ff9800', O:'#f7dd16',
+    S:'#48d62f', T:'#b144f7', Z:'#ff0d62',
+    G:'#666666', // 新垃圾行的灰色
+    B:'#ff1111'  // 炸彈的亮紅色
+  };
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d', { alpha:false });
+  const nextCanvas = document.getElementById('next-canvas');
+  const nextCtx = nextCanvas.getContext('2d', { alpha:false });
+  const holdCanvas = document.getElementById('hold-canvas');
+  const holdCtx = holdCanvas.getContext('2d', { alpha:false });
+  const queueCanvas = document.getElementById('queue-canvas');
+  const queueCtx = queueCanvas.getContext('2d', { alpha:false });
+  const scoreEl = document.getElementById('score');
+  const linesEl = document.getElementById('lines');
+  const levelEl = document.getElementById('level');
+  const highScoreEl = document.getElementById('high-score');
+  let highScore = parseInt(localStorage.getItem('tetrisHighScore')) || 0;
+  let isCloudDataLoaded = false; // 確保雲端資料下載完畢前，絕對不准上傳覆蓋
+
+  // --- Firebase 初始化與啟動 ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyCtMNMIOHtNPEYqLrny6zSt3zMVSz4Suko",
+    authDomain: "tetris-6748b.firebaseapp.com",
+    databaseURL: "https://tetris-6748b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "tetris-6748b",
+    storageBucket: "tetris-6748b.firebasestorage.app",
+    messagingSenderId: "972625697471",
+    appId: "1:972625697471:web:2da7680582c8c87fb9840a",
+    measurementId: "G-QKS5NN47NE"
+  };
+  
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const rtdb = firebase.database(); // 初始化 RTDB
+  
+  // 記錄玩家在雲端專屬的 UID
+  let currentUserUID = null;
+
+  const PIECES = {
+    I: [
+      [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+      [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]],
+      [[0,0,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]],
+      [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]
+    ],
+    O: [
+      [[1,1],[1,1]],
+      [[1,1],[1,1]],
+      [[1,1],[1,1]],
+      [[1,1],[1,1]]
+    ],
+    T: [
+      [[0,1,0],[1,1,1],[0,0,0]],
+      [[0,1,0],[0,1,1],[0,1,0]],
+      [[0,0,0],[1,1,1],[0,1,0]],
+      [[0,1,0],[1,1,0],[0,1,0]]
+    ],
+    J: [
+      [[1,0,0],[1,1,1],[0,0,0]],
+      [[0,1,1],[0,1,0],[0,1,0]],
+      [[0,0,0],[1,1,1],[0,0,1]],
+      [[0,1,0],[0,1,0],[1,1,0]]
+    ],
+    L: [
+      [[0,0,1],[1,1,1],[0,0,0]],
+      [[0,1,0],[0,1,0],[0,1,1]],
+      [[0,0,0],[1,1,1],[1,0,0]],
+      [[1,1,0],[0,1,0],[0,1,0]]
+    ],
+    S: [
+      [[0,1,1],[1,1,0],[0,0,0]],
+      [[0,1,0],[0,1,1],[0,0,1]],
+      [[0,0,0],[0,1,1],[1,1,0]],
+      [[1,0,0],[1,1,0],[0,1,0]]
+    ],
+    Z: [
+      [[1,1,0],[0,1,1],[0,0,0]],
+      [[0,0,1],[0,1,1],[0,1,0]],
+      [[0,0,0],[1,1,0],[0,1,1]],
+      [[0,1,0],[1,1,0],[1,0,0]]
+    ]
+  };
+
+  const JLSTZ_KICKS = {
+    '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+    '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+    '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+    '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+    '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+    '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+  };
+  const I_KICKS = {
+    '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+    '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+    '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],
+    '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+    '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+    '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+    '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+    '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+  };
+
+  let board, bag, queue, current, holdType, holdUsed, score, lines, level, gameOver, isPaused;
+  let gravityTimer, lastTime, clearFx, lockTimer, lockResets;
+  let moveCooldown = 0;
+  let dasTimer = 0;
+  let arrTimer = 0;
+  let activeDir = 0;
+  let keysDown = new Set();
+  let lastDirKey = 0;
+  let lastMoveType = null; // 紀錄最後動作 ('move', 'rotate', 'drop')
+  let lastKickIndex = 0;   // 紀錄最後使用了第幾個踢牆測試 (0~4)
+  let b2b = 0;
+  let combo = -1;             // Back-to-Back 狀態
+  const actionMsgEl = document.getElementById('action-msg');
+  let msgTimeout = null;
+  // --- 聯覺 (Synesthesia) 視覺與聽覺系統 ---
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = new AudioContext();
+  let shakeMag = 0; // 螢幕震動幅度
+
+  // 將靜音變數拆分為兩個
+  let isBgmMuted = localStorage.getItem('tetrisBgmMuted') === 'true';
+  let isSfxMuted = localStorage.getItem('tetrisSfxMuted') === 'true';
+  let masterVolume = parseFloat(localStorage.getItem('tetrisVolume'));
+  if (isNaN(masterVolume)) masterVolume = 0.5;
+  // 單人模式背景音樂 
+  const bgm = new Audio('./Game 8-Bit On.mp3');
+  bgm.loop = true; // 設定循環播放
+  bgm.volume = masterVolume * 0.15; // 背景音樂建議稍微小聲一點
+  // 雙人對戰模式背景音樂
+  const battleBgm = new Audio('./Return To The 8-Bit Past.mp3');
+  battleBgm.loop = true; // 設定循環播放
+  battleBgm.volume = masterVolume * 0.15;
+  let bgmStarted = false; // 紀錄是否已經解鎖自動播放
+  const particles = []; // 儲存所有粒子的陣列
+  const myFloatingTexts = [];  // 儲存自己畫面上的特效
+  const oppFloatingTexts = []; // 儲存對手畫面上的特效
+  let peer = null;
+  let conn = null;
+  let oppState = null; // 儲存對手傳來的狀態
+  let gameStarted = false; // 控制遊戲是否已經開始
+  let isMultiplayer = false; // 是否處於連線模式
+  let isPracticeMode = false; // 是否處於練習模式
+  let iAmReady = false;      // 我是否已準備
+  let oppIsReady = false;    // 對手是否已準備
+  let countdownValue = 0;    // 倒數計時數值 (3, 2, 1)
+  let matchResult = null; // 用來紀錄 'WIN', 'LOSE' 或 'DRAW'
+  let myWins = 0;
+  let oppWins = 0;
+  let mySeed = 0;
+  let oppSeed = 0;
+  let currentSeed = Date.now(); // 預設種子
+  let pingInterval = null; // 用來裝計時器
+  let lastPingTime = 0;    // 紀錄打出去的時間
+  let lastEmojiTime = 0; // Emoji 冷卻計時器
+  let lastActionTime = Date.now(); // 記錄玩家最後一次按鍵的時間
+  let lastHeartbeat = Date.now(); // 紀錄最後一次收到對手訊息的時間
+  let lastOpponentId = null; // 用來記憶上一個對手的 ID
+  // --- 垃圾行系統變數 ---
+  let activeGarbage = 0; // 準備湧入的垃圾 (危險：紅色)
+  let nextGarbage = 0;   // 剛收到的垃圾，還在寬限期 (警告：黃色)
+  let lastGarbageHole = -1; // 記憶上一次垃圾行的缺口位置
+  // --- 記錄戰況變數 ---
+  let myKOs = 0;
+  let oppKOs = 0;
+  let myLinesSent = 0;
+  let oppLinesSent = 0;
+  let battleTime = 120;
+  let timerInterval = null;
+  let countdownInterval = null; // 儲存倒數計時器，用來支援強制中斷
+  let isKOed = false; // 用來記錄玩家是否處於 1 秒的死亡懲罰中
+  let oppKOTimer = 0; // 記錄對手處於 KO 狀態的倒數計時
+  // --- 段位積分 (LP) 與連勝次數 ---
+  let myLP = 0; 
+  let myWinStreak = 0;
+  
+
+  const pingDisplay = document.getElementById('ping-display');
+  const scoreboardEl = document.getElementById('scoreboard');
+  const myWinsEl = document.getElementById('my-wins-el');
+  const oppWinsEl = document.getElementById('opp-wins-el');
+  const mpInputGroup = document.getElementById('mp-input-group');
+  const mpReadyGroup = document.getElementById('mp-ready-group');
+  const readyBtn = document.getElementById('ready-btn');
+  const myIdEl = document.getElementById('my-id');
+  const oppIdInput = document.getElementById('opp-id-input');
+  const connectBtn = document.getElementById('connect-btn');
+  const connStatus = document.getElementById('conn-status');
+  const oppCanvas = document.getElementById('opp-game');
+  const oppCtx = oppCanvas ? oppCanvas.getContext('2d', { alpha: false }) : null;
+
+  const mpLeaveBtn = document.getElementById('mp-leave-btn');
+  if (mpLeaveBtn) {
+    mpLeaveBtn.addEventListener('click', () => {
+      if (confirm("確定要離開對戰房間，回到單人模式嗎？")) {
+        if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
+        exitMultiplayerMode();
+      }
+    });
+  }
+
+  const SETTINGS = {
+    das: 167,
+    arr: 33,
+    softDropInterval: 30,
+    lockDelay: 500,
+    clearDuration: 150
+  };
+
+  // 文字特效
+  class FloatingText {
+    constructor(text, x, y, color, size) {
+      this.text = text;
+      this.x = x;
+      this.y = y;
+      this.color = color;
+      this.size = size;
+      this.life = 1.0;
+      this.vy = -1.5; // 向上飄浮的速度
+    }
+    update(delta) {
+      this.y += this.vy * (delta / 16);
+      this.life -= 0.015 * (delta / 16); // 逐漸變透明消失
+    }
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.life);
+      const scale = 1 + (1 - this.life) * 0.5; // 隨時間稍微放大
+      ctx.translate(this.x, this.y);
+      ctx.scale(scale, scale);
+      ctx.font = `900 ${this.size}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // 畫黑邊框增加對比度與立體感
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#000000';
+      ctx.strokeText(this.text, 0, 0);
+      
+      // 畫彩色文字主體
+      ctx.fillStyle = this.color;
+      ctx.fillText(this.text, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  // 將自己的最新名片發送給對手
+  function sendMyProfile() {
+    if (!conn || !conn.open) return;
+    const matchesEl = document.getElementById('display-matches');
+    const winRateEl = document.getElementById('display-winrate');
+    
+    conn.send({
+      type: 'PROFILE',
+      profile: {
+        name: currentPlayer || 'Guest',
+        lp: myLP || 0,
+        matches: matchesEl ? matchesEl.textContent : '0',
+        winRate: winRateEl ? winRateEl.textContent : '0%',
+        streak: myWinStreak || 0   // 把我的連勝次數發給對手
+      }
+    });
+  }
+
+  // ★ Bug 3 解決：動態門牌系統
+  function initNetwork(uidToLink = null) {
+    const currentMyIdEl = document.getElementById('my-id');
+    const currentConnectBtn = document.getElementById('connect-btn');
+    const currentOppInput = document.getElementById('opp-id-input');
+
+    // 優雅地斷開舊連線
+    if (peer) {
+      peer.disconnect();
+      setTimeout(() => {
+        if (peer) peer.destroy();
+        peer = null;
+        startNewPeer(uidToLink);
+      }, 200);
+    } else {
+      startNewPeer(uidToLink);
+    }
+
+    function startNewPeer(uid) {
+      // 不再傳入 customId，讓伺服器永遠發放全新不重複的 ID
+      peer = new Peer(); 
+      
+      peer.on('open', (id) => {
+        if (currentMyIdEl) {
+          currentMyIdEl.textContent = currentPlayer ? currentPlayer : id;
+        }
+        
+        // 如果玩家有登入，將最新的動態 ID 存入 Firebase 當作門牌
+        if (uid && currentPlayer) {
+          db.collection('users').doc(uid).set({
+            currentPeerId: id
+          }, { merge: true }).catch(err => console.log("更新門牌失敗:", err));
+        }
+      });
+
+      peer.on('error', (err) => {
+        console.error("PeerJS 錯誤:", err);
+        if (err.type === 'peer-unavailable') {
+          if (connStatus) {
+            connStatus.textContent = 'Status: Player Offline';
+            connStatus.style.color = 'var(--Z)'; 
+          }
+        } else {
+          if (connStatus) connStatus.textContent = 'Status: Error - ' + err.type;
+        }
+      });
+
+      if (currentMyIdEl) {
+        currentMyIdEl.onclick = () => {
+          // 如果是訪客，要複製背後的真實亂碼 ID 讓別人連
+          const textToCopy = currentPlayer ? currentMyIdEl.textContent : peer.id;
+          if (textToCopy && !textToCopy.includes('Loading') && !textToCopy.includes('Error')) {
+            navigator.clipboard.writeText(textToCopy).then(() => {
+              const originalText = currentMyIdEl.textContent;
+              currentMyIdEl.textContent = 'Copied!';
+              currentMyIdEl.style.color = 'var(--S)';
+              setTimeout(() => { 
+                currentMyIdEl.textContent = originalText;
+                currentMyIdEl.style.color = 'var(--O)'; 
+              }, 1000);
+            });
+          }
+        };
+      }
+
+      peer.on('connection', (connection) => {
+        // 我正在玩雙人模式，或是畫面上「已經有別人的邀請框」才算忙碌
+        const toast = document.getElementById('invite-toast');
+        const isToastShowing = toast && !toast.classList.contains('hidden');
+
+        // 如果我們「已經有建立成功的連線」，直接拒絕新來的連線，防止互相邀請衝突
+        if (conn && conn.open) {
+          connection.on('open', () => {
+            connection.send({ type: 'INVITE_BUSY' });
+            setTimeout(() => connection.close(), 500);
+          });
+          return;
+        }
+
+        if (isMultiplayer || isToastShowing) {
+          connection.on('open', () => {
+            connection.send({ type: 'INVITE_BUSY' });
+            setTimeout(() => connection.close(), 500);
+          });
+          return;
+        }
+        setupConnection(connection, false); // false 代表我是接收方
+      });
+
+      if (currentConnectBtn) {
+        currentConnectBtn.onclick = async () => {
+          const targetName = currentOppInput.value.trim();
+          if (!targetName) return;
+          
+          if (targetName === currentMyIdEl.textContent) {
+            alert("不能跟自己連線啦！"); return;
+          }
+
+          if (targetName.toUpperCase() === 'ADMIN_MARS') {
+            connStatus.textContent = 'Status: Player not found';
+            connStatus.style.color = 'var(--Z)';
+            return; // 直接中斷，不發送網路請求
+          }
+
+          connStatus.textContent = 'Status: Searching player...';
+          
+          try {
+            const snapshot = await db.collection('users').where('username', '==', targetName).get();
+            
+            if (snapshot.empty) {
+              if (targetName.length > 15 || targetName.includes('-')) {
+                const connection = peer.connect(targetName);
+                setupConnection(connection, true); // true 代表我是發送方
+              } else {
+                connStatus.textContent = 'Status: Player not found';
+                connStatus.style.color = 'var(--Z)';
+              }
+              return; 
+            }
+
+            // 取出對手當前最新的「動態門牌 (currentPeerId)」
+            let targetPeerId = null;
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              // 如果有新門牌就用新門牌，沒有的話才 fallback 到舊的 doc.id
+              targetPeerId = data.currentPeerId || doc.id; 
+            });
+
+            if (targetPeerId) {
+              const connection = peer.connect(targetPeerId);
+              setupConnection(connection, true); // true 代表我是發送方
+            }
+          } catch (error) {
+            console.error("搜尋玩家失敗:", error);
+            connStatus.textContent = 'Status: Search Error';
+          }
+        };
+      }
+    }
+  }
+
+  // 處理投降的邏輯函數
+  function handleSurrender(isOpponent) {
+    // 停止對戰倒數計時器
+    if (timerInterval) clearInterval(timerInterval);
+
+    // 顯示提示文字
+    if (isOpponent) {
+      alert("🎉 對手已投降！你獲得了本局勝利！");
+    } else {
+      showMsg("YOU SURRENDERED"); // 在畫面上顯示投降提示
+    }
+
+    // LP 加減分、勝場數增加、播放音效、以及把按鈕變回 READY
+    endBattleMatch(isOpponent ? 'WIN' : 'LOSE'); 
+
+    // 更新連線狀態文字，確保 UI 完美重置
+    const connStatus = document.getElementById('conn-status');
+    if (connStatus) {
+      connStatus.textContent = 'Status: WAITING FOR READY';
+      connStatus.style.color = 'var(--O)';
+    }
+  }
+
+  // READY / 投降 按鍵邏輯
+  if (readyBtn) {
+    readyBtn.addEventListener('click', () => {
+      if (!isMultiplayer) return;
+
+      // 如果現在按鈕是「投降」模式
+      if (readyBtn.textContent.includes('SURRENDER')) {
+        if (confirm("確定要投降嗎？這將會讓對手直接獲得 1 勝！")) {
+          if (conn && conn.open) conn.send({ type: 'SURRENDER' });
+          handleSurrender(false); // false 代表是我自己投降
+        }
+        return;
+      }
+
+      // 如果是準備模式
+      if (iAmReady) return;
+      iAmReady = true;
+      readyBtn.textContent = 'WAITING...';
+      readyBtn.style.background = 'gray';
+      readyBtn.disabled = true;
+      
+      mySeed = Math.floor(Math.random() * 1000000); // 產生我方種子
+      if (conn && conn.open) conn.send({ type: 'READY', seed: mySeed });
+      checkBothReady();
+    });
+  }
+
+  // 檢查雙方準備邏輯 (合併種子)
+  function checkBothReady() {
+    if (iAmReady && oppIsReady) {
+      currentSeed = mySeed + oppSeed; // 雙方種子相加，變成世界上獨一無二且雙方共同的密碼！
+      connStatus.textContent = 'Status: STARTING...';
+      connStatus.style.color = 'var(--S)';
+      startCountdown();
+    }
+  }
+
+  // --- 開局準備 (只清空盤面、抽好預覽方塊，但還不落下) ---
+  function prepareGame() {
+    board = createBoard();
+    gameStarted = true; // 隱藏 PRESS ENTER 提示
+
+    // 解決秒斷線 Bug：在開局瞬間，將掛機與心跳時間強制重置到最新
+    lastActionTime = Date.now(); 
+    lastHeartbeat = Date.now();
+
+    if (isMultiplayer && connStatus) {
+      connStatus.textContent = 'Status: PLAYING...';
+      connStatus.style.color = 'var(--S)';
+    }
+    bag = []; queue = []; current = null; holdType = null; holdUsed = false;
+    score = 0; lines = 0; level = 1; activeGarbage = 0; nextGarbage = 0;
+    gameOver = false; isPaused = false; gravityTimer = 0; lastTime = 0;
+    clearFx = null; lockTimer = 0; lockResets = 0; moveCooldown = 0;
+    dasTimer = 0; arrTimer = 0; activeDir = 0; keysDown = new Set();
+    lastMoveType = null; lastKickIndex = 0; b2b = 0; combo = -1;
+
+    isKOed = false; // 確保每次新開局，絕對不會帶著上一局的死亡狀態
+    matchResult = null; // 強制重置上一局的勝負結果
+
+    if (actionMsgEl) actionMsgEl.textContent = '';
+    
+    updateHUD(); 
+    updateSoundUI(); 
+    ensureQueue();  // 預先抽好 5 顆預覽方塊
+    renderPanels(); // 畫到畫面的 NEXT 與 QUEUE 面板上
+    draw();         // 畫出乾淨的盤面
+  }
+
+  // --- 啟動 3、2、1 倒數 (單人/雙人共用) ---
+  function startCountdown() {
+    if (countdownInterval) clearInterval(countdownInterval);
+
+    countdownValue = 3;
+    playSound('move');
+
+    // 如果是單機模式，而且音樂「還沒在播放」，才呼叫播放
+        if (!isMultiplayer && !isBgmMuted) {
+          if (typeof bgm !== 'undefined' && bgm.paused) {
+            bgm.play().catch(e=>console.log(e));
+          }
+        }
+    
+    prepareGame(); // ★ 倒數前，先準備好盤面與預覽方塊讓你偷看！
+    
+    // 重置對戰數據
+    myKOs = 0; oppKOs = 0; myLinesSent = 0; oppLinesSent = 0;
+    matchResult = null; // 重置上一局的勝負結果，防止復活卡死
+    const myKoEl = document.getElementById('my-ko-display');
+    const oppKoEl = document.getElementById('opp-ko-display');
+    const myLinesEl = document.getElementById('my-lines-sent-display');
+    const oppLinesEl = document.getElementById('opp-lines-sent-display');
+    if (myKoEl) myKoEl.textContent = '0';
+    if (oppKoEl) oppKoEl.textContent = '0';
+    if (myLinesEl) myLinesEl.textContent = '0';
+    if (oppLinesEl) oppLinesEl.textContent = '0';
+    
+    const timerEl = document.getElementById('battle-timer');
+    if (timerEl) timerEl.textContent = "02:00";
+    
+    countdownInterval = setInterval(() => {
+      countdownValue--;
+      if (countdownValue > 0) {
+        playSound('move');
+      } else {
+        playSound('perfect'); 
+        clearInterval(countdownInterval);
+
+        if (isMultiplayer) {
+          // 連線模式倒數結束，開始播放對戰音樂！
+          if (!isBgmMuted && typeof battleBgm !== 'undefined') {
+            battleBgm.currentTime = 0;
+            battleBgm.play().catch(e=>console.log(e));
+          }
+          iAmReady = false;
+          oppIsReady = false;
+          if (readyBtn) {
+             readyBtn.textContent = '🏳️ SURRENDER'; // 變成投降
+             readyBtn.disabled = false;
+             readyBtn.style.background = 'var(--Z)'; // 紅色按鍵
+             readyBtn.style.color = 'var(--white)';  // 白色字體
+          }
+          connStatus.textContent = 'Status: CONNECTED! GO!';
+          
+          battleTime = 120;
+          if (timerInterval) clearInterval(timerInterval);
+          timerInterval = setInterval(() => {
+            if (!gameOver && isMultiplayer) {
+              battleTime--;
+              let mins = Math.floor(battleTime / 60);
+              let secs = battleTime % 60;
+              if (timerEl) timerEl.textContent = `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
+              
+              if (battleTime <= 0) {
+                clearInterval(timerInterval);
+                endBattleMatch(); 
+              }
+            }
+          }, 1000);
+        }
+        lastActionTime = Date.now(); // 倒數結束，開始嚴格計算掛機時間
+        spawn(); // 倒數結束，第一顆方塊才真正落下！
+      }
+    }, 1000); 
+  }
+
+  let inviteTimeoutTimer = null;
+
+  // 進入雙人模式的畫面切換邏輯
+  function enterMultiplayerMode() {
+    isMultiplayer = true;
+    if (typeof bgm !== 'undefined') {
+      bgm.pause(); // 進入連線模式時，關閉單機 BGM
+      bgm.currentTime = 0;
+    }
+    initMenu();
+    
+    // 顯示離開房間按鈕
+    const mpLeaveBtn = document.getElementById('mp-leave-btn');
+    if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
+
+    const connStatus = document.getElementById('conn-status');
+    if (connStatus) {
+      connStatus.textContent = 'Status: WAITING FOR READY';
+      connStatus.style.color = 'var(--O)';
+    }
+    playSound('perfect'); 
+
+    const oppTitleEl = document.getElementById('opp-name-display');
+    if (oppTitleEl) {
+      oppTitleEl.innerHTML = 'LOADING...';
+      oppTitleEl.style.color = 'rgba(255,255,255,0.5)';
+    }
+
+    const layout = document.getElementById('layout');
+    if (layout) layout.classList.add('is-multiplayer');
+
+    const oppPanel = document.getElementById('opp-panel');
+    const scorePanel = document.getElementById('singleplayer-ui');
+    const vsTimer = document.getElementById('vs-timer');
+
+    if (oppPanel) oppPanel.classList.remove('hidden');
+    if (scorePanel) scorePanel.classList.add('hidden');
+    if (vsTimer) vsTimer.classList.remove('hidden');
+    
+    document.querySelectorAll('.mp-only').forEach(el => el.classList.remove('hidden'));
+    
+    // 進入連線模式時隱藏線上名單
+    const onlinePanel = document.getElementById('online-panel');
+    if (onlinePanel) onlinePanel.classList.add('hidden');
+
+    // 重置並暫停計時器
+    if (timerInterval) clearInterval(timerInterval);
+    const timerEl = document.getElementById('battle-timer');
+    if (timerEl) timerEl.textContent = "02:00";
+
+    // 更新分數與 UI
+    if (conn && lastOpponentId !== conn.peer) {
+      myWins = 0; oppWins = 0;
+      lastOpponentId = conn.peer; 
+    }
+    const myWinsEl = document.getElementById('my-wins-el');
+    const oppWinsEl = document.getElementById('opp-wins-el');
+    if (myWinsEl) myWinsEl.textContent = myWins;
+    if (oppWinsEl) oppWinsEl.textContent = oppWins;
+    
+    const scoreboardEl = document.getElementById('scoreboard');
+    if (scoreboardEl) scoreboardEl.style.display = 'block';
+
+    const emojiPanel = document.getElementById('emoji-hint-panel');
+    if (emojiPanel) emojiPanel.classList.remove('hidden');
+
+    const mpInputGroup = document.getElementById('mp-input-group');
+    const mpReadyGroup = document.getElementById('mp-ready-group');
+    if(mpInputGroup) mpInputGroup.style.display = 'none';
+    if(mpReadyGroup) mpReadyGroup.style.display = 'flex';
+    
+    const pingDisplay = document.getElementById('ping-display');
+    if (pingDisplay) pingDisplay.style.display = 'inline';
+    if (pingInterval) clearInterval(pingInterval);
+
+    lastHeartbeat = Date.now(); 
+
+    pingInterval = setInterval(() => {
+      if (isMultiplayer && gameStarted && !gameOver) {
+        if (Date.now() - lastHeartbeat > 10000 && countdownValue <= 0) {
+          gameOver = true;
+          alert("⚠️ 對手連線超時 (可能已斷網)！本局不結算。");
+          if (conn) { conn.close(); conn = null; }
+        }
+      }
+      if (conn && conn.open) {
+        lastPingTime = Date.now();
+        conn.send({ type: 'PING' }); 
+      }
+    }, 2000);
+    
+    setTimeout(sendMyProfile, 500);
+
+    // 確保所有 UI 切換完畢後，才呼叫自適應縮放
+    setTimeout(fitLayout, 100);
+  }
+
+  // 退出雙人模式的畫面切換邏輯 (抽離出來)
+  function exitMultiplayerMode() {
+    if (typeof battleBgm !== 'undefined') battleBgm.pause(); // 退出對戰時切斷音樂
+    if (timerInterval) clearInterval(timerInterval); // 退出時確保計時器徹底停止
+    if (gameStarted && !gameOver) {
+      gameOver = true;
+      alert("⚠️ 對手已斷線或離開遊戲！本局不結算。");
+    }
+
+    isMultiplayer = false; iAmReady = false; oppIsReady = false;
+
+    // 隱藏離開房間按鈕
+    const mpLeaveBtn = document.getElementById('mp-leave-btn');
+    if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
+
+    connStatus.textContent = 'Status: Offline';
+    connStatus.style.color = 'rgba(255,255,255,0.5)';
+    conn = null; oppState = null;
+
+    const oppTitleEl = document.getElementById('opp-name-display');
+    if (oppTitleEl) {
+       oppTitleEl.innerHTML = 'OPPONENT'; 
+       oppTitleEl.style.color = 'var(--Z)';
+       oppTitleEl.style.textShadow = '0 0 10px var(--Z)';
+    }
+
+    const layout = document.getElementById('layout');
+    if (layout) layout.classList.remove('is-multiplayer'); 
+
+    const oppPanel = document.getElementById('opp-panel');
+    const scorePanel = document.getElementById('singleplayer-ui');
+    const vsTimer = document.getElementById('vs-timer');
+
+    if (oppPanel) oppPanel.classList.add('hidden');
+    if (scorePanel) scorePanel.classList.remove('hidden');
+    if (vsTimer) vsTimer.classList.add('hidden'); 
+    document.querySelectorAll('.mp-only').forEach(el => el.classList.add('hidden'));
+
+    // 斷線時，如果有登入帳號則恢復顯示線上名單
+    if (currentUserUID) {
+      const onlinePanel = document.getElementById('online-panel');
+      if (onlinePanel) onlinePanel.classList.remove('hidden');
+    }
+
+    setTimeout(fitLayout, 50);
+
+    if(scoreboardEl) scoreboardEl.style.display = 'none'; 
+    if(mpInputGroup) mpInputGroup.style.display = 'flex';
+    if(mpReadyGroup) mpReadyGroup.style.display = 'none';
+    
+    const emojiPanel = document.getElementById('emoji-hint-panel');
+    if (emojiPanel) emojiPanel.classList.add('hidden');
+
+    if (pingInterval) clearInterval(pingInterval);
+    if (pingDisplay) pingDisplay.style.display = 'none';
+
+    // 一回到單機畫面，立刻無縫接軌單人模式的BGM
+    if (!isBgmMuted && bgmStarted) {
+      bgm.currentTime = 0;
+      let playPromise = bgm.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => console.log("BGM autoplay prevented:", e));
+      }
+    }
+
+    // 確保退出房間時，把按鈕徹底變回預設的綠色 READY
+    const readyBtn = document.getElementById('ready-btn');
+    if (readyBtn) {
+      readyBtn.textContent = 'READY';
+      readyBtn.style.background = 'var(--S)';
+      readyBtn.style.color = 'var(--bg)';
+      readyBtn.disabled = false;
+    }
+  }
+
+  function setupConnection(connection, isSender = false) {
+    conn = connection;
+    
+    if (isSender) {
+      connStatus.textContent = 'Status: Waiting for reply...';
+      connStatus.style.color = 'var(--O)';
+
+    // 將發送邀請的動作包裝起來
+      const sendInvite = () => {
+        conn.send({ type: 'INVITE', from: currentPlayer || 'Guest' });
+        // 15秒超時自動放棄
+        conn.inviteTimeout = setTimeout(() => {
+          if (conn) {
+            connStatus.textContent = 'Status: No response';
+            connStatus.style.color = 'var(--Z)';
+            conn.close();
+          }
+        }, 15000);
+      };
+
+      // 如果連線已經是開啟狀態，直接發送；否則才等待 open 事件
+      if (conn.open) {
+        sendInvite();
+      } else {
+        conn.on('open', sendInvite);
+      }
+    }
+
+    conn.on('data', (data) => {
+      lastHeartbeat = Date.now(); 
+
+      // === 連線邀請階段 (Handshake) ===
+      if (data.type === 'INVITE') {
+        // 接收方收到邀請：顯示 Toast (這時原本的單機遊戲依然可繼續玩)
+        const toast = document.getElementById('invite-toast');
+        document.getElementById('invite-sender-name').textContent = data.from;
+        toast.classList.remove('hidden');
+        playSound('perfect');
+
+        // 如果太久沒理他，自動取消通知
+        inviteTimeoutTimer = setTimeout(() => {
+          toast.classList.add('hidden');
+          if (conn) conn.close();
+        }, 15000);
+      }
+      else if (data.type === 'INVITE_ACCEPT') {
+        // 發送方收到對方答應
+        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        enterMultiplayerMode();
+      }
+      else if (data.type === 'INVITE_REJECT') {
+        // 發送方收到對方拒絕
+        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        connStatus.textContent = 'Status: Request Rejected';
+        connStatus.style.color = 'var(--Z)';
+        conn.close();
+      }
+      else if (data.type === 'INVITE_BUSY') {
+        // 發送方收到對方忙碌中
+        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        connStatus.textContent = 'Status: Player is busy';
+        connStatus.style.color = 'var(--Z)';
+        conn.close();
+      }
+      
+      // === 遊戲進行階段 ===
+      else if (data.type === 'READY') {
+        oppIsReady = true;
+        oppSeed = data.seed; 
+        checkBothReady();
+      } else if (data.type === 'SURRENDER') {
+        if (!gameOver) handleSurrender(true); // true 代表是對手投降
+      } else if (data.type === 'STATE') {
+        oppState = data.state; 
+      } else if (data.type === 'ATTACK') {
+        if (!gameOver) {
+          oppLinesSent += data.lines;
+          const oppLinesEl = document.getElementById('opp-lines-sent-display');
+          if (oppLinesEl) oppLinesEl.textContent = oppLinesSent;
+          myFloatingTexts.push(new FloatingText(`+${data.lines}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, '#ff0d62', 50));
+          playSound('drop'); shakeMag = 15;
+          setTimeout(() => {
+            if (!gameOver) { nextGarbage += data.lines; sendState(); }
+          }, 2000); 
+        }
+      }
+      else if (data.type === 'I_AM_KO') {
+        if (!gameOver) {
+          myKOs++;
+          const myKoEl = document.getElementById('my-ko-display');
+          if (myKoEl) myKoEl.textContent = myKOs;
+          showMsg("YOU GOT A KO!"); playSound('perfect');
+
+          // 在對手的畫面上噴出超巨大的 K.O. 字樣
+          oppFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
+
+          // 設定對手盤面變暗 1 秒 (1000 毫秒)
+          oppKOTimer = 1000;
+        }
+      }
+      else if (data.type === 'OPPONENT_DISCONNECTED') {
+        // 移除遊戲狀態的限制。不管在準備中還是結算畫面，只要對方離開就一起退出
+        alert("🚪 對手已離開對戰房間，即將為您返回單人模式。");
+        gameOver = true; // 設為 true 避免觸發 exitMultiplayerMode 內建的重複警告
+        if (conn) conn.close(); // 關閉連線，這會自動在背景觸發 exitMultiplayerMode() 幫你切換回單機 UI
+      }
+      else if (data.type === 'PROFILE') {
+        const oppTitleEl = document.getElementById('opp-name-display');
+        if (oppTitleEl) {
+          const p = data.profile;
+          const oppFire = (p.streak >= 3) ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
+          if (p.name === 'Guest') {
+            oppTitleEl.innerHTML = `GUEST<br><span style="font-size:14px; font-weight:bold; color:rgba(255,255,255,0.5); letter-spacing:1px;">訪客模式 (無排位)</span>`;
+            oppTitleEl.style.color = 'var(--white)';
+          } else {
+            let lp = p.lp || 0;
+            let rankName = '銅牌'; let color = '#CD7F32';
+            if (lp >= 1200) { rankName = '菁英'; color = '#00FFFF'; }
+            else if (lp >= 1000) { rankName = '大師'; color = '#FF00FF'; }
+            else if (lp >= 800) { rankName = '鑽石'; color = '#b9f2ff'; }
+            else if (lp >= 600) { rankName = '白金'; color = '#00FF7F'; }
+            else if (lp >= 400) { rankName = '金牌'; color = '#FFD700'; }
+            else if (lp >= 200) { rankName = '銀牌'; color = '#C0C0C0'; }
+            oppTitleEl.innerHTML = `
+              <div style="white-space: nowrap; line-height: 1;">${p.name}${oppFire}</div>
+              <div style="font-size:12px; font-weight:bold; color:${color}; letter-spacing:1px; text-shadow:0 0 5px ${color}; margin-top:6px; line-height: 1;">${rankName} (${lp} LP) | ${p.matches}局 | 勝率${p.winRate}</div>
+            `;
+            // 同時覆蓋字體顏色與陰影顏色，消除混濁感
+            oppTitleEl.style.color = 'var(--Z)';
+            oppTitleEl.style.textShadow = '0 0 10px var(--Z)';
+          }
+        }
+      }
+      else if (data.type === 'EMOJI') {
+          myFloatingTexts.push(new FloatingText(data.emoji, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ffffff', 55));
+          playSound('move');
+      }
+      else if (data.type === 'PING') {
+        if (conn && conn.open) conn.send({ type: 'PONG' });
+      } 
+      else if (data.type === 'PONG') {
+        const rtt = Date.now() - lastPingTime;
+        if (pingDisplay) {
+          pingDisplay.textContent = `Ping: ${rtt}ms`;
+          if (rtt < 50) pingDisplay.style.color = 'var(--S)'; 
+          else if (rtt < 150) pingDisplay.style.color = 'var(--O)'; 
+          else pingDisplay.style.color = 'var(--Z)'; 
+        }
+      }
+    });
+
+    conn.on('close', () => {
+      // 判斷：如果是已經進入雙人模式的斷線，才觸發 UI 退出
+      if (isMultiplayer) {
+        exitMultiplayerMode();
+      }
+    });
+  }
+
+  // 確保 PeerJS 載入後啟動網路功能
+  if (typeof Peer !== 'undefined') initNetwork();
+
+  // 更新畫面上 SOUND 的 ON/OFF 顯示，並同步控制 BGM
+  function updateSoundUI() {
+    const bgmStatusEl = document.getElementById('bgm-status');
+    const sfxStatusEl = document.getElementById('sfx-status');
+
+    if (bgmStatusEl) {
+      if (isBgmMuted || masterVolume === 0) {
+        bgmStatusEl.textContent = 'OFF';
+        bgmStatusEl.style.color = 'rgba(255,255,255,0.5)';
+      } else {
+        bgmStatusEl.textContent = Math.round(masterVolume * 100) + '%';
+        bgmStatusEl.style.color = 'var(--white)';
+      }
+    }
+
+    if (sfxStatusEl) {
+      if (isSfxMuted || masterVolume === 0) {
+        sfxStatusEl.textContent = 'OFF';
+        sfxStatusEl.style.color = 'rgba(255,255,255,0.5)';
+      } else {
+        sfxStatusEl.textContent = Math.round(masterVolume * 100) + '%';
+        sfxStatusEl.style.color = 'var(--white)';
+      }
+    }
+    
+    // 同步兩種 BGM 的音量與靜音狀態
+    if (typeof bgm !== 'undefined') {
+      bgm.muted = isBgmMuted;
+      bgm.volume = masterVolume * 0.15;
+    }
+    if (typeof battleBgm !== 'undefined') {
+      battleBgm.muted = isBgmMuted;
+      battleBgm.volume = masterVolume * 0.15;
+    }
+  }
+  
+  // 迷你合成器：根據不同動作發出不同頻率與波形的聲音
+  function playSound(type, param = 0) {
+    if (isSfxMuted || !audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+    
+    if (type === 'move') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, now);
+      gain.gain.setValueAtTime(0.05 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      osc.start(now); osc.stop(now + 0.05);
+    } else if (type === 'rotate') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(600, now);
+      gain.gain.setValueAtTime(0.05 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.start(now); osc.stop(now + 0.08);
+    } else if (type === 'drop') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+      gain.gain.setValueAtTime(0.15 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'clear') {
+      // --- 升級：Combo 升頻機制 ---
+      // param 接收 Combo 數量，利用十二平均律讓每次 Combo 完美升半音 (乘上 1.05946)
+      const pitchMultiplier = Math.pow(1.05946, param); 
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(400 * pitchMultiplier, now);
+      osc.frequency.linearRampToValueAtTime(1200 * pitchMultiplier, now + 0.3);
+      gain.gain.setValueAtTime(0.15 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.start(now); osc.stop(now + 0.4);
+    } else if (type === 'tetris') {
+      // --- 新增：Tetris 專屬的雙重震盪器「和弦」爆炸聲 ---
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(250, now);
+      osc.frequency.linearRampToValueAtTime(500, now + 0.4);
+      
+      const osc2 = audioCtx.createOscillator(); // 第二顆音源
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(375, now);  // 疊加完美的五度音程
+      osc2.frequency.linearRampToValueAtTime(750, now + 0.4);
+      osc2.connect(gain);
+      osc2.start(now); osc2.stop(now + 0.5);
+
+      gain.gain.setValueAtTime(0.25 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.start(now); osc.stop(now + 0.5);
+    } else if (type === 'tspin') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.linearRampToValueAtTime(1760, now + 0.2);
+      gain.gain.setValueAtTime(0.2 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.start(now); osc.stop(now + 0.5);
+    } else if (type === 'perfect') {
+      // --- 新增：Perfect Clear 神聖高音 ---
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.linearRampToValueAtTime(2400, now + 0.6);
+      gain.gain.setValueAtTime(0.25 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      osc.start(now); osc.stop(now + 0.8);
+    } 
+    // 獲勝時的凱旋合成器琶音 (C Major 和弦: C-E-G-C)
+    else if (type === 'win') {
+      const frequencies = [261.63, 329.63, 392.00, 523.25]; // 基礎 C 大調
+      frequencies.forEach((freq, index) => {
+        const oscW = audioCtx.createOscillator();
+        const gainW = audioCtx.createGain();
+        oscW.type = 'sawtooth'; // 使用鋸齒波產生明亮、金屬感的合成器銅管聲
+        oscW.frequency.setValueAtTime(freq, now);
+        oscW.connect(gainW);
+        gainW.connect(audioCtx.destination);
+        
+        // 琶音效果：每個音符稍微延遲發出，形成往上掃弦的感覺
+        const startTime = now + index * 0.1; 
+        oscW.start(startTime);
+        
+        gainW.gain.setValueAtTime(0, startTime);
+        gainW.gain.linearRampToValueAtTime(0.2 * masterVolume, startTime + 0.1);
+        gainW.gain.exponentialRampToValueAtTime(0.001, startTime + 1.5); // 長音漸弱
+        oscW.stop(startTime + 1.5);
+      });
+      
+    // 落敗時的低沉嘆息聲
+    } else if (type === 'lose') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.exponentialRampToValueAtTime(50, now + 1); // 音調無力地下墜
+      gain.gain.setValueAtTime(0.25 * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+      osc.start(now); osc.stop(now + 1.2);
+    }
+  } 
+
+  // --- 粒子引擎與特效 (必須在全局環境) ---
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      this.vx = (Math.random() - 0.5) * 4; 
+      this.vy = (Math.random() - 2) * 2 - 1; 
+      this.life = 1; 
+      this.decay = 0.02 + Math.random() * 0.02; 
+      this.color = color;
+      this.size = 2 + Math.random() * 3; 
+    }
+    update(delta) {
+      this.x += this.vx * (delta / 16);
+      this.y += this.vy * (delta / 16);
+      this.vy += 0.1 * (delta / 16); 
+      this.life -= this.decay * (delta / 16);
+    }
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = this.life; 
+      ctx.fillStyle = this.color;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function triggerLandingEffect(r, c, type) {
+    const color = COLORS[type]; 
+    const MARGIN = 0; 
+    const startX = MARGIN + (c + 0.5) * SIZE;
+    // --- 把 Y 座標扣除 20 行隱藏區的高度 ---
+    const startY = (r - VISIBLE_ROWS + 1) * SIZE; 
+
+    const count = 10 + Math.random() * 5;
+    for (let i = 0; i < count; i++) {
+      particles.push(new Particle(startX, startY, color));
+    }
+  }
+
+  function fitLayout() {
+    const layout = document.getElementById('layout');
+    if (!layout) return;
+
+    layout.style.transform = 'none';
+    const rect = layout.getBoundingClientRect();
+
+    const paddingW = 20; 
+    // 把上下邊界縮小，讓畫面強制放大，不再過度退縮
+    const paddingH = isMultiplayer ? 90 : 40; 
+
+    const availW = window.innerWidth - paddingW;
+    const availH = window.innerHeight - paddingH;
+    
+    const scale = Math.min(availW / rect.width, availH / rect.height, 1);
+    
+    // 微調下移量，只給頂部的 02:00 預留剛剛好的空間
+    const offsetY = isMultiplayer ? 'calc(-50% + 25px)' : '-50%';
+    
+    layout.style.transform = `translate(-50%, ${offsetY}) scale(${scale})`;
+  }
+
+  function clone(m) { return m.map(row => row.slice()); }
+  function createBoard() { return Array.from({length: ROWS}, () => Array(COLS).fill(null)); }
+
+  // --- 偽隨機數生成器 (PRNG) ---
+  function rng() {
+    if (!isMultiplayer) return Math.random(); // 單機模式維持原生隨機
+    // 連線模式：使用線性同餘生成器 (LCG)，確保雙方拿到一樣的數字
+    currentSeed = (currentSeed * 9301 + 49297) % 233280;
+    return currentSeed / 233280;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1)); // 替換掉 Math.random()
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+  function refillBag() { bag = shuffle(['I','J','L','O','S','T','Z']); }
+  function pullBag() {
+    if (!bag.length) refillBag();
+    return bag.pop();
+  }
+  function ensureQueue() {
+    while (queue.length < 5) queue.push(pullBag());
+  }
+
+  function makePiece(type) {
+    const matrix = clone(PIECES[type][0]);
+    const width = matrix[0].length;
+    // 將方塊出生在隱藏區的最底部 (畫面正上方)
+    const startRow = type === 'I' ? 18 : 19;
+    return { type, matrix, rot: 0, row: startRow, col: Math.floor(COLS / 2) - Math.ceil(width / 2), lowestRow: startRow};
+  }
+
+  // --- 更新畫面分數與存取最高分 ---
+  function updateHUD() {
+    scoreEl.textContent = String(score);
+    linesEl.textContent = String(lines);
+    levelEl.textContent = String(level);
+    
+    // 只有在「單人模式」且「非練習模式」，才計算並上傳最高分
+    if (!isMultiplayer && !isPracticeMode && currentPlayer !== 'Admin_Mars') {
+      if (score > highScore) {
+        highScore = score;
+        
+        // 這裡只負責更新訪客的本機紀錄，不再狂戳 Firebase
+        if (!currentUserUID) {
+          localStorage.setItem('tetrisHighScore', highScore);
+        }
+      }
+    }
+    
+    // 更新畫面上顯示的最高紀錄 (這行保持在外面，確保單人/雙人畫面都能顯示紀錄)
+    if (highScoreEl) highScoreEl.textContent = String(highScore);
+  }
+
+  // --- 遊戲結束 / KO 處理系統 ---
+  function triggerGameOver() {
+    if (gameOver) return;
+    if (isMultiplayer && isKOed) return; // 防呆：避免一瞬間重複死兩次
+    
+    shakeMag = 20; 
+    playSound('drop');
+
+    if (isMultiplayer) {
+      isKOed = true; // 進入死亡僵直
+      if (conn && conn.open) conn.send({ type: 'I_AM_KO' });
+
+      // 把尚未進場的垃圾條清空
+      activeGarbage = 0;
+      nextGarbage = 0;
+
+      // 我被 KO，對手的 KO 數要在我的畫面也同步 +1
+      oppKOs++;
+      const oppKoEl = document.getElementById('opp-ko-display');
+      if (oppKoEl) oppKoEl.textContent = oppKOs;
+
+      // 在自己的畫面上噴出超巨大的 K.O. 字樣
+      myFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
+
+      current = null; 
+      sendState();    
+      
+      // 1 秒的死亡懲罰時間
+      setTimeout(() => {
+        if (!isMultiplayer || matchResult) return;
+
+        // 過濾掉所有包含 'G' 的垃圾行
+        let newBoard = board.filter(row => !row.includes('G'));
+        
+        // 強制削平最上面 4 行，確保新方塊絕對有空間出生！
+        while (newBoard.length > VISIBLE_ROWS - 4) {
+          newBoard.shift(); 
+        }
+
+        // 在頂部補齊空行，讓玩家的方塊自然下墜
+        while (newBoard.length < ROWS) {
+          newBoard.unshift(Array(COLS).fill(null));
+        }
+        board = newBoard;
+
+        // 再次確保垃圾歸零
+        activeGarbage = 0;
+        nextGarbage = 0;
+
+        // 把所有輸入/鎖定/計時狀態一起重置
+        current = null;
+        holdUsed = false;
+        isKOed = false; // 解除死亡狀態，讓遊戲繼續
+        clearFx = null;
+
+        lockTimer = 0;
+        lockResets = 0;
+        gravityTimer = 0;
+        moveCooldown = 0;
+        dasTimer = 0;
+        arrTimer = 0;
+        activeDir = 0;
+        lastMoveType = null;
+        lastKickIndex = 0;
+
+        // 清空所有仍然按著的鍵，避免復活時自動 hard drop
+        keysDown.clear();
+
+        spawn(); // 重新產生方塊
+        sendState();
+      }, 1000);
+
+    } else {
+      // 單機模式的 Game Over 處理
+      gameOver = true;
+      playSound('lose'); 
+      if (!isPracticeMode && isCloudDataLoaded && currentUserUID && currentPlayer && currentPlayer !== 'Admin_Mars') {
+        db.collection('users').doc(currentUserUID).set({
+          username: currentPlayer,
+          highScore: highScore,
+          lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }).then(() => {
+          console.log("✅ 最高分已成功寫入雲端伺服器！");
+        }).catch(err => {
+          console.error("上傳最高分失敗:", err);
+          // ★ 強制跳出錯誤視窗，抓出拒絕存檔的兇手！
+          alert("⚠️ 雲端存檔被伺服器拒絕！\n\n錯誤原因：" + err.message + "\n\n(這通常是因為資料庫權限過期，或是配額還沒解鎖)");
+        });
+      }
+    }
+  }
+
+  // --- 2分鐘時間到，結算對戰勝負與積分 ---
+  function endBattleMatch(forcedResult = null) {
+    gameOver = true;
+    if (typeof battleBgm !== 'undefined') battleBgm.pause(); // 時間到，切斷對戰音樂
+    if (isMultiplayer) {
+      // 基礎勝負邏輯判定 (支援投降與行高矮度判定)
+      if (forcedResult) {
+        matchResult = forcedResult;
+      } else {
+        if (myKOs > oppKOs) matchResult = 'WIN';
+        else if (myKOs < oppKOs) matchResult = 'LOSE';
+        else {
+          if (myLinesSent > oppLinesSent) matchResult = 'WIN';
+          else if (myLinesSent < oppLinesSent) matchResult = 'LOSE';
+          else {
+            // 進入平手判定，計算雙方畫面的「最高方塊高度」
+            let myHeight = 0;
+            for (let r = 0; r < ROWS; r++) {
+              if (board[r].some(cell => cell !== null)) { myHeight = ROWS - r; break; }
+            }
+            
+            let oppHeight = 0;
+            if (oppState && oppState.b) {
+              let idx = 0;
+              for (let r = 0; r < ROWS; r++) {
+                let hasBlock = false;
+                for (let c = 0; c < COLS; c++) {
+                  if (oppState.b[idx++] !== '.') hasBlock = true;
+                }
+                if (hasBlock) { oppHeight = ROWS - r; break; }
+              }
+            }
+
+            // 高度越低越好
+            if (myHeight < oppHeight) matchResult = 'WIN';
+            else if (myHeight > oppHeight) matchResult = 'LOSE';
+            else matchResult = 'DRAW'; // 真的連高度都完全一樣才平手
+          }
+        }
+      }
+
+      // 根據勝負結果播放專屬音效
+      if (matchResult === 'WIN') playSound('win');
+      else if (matchResult === 'LOSE') playSound('lose');
+
+      // 更新房間內的累計大比分 (不影響資料庫)
+      if (matchResult === 'WIN') myWins++;
+      else if (matchResult === 'LOSE') oppWins++;
+      if (myWinsEl) myWinsEl.textContent = myWins;
+      if (oppWinsEl) oppWinsEl.textContent = oppWins;
+
+      // 嚴謹防刷判定 (Valid Match)
+      let oppScore = (oppState && oppState.s) ? oppState.s : 0;
+      let oppLP = (oppState && oppState.lp) ? oppState.lp : 0;
+      let oppIsGuest = (oppState && oppState.isGuest) ? true : false;
+      
+      // 條件：時間耗盡(0秒)、我方破千分、對方破千分、我方非訪客、對方非訪客
+      let isValidMatch = (battleTime <= 0) && (score >= 1000) && (oppScore >= 1000) && currentUserUID && !oppIsGuest && currentPlayer !== 'Admin_Mars';
+
+      // 如果是投降局，只要雙方不是訪客/管理員，無條件視為「有效對戰」進行扣分與加分！
+      if (forcedResult && currentUserUID && !oppIsGuest && currentPlayer !== 'Admin_Mars') {
+        isValidMatch = true;
+      }
+
+      // 4. 排位積分 (LP) 結算邏輯
+      if (isValidMatch) {
+        let lpChange = 0;
+        let lpDiff = oppLP - myLP;
+
+        if (matchResult === 'WIN') {
+          lpChange = 20; // 基礎獲勝分數
+          if (lpDiff >= 200) lpChange += 15;      // 越大級打怪
+          else if (lpDiff >= 100) lpChange += 10; // 越小級打怪
+          else if (lpDiff <= -200) lpChange -= 10;// 虐菜局獎勵減半
+
+          if (myWinStreak >= 5) lpChange += 10;   // 高連勝獎勵
+          else if (myWinStreak >= 2) lpChange += 5;
+          if (score >= 10000) lpChange += 5;      // 表現優異獎勵
+          
+          myWinStreak++; 
+        } 
+        else if (matchResult === 'LOSE') {
+          lpChange = -15; // 基礎落敗扣分
+          if (myLP >= 800) lpChange = -20;        // 鑽石以上懲罰增加
+          if (myLP >= 1200) lpChange = -25;       // 菁英懲罰最高
+          if (lpDiff >= 200) lpChange += 10;      // 雖敗猶榮
+          else if (lpDiff <= -200) lpChange -= 15; // 爆冷門慘輸
+          
+          myWinStreak = 0; 
+        } 
+        else {
+          myWinStreak = 0; // 平手中斷連勝
+        }
+
+        myLP = Math.max(0, myLP + lpChange);
+
+        // 5. 將數據寫入 Firebase
+        let updateData = {
+          matches: firebase.firestore.FieldValue.increment(1),
+          lp: myLP,
+          winStreak: myWinStreak
+        };
+        if (matchResult === 'WIN') {
+          updateData.wins = firebase.firestore.FieldValue.increment(1);
+        }
+
+        db.collection('users').doc(currentUserUID).set(updateData, { merge: true })
+        .then(() => {
+          // 寫入成功後重新讀取資料，確保 UI 上的勝率、段位與火焰同步更新
+          db.collection('users').doc(currentUserUID).get().then(doc => {
+            if(doc.exists) {
+              const data = doc.data();
+              const m = data.matches || 0;
+              const w = data.wins || 0;
+              const wr = m > 0 ? Math.round((w / m) * 100) : 0;
+              const currentStreak = data.winStreak || 0;
+              
+              document.getElementById('display-matches').textContent = m;
+              document.getElementById('display-winrate').textContent = wr + '%';
+              document.getElementById('display-streak').textContent = currentStreak + ' W';
+              updateRankUI(data.lp || 0);
+
+              // 更新名字旁邊的連勝火焰
+              const fireIcon = currentStreak >= 3 ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
+              document.getElementById('display-username').innerHTML = currentPlayer + fireIcon;
+
+              // 將最新戰績名片發送給對手同步
+              if (typeof sendMyProfile === 'function') sendMyProfile(); 
+            }
+          });
+        });
+      } else {
+        console.log("此對局未達有效對戰門檻，不計入排位積分。");
+      }
+
+      // 停止所有方塊動作並同步最終狀態給對手
+      current = null;
+      sendState();
+
+      // 恢復 READY 按鈕供下一局使用
+      if (mpReadyGroup) mpReadyGroup.style.display = 'flex';
+      iAmReady = false;
+      oppIsReady = false; // 重置對手的準備狀態，確保下一局判定正常
+
+      // 把按鈕的外觀徹底變回預設的綠色 READY
+      const readyBtn = document.getElementById('ready-btn');
+      if (readyBtn) {
+        readyBtn.textContent = 'READY';
+        readyBtn.style.background = 'var(--S)';
+        readyBtn.style.color = 'var(--bg)';
+        readyBtn.disabled = false;
+      }
+
+    } else {
+      // 單人模式時間到的處理
+      updateHUD();
+    }
+  }
+
+  function valid(matrix, row, col) {
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+        const br = row + r, bc = col + c;
+        if (bc < 0 || bc >= COLS || br >= ROWS) return false;
+        if (br >= 0 && board[br][bc]) return false;
+      }
+    }
+    return true;
+  }
+
+  function drawCell(target, x, y, size, color, scale=1, alpha=1, ghost=false) {
+    const inset = (size * (1 - scale)) / 2;
+    target.save();
+    target.globalAlpha = alpha;
+
+    // --- 純程式碼繪製的高質感炸彈 ---
+    if (color === '#ff1111' && !ghost) { // 假設傳入亮紅色代表炸彈
+      const cx = x + inset + (size * scale) / 2;
+      const cy = y + inset + (size * scale) / 2;
+      const r = (size * scale) / 2 - 2;
+
+      // 畫深灰色金屬外殼
+      target.fillStyle = '#333333';
+      target.beginPath();
+      target.arc(cx, cy, r, 0, Math.PI * 2);
+      target.fill();
+      target.lineWidth = 2;
+      target.strokeStyle = '#111111';
+      target.stroke();
+
+      // 畫中間發光的紅色核心
+      target.fillStyle = '#ff1111';
+      target.shadowBlur = 12;
+      target.shadowColor = '#ff1111';
+      target.beginPath();
+      target.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+      target.fill();
+      target.shadowBlur = 0; // 恢復陰影設定
+
+      // 3. 畫一顆白色的高光反光點 (增加立體感)
+      target.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      target.beginPath();
+      target.arc(cx - r * 0.3, cy - r * 0.3, r * 0.25, 0, Math.PI * 2);
+      target.fill();
+      
+      target.restore();
+      return; // 炸彈畫完就結束，不畫方形邊框
+    }
+
+    // --- 原本的普通方塊繪製邏輯 ---
+    if (ghost) {
+      target.strokeStyle = color;
+      target.lineWidth = 2;
+      target.strokeRect(x + inset + 3, y + inset + 3, size * scale - 6, size * scale - 6);
+    } else {
+      target.fillStyle = color;
+      target.fillRect(x + inset, y + inset, size * scale, size * scale);
+      target.strokeStyle = BG;
+      target.lineWidth = 4;
+      target.strokeRect(x + inset, y + inset, size * scale, size * scale);
+    }
+    target.restore();
+  }
+
+  function drawGrid() {
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // --- 背景網格只要畫畫面上的 20 行就好 ---
+    for (let r = 0; r < VISIBLE_ROWS; r++) { 
+      for (let c = 0; c < COLS; c++) {
+        ctx.fillStyle = CELL_BG;
+        ctx.fillRect(c * SIZE, r * SIZE, SIZE, SIZE);
+        ctx.strokeStyle = BG;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(c * SIZE, r * SIZE, SIZE, SIZE);
+      }
+    }
+  }
+
+  function ghostRow() {
+    let row = current.row;
+    while (valid(current.matrix, row + 1, current.col)) row++;
+    return row;
+  }
+
+  function drawPiece(piece, rowOverride, alpha=1, ghost=false) {
+    const baseRow = rowOverride ?? piece.row;
+    for (let r = 0; r < piece.matrix.length; r++) {
+      for (let c = 0; c < piece.matrix[r].length; c++) {
+        if (!piece.matrix[r][c]) continue;
+        const rr = baseRow + r;
+        const cc = piece.col + c;
+        if (rr < 0) continue;
+        // --- 如果方塊還在隱藏區 (rr < 20)，就不要畫出來 ---
+        if (rr < VISIBLE_ROWS) continue;
+
+        // --- Y 座標要減掉隱藏的 20 行 ---
+        drawCell(ctx, cc * SIZE, (rr - VISIBLE_ROWS) * SIZE, SIZE, COLORS[piece.type], 1, alpha, ghost);
+      }
+    }
+  }
+
+  function drawMini(target, type, yOffset=0, colorOverride=null) {
+    if (!type) return;
+    const matrix = PIECES[type][0];
+    const cell = 20;
+    const w = matrix[0].length * cell;
+    const h = matrix.length * cell;
+    const ox = Math.floor((target.canvas.width - w) / 2);
+    let oy = Math.floor((target.canvas.height - h) / 2) + yOffset;
+    
+    if (type !== 'O') {
+      oy += cell / 2;
+    }
+
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c]) {
+          // 如果有傳入強制顏色就用強制顏色，否則用原本的方塊顏色
+          const color = colorOverride || COLORS[type];
+          drawCell(target, ox + c * cell, oy + r * cell, cell, color);
+        }
+      }
+    }
+  }
+
+  function renderPanels() {
+    holdCtx.fillStyle = BG;
+    holdCtx.fillRect(0,0,holdCanvas.width,holdCanvas.height);
+    nextCtx.fillStyle = BG;
+    nextCtx.fillRect(0,0,nextCanvas.width,nextCanvas.height);
+    queueCtx.fillStyle = BG;
+    queueCtx.fillRect(0,0,queueCanvas.width,queueCanvas.height);
+
+    if (holdType) {
+      const holdColor = holdUsed ? '#666666' : null; 
+      drawMini(holdCtx, holdType, 0, holdColor);
+    }
+    if (queue[0]) drawMini(nextCtx, queue[0]);
+
+    for (let i = 1; i < Math.min(queue.length, 5); i++) {
+      const type = queue[i];
+      const matrix = PIECES[type][0];
+      const cell = 16;
+      const w = matrix[0].length * cell;
+      const h = matrix.length * cell;
+      const ox = Math.floor((queueCanvas.width - w) / 2);
+      // 將畫布總高度平分成 4 等份
+      const slotHeight = queueCanvas.height / 4; 
+      // 算出這個方塊專屬的「等份中心點」
+      const slotCenterY = (i - 1) * slotHeight + (slotHeight / 2);
+      // 將方塊以該中心點為基準往上提一半的高度
+      let oy = slotCenterY - (h / 2);
+      
+      if (type !== 'O') {
+        oy += cell / 2;
+      }
+
+      for (let r = 0; r < matrix.length; r++) {
+        for (let c = 0; c < matrix[r].length; c++) {
+          if (matrix[r][c]) drawCell(queueCtx, ox + c * cell, oy + r * cell, cell, COLORS[type]);
+        }
+      }
+    }
+  }
+
+  function draw() {
+    ctx.save(); // 儲存畫布狀態
+    drawGrid();
+    particles.forEach(p => p.draw(ctx));
+
+    // 如果有震動幅度，隨機偏移畫布 (Screen Shake)
+    if (shakeMag > 0) {
+      const dx = (Math.random() - 0.5) * shakeMag;
+      const dy = (Math.random() - 0.5) * shakeMag;
+      ctx.translate(dx, dy);
+    }
+
+    // 畫主要盤面的迴圈，從 20 開始畫
+    for (let r = VISIBLE_ROWS; r < ROWS; r++) { 
+      for (let c = 0; c < COLS; c++) {
+        const cell = board[r][c];
+        if (!cell) continue;
+        let skip = false;
+        if (clearFx) {
+          for (const row of clearFx.rows) if (row === r) { skip = true; break; }
+        }
+        if (!skip) {
+          // 修改 Y 座標
+          drawCell(ctx, c * SIZE, (r - VISIBLE_ROWS) * SIZE, SIZE, COLORS[cell]);
+          if (cell === 'B') {
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ff1111';
+            ctx.beginPath();
+            // 修改 Y 座標
+            ctx.arc(c * SIZE + SIZE/2, (r - VISIBLE_ROWS) * SIZE + SIZE/2, SIZE/4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0; 
+          }
+        }
+      }
+    }
+
+    // 畫消行閃爍特效的迴圈
+    if (clearFx) {
+      const t = Math.min(1, clearFx.elapsed / clearFx.duration);
+      const scale = 1 - 0.7 * t;
+      const alpha = 0.35 + 0.65 * Math.abs(Math.sin(t * Math.PI * 2));
+      for (const row of clearFx.rows) {
+        if (row < VISIBLE_ROWS) continue; // 隱藏區不畫特效
+        for (let c = 0; c < COLS; c++) {
+          if (board[row][c]) drawCell(ctx, c * SIZE, (row - VISIBLE_ROWS) * SIZE, SIZE, '#ffffff', scale, alpha);
+        }
+      }
+    }
+
+    if (!gameOver && current) {
+      const gRow = ghostRow();
+      if (gRow !== current.row) drawPiece(current, gRow, 0.6, true);
+      drawPiece(current);
+    }
+
+    // --- 繪製我方垃圾行警告條 (黃色寬限 / 紅色危險) ---
+    if (activeGarbage > 0 || nextGarbage > 0) {
+      const totalG = Math.min(activeGarbage + nextGarbage, ROWS);
+      const activeHeight = Math.min(activeGarbage, ROWS) * SIZE;
+      const totalHeight = totalG * SIZE;
+      
+      // 畫 activeGarbage (馬上要進來的，紅色)
+      if (activeGarbage > 0) {
+        ctx.fillStyle = '#ff0d62'; 
+        ctx.fillRect(0, canvas.height - activeHeight, 6, activeHeight);
+      }
+      // 畫 nextGarbage (還在寬限期的，黃色，疊在紅色上面)
+      if (nextGarbage > 0) {
+        const nextHeight = totalHeight - activeHeight;
+        ctx.fillStyle = '#f7dd16'; 
+        ctx.fillRect(0, canvas.height - totalHeight, 6, nextHeight);
+      }
+    }
+
+    ctx.restore(); // 恢復畫布狀態
+
+    // --- 遊戲結束結算畫面 ---
+    if (gameOver) {
+      ctx.fillStyle = 'rgba(6,0,79,0.9)';
+      ctx.fillRect(18, canvas.height / 2 - 68, canvas.width - 36, 136);
+      ctx.strokeStyle = '#f2f2f2';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(18, canvas.height / 2 - 68, canvas.width - 36, 136);
+      ctx.fillStyle = '#f2f2f2';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (isMultiplayer && matchResult) {
+        // 連線模式的勝負畫面
+        ctx.fillStyle = matchResult === 'WIN' ? 'var(--S)' : (matchResult === 'LOSE' ? 'var(--Z)' : 'var(--O)');
+        ctx.font = '900 36px Arial';
+        ctx.fillText(matchResult === 'WIN' ? 'YOU WIN!' : (matchResult === 'LOSE' ? 'YOU LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2 - 24);
+        
+        ctx.fillStyle = '#f2f2f2';
+        ctx.font = '700 14px Arial';
+        ctx.fillText('Press ENTER to Play Again', canvas.width / 2, canvas.height / 2 + 16);
+        ctx.fillText('Press R to Disconnect', canvas.width / 2, canvas.height / 2 + 40);
+      } else {
+        // 單機模式的 Game Over 畫面
+        ctx.font = '900 32px Arial';
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = '700 15px Arial';
+        ctx.fillText('Press R to restart', canvas.width / 2, canvas.height / 2 + 26);
+      }
+    }
+
+    if (isPaused && !gameOver) {
+      ctx.fillStyle = 'rgba(6,0,79,0.7)'; // 半透明背景
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#f2f2f2';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 40px Arial';
+      ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+    }
+
+    if (countdownValue > 0) {
+      // 顯示 3、2、1 倒數
+      ctx.fillStyle = 'rgba(6,0,79,0.8)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#f2f2f2';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 80px Arial';
+      ctx.fillText(countdownValue, canvas.width / 2, canvas.height / 2);
+    } else if (!gameStarted) {
+      // 尚未開始遊戲時的提示
+      ctx.fillStyle = 'rgba(6,0,79,0.8)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#f2f2f2';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      if (!isMultiplayer) {
+        ctx.font = '900 28px Arial';
+        ctx.fillText('PRESS ENTER', canvas.width / 2, canvas.height / 2 - 16);
+        ctx.font = '700 18px Arial';
+        ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
+      } else {
+        ctx.font = '900 28px Arial';
+        ctx.fillText('CLICK READY', canvas.width / 2, canvas.height / 2 - 16);
+        ctx.font = '700 18px Arial';
+        ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
+      }
+    }
+
+    // 如果我處於 KO 懲罰狀態，將整個遊戲盤面蓋上一層黑色半透明，凸顯 KO 字樣
+    if (isMultiplayer && isKOed) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // 40% 的黑色
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    myFloatingTexts.forEach(ft => ft.draw(ctx));
+  }
+
+  // --- 繪製對手盤面 ---
+  function drawOpponent() {
+    if (!oppCtx) return;
+    
+    // 畫背景
+    oppCtx.fillStyle = BG;
+    oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+
+    if (!oppState) {
+      oppCtx.fillStyle = 'rgba(255,255,255,0.3)';
+      oppCtx.font = '12px Arial';
+      oppCtx.textAlign = 'center';
+      oppCtx.fillText('WAITING FOR', oppCanvas.width/2, oppCanvas.height/2 - 10);
+      oppCtx.fillText('OPPONENT', oppCanvas.width/2, oppCanvas.height/2 + 10);
+    } else {
+      // --- 解碼並繪製對手的靜態盤面 ---
+      const oppSize = 34;
+      const bStr = oppState.b;
+      if (bStr) {
+        let charIndex = 0;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const char = bStr[charIndex++];
+            if (r < VISIBLE_ROWS) continue; // 隱藏區不畫
+
+            if (char !== '.') {
+              drawCell(oppCtx, c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, COLORS[char]);
+            } else {
+              oppCtx.fillStyle = CELL_BG;
+              oppCtx.fillRect(c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, oppSize);
+              oppCtx.strokeStyle = BG;
+              oppCtx.lineWidth = 2;
+              oppCtx.strokeRect(c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, oppSize);
+            }
+          }
+        }
+      }
+
+      const curr = oppState.c;
+      if (curr) {
+        const matrix = PIECES[curr.t][curr.rot];
+        for (let r = 0; r < matrix.length; r++) {
+          for (let c = 0; c < matrix[r].length; c++) {
+            if (matrix[r][c]) {
+              const rr = curr.r + r;
+              const cc = curr.c + c;
+              if (rr >= VISIBLE_ROWS) { // 大於 20 才畫
+                drawCell(oppCtx, cc * oppSize, (rr - VISIBLE_ROWS) * oppSize, oppSize, COLORS[curr.t]);
+              }
+            }
+          }
+        }
+      }
+      
+      // --- 繪製對手的垃圾行警告條 ---
+      const oppG = oppState.g || 0;
+      const oppNg = oppState.ng || 0;
+      
+      if (oppG > 0 || oppNg > 0) {
+        const totalG = Math.min(oppG + oppNg, ROWS);
+        const activeHeight = Math.min(oppG, ROWS) * oppSize;
+        const totalHeight = totalG * oppSize;
+        
+        if (oppG > 0) {
+          oppCtx.fillStyle = '#ff0d62';
+          oppCtx.fillRect(0, oppCanvas.height - activeHeight, 4, activeHeight);
+        }
+        if (oppNg > 0) {
+          const nextHeight = totalHeight - activeHeight;
+          oppCtx.fillStyle = '#f7dd16';
+          oppCtx.fillRect(0, oppCanvas.height - totalHeight, 4, nextHeight);
+        }
+      }
+    }
+
+    if (typeof oppKOTimer !== 'undefined' && oppKOTimer > 0) {
+      oppCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+    }
+
+    // 將對手的 Emoji 繪製移到絕對最底層！
+    oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
+  }
+
+  function spawn(isFromHold = false) {
+    ensureQueue();
+    current = makePiece(queue.shift());
+    ensureQueue();
+    holdUsed = false;
+
+    // --- IHS (Initial Hold System) 預先保留 ---
+    // ★ 加入 !isFromHold 防呆，確保按 Hold 的瞬間不會因為手指還沒放開而連續觸發
+    if (!isFromHold && (keysDown.has('KeyC') || keysDown.has('ShiftLeft') || keysDown.has('ShiftRight'))) {
+      const t = current.type;
+      if (!holdType) {
+        holdType = t;
+        current = makePiece(queue.shift());
+        ensureQueue(); 
+      } else {
+        const swap = holdType;
+        holdType = t;
+        current = makePiece(swap);
+      }
+      holdUsed = true;   
+      playSound('move'); 
+    }
+
+    // --- IRS (Initial Rotation System) 預先旋轉 ---
+    let irsDir = 0;
+    if (keysDown.has('ArrowUp') || keysDown.has('KeyX')) {
+      irsDir = 1; // 預先順時針
+    } else if (keysDown.has('KeyZ') || keysDown.has('ControlLeft') || keysDown.has('ControlRight')) {
+      irsDir = -1; // 預先逆時針
+    }
+
+    if (irsDir !== 0) {
+      const to = (current.rot + (irsDir === 1 ? 1 : 3)) % 4;
+      const rotated = clone(PIECES[current.type][to]);
+      
+      if (valid(rotated, current.row, current.col)) {
+        current.matrix = rotated;
+        current.rot = to;
+        playSound('rotate'); 
+      }
+    }
+
+    lockTimer = 0;
+    lockResets = 0;
+    renderPanels();
+    if (!valid(current.matrix, current.row, current.col)) triggerGameOver();
+    sendState(); 
+    oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
+  }
+
+  function applyGravityInterval() {
+    gravityTimer = 0;
+  }
+
+  function tryMove(dx) {
+    if (!current || gameOver || clearFx || isKOed) return false;
+    if (valid(current.matrix, current.row, current.col + dx)) {
+      current.col += dx;
+      lastMoveType = 'move';
+      playSound('move');
+      // 官方 Lock Delay Move Reset 規則
+      if (!valid(current.matrix, current.row + 1, current.col)) {
+        if (lockResets < 15) { lockTimer = 0; lockResets++; } // 觸地微調，重置計時
+      } else {
+        if (lockResets < 15) { lockTimer = 0; }
+      }
+      sendState(); // 移動成功立刻發送
+      return true;
+    }
+    return false;
+  }
+
+  function tryRotate(dir) {
+    if (!current || gameOver || clearFx || isKOed) return false;
+    const from = current.rot;
+    const to = (from + (dir === 1 ? 1 : 3)) % 4;
+    const rotated = clone(PIECES[current.type][to]);
+    if (current.type === 'O') {
+      if (valid(rotated, current.row, current.col)) {
+        current.matrix = rotated; current.rot = to; 
+        sendState();
+        return true;
+      }
+      return false;
+    }
+
+    const key = `${from}>${to}`;
+    const kicks = current.type === 'I' ? I_KICKS[key] : JLSTZ_KICKS[key];
+    for (let i = 0; i < kicks.length; i++) {
+      const [dx, dy] = kicks[i];
+      const nr = current.row - dy;
+      const nc = current.col + dx;
+      if (valid(rotated, nr, nc)) {
+        current.matrix = rotated;
+        current.rot = to;
+        current.row = nr;
+        current.col = nc;
+        
+        lastMoveType = 'rotate'; // <--- 紀錄最後動作是旋轉
+        lastKickIndex = i;       // <--- 紀錄是第幾個踢牆測試成功
+        playSound('rotate');
+
+        if (!valid(current.matrix, current.row + 1, current.col)) {
+          if (lockResets < 15) { lockTimer = 0; lockResets++; }
+        } else {
+          if (lockResets < 15) { lockTimer = 0; }
+        }
+        sendState();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function softDrop(byKey=false) {
+    if (!current || gameOver || clearFx || isKOed) return false;
+    if (valid(current.matrix, current.row + 1, current.col)) {
+      current.row += 1;
+      lastMoveType = 'drop';
+      if (current.row > current.lowestRow) {
+        current.lowestRow = current.row; // 更新歷史最低紀錄
+        if (byKey) {
+          score += 1;
+          applyGravityInterval(); // 只有手動按「下」才強制重置計時器
+        }
+        lockTimer = 0;
+        lockResets = 0;           // 只有手動突破紀錄時才給分
+      }
+      updateHUD();
+      sendState();
+      return true;
+    }
+    return false;
+  }
+
+  function hardDrop() {
+    if (!current || gameOver || clearFx || isKOed) return;
+    let cells = 0;
+    while (valid(current.matrix, current.row + 1, current.col)) {
+      current.row += 1;
+      cells++;
+    }
+    score += cells * 2;
+    updateHUD();
+
+    // --- Hard Drop 底部爆炸特效 ---
+    for (let r = 0; r < current.matrix.length; r++) {
+      for (let c = 0; c < current.matrix[r].length; c++) {
+        if (!current.matrix[r][c]) continue;
+        const br = current.row + r;
+        const bc = current.col + c;
+        triggerLandingEffect(br, bc, current.type);
+      }
+    }
+    playSound('drop');
+    shakeMag = 8; 
+    lockPiece();
+  }
+
+  // --- UI 提示函數 ---
+  function showMsg(text) {
+    if (actionMsgEl) {
+      actionMsgEl.textContent = text;
+      if (msgTimeout) clearTimeout(msgTimeout);
+      msgTimeout = setTimeout(() => { actionMsgEl.textContent = ''; }, 1500);
+    }
+  }
+
+  // --- 官方 3-Corner 判定邏輯 ---
+  function getTSpinType() {
+    if (current.type !== 'T' || lastMoveType !== 'rotate') return null;
+
+    // T 方塊的中心點座標 (3x3 陣列的 [1][1])
+    const r = current.row + 1;
+    const c = current.col + 1;
+    const corners = [ [r-1, c-1], [r-1, c+1], [r+1, c-1], [r+1, c+1] ];
+    
+    let filled = 0, frontFilled = 0, backFilled = 0;
+    // 根據旋轉狀態決定哪兩個角落是「前方 (Flat side)」
+    const frontIdx = {0:[0,1], 1:[1,3], 2:[2,3], 3:[0,2]}[current.rot];
+
+    for (let i = 0; i < 4; i++) {
+      const [cr, cc] = corners[i];
+      // 檢查是否超出邊界或被其他方塊佔據
+      if (cr < 0 || cr >= ROWS || cc < 0 || cc >= COLS || board[cr][cc]) {
+        filled++;
+        if (frontIdx.includes(i)) frontFilled++; 
+        else backFilled++;
+      }
+    }
+
+    // 3-Corner 規則：至少3個角落被填滿
+    if (filled >= 3) {
+      // 官方例外：如果使用了第5個踢牆測試(索引4)，無條件視為 Full T-Spin
+      if (lastKickIndex === 4) return 'Full';
+      // 前方兩個角都被擋住 -> Full
+      if (frontFilled === 2) return 'Full';
+      // 前方擋住1個，後方擋住2個 -> Mini
+      if (frontFilled === 1 && backFilled === 2) return 'Mini';
+    }
+    return null;
+  }
+
+  // --- 支援攻擊與抵消的計分系統 ---
+  function applyScore(linesCleared, tSpinType, isPerfectClear = false) {
+    let base = 0;
+    let difficult = false;
+    let msg = '';
+    let attack = 0; // 本次操作的攻擊力
+
+    if (linesCleared > 0) {
+      combo++;
+    } else {
+      combo = -1;
+    }
+
+    if (linesCleared > 0) {
+      lines += linesCleared;
+      if (!isMultiplayer && !isPracticeMode) { // 「單人」且「非練習」模式下才會升級
+        level = Math.floor(lines / 10) + 1;
+      }
+    }
+
+    if (tSpinType) {
+      difficult = true;
+      if (tSpinType === 'Full') {
+        base = [400, 800, 1200, 1600][linesCleared];
+        attack = [0, 2, 4, 6][linesCleared] || 0; // Full T-Spin 攻擊表
+        msg = linesCleared ? `T-Spin ${['','Single','Double','Triple'][linesCleared]}` : 'T-Spin';
+      } else {
+        base = [100, 200, 400, 0][linesCleared];
+        attack = [0, 0, 1, 0][linesCleared] || 0; // Mini T-Spin 攻擊表
+        msg = linesCleared ? `Mini T-Spin ${['','Single','Double'][linesCleared]}` : 'Mini T-Spin';
+      }
+    } else {
+      base = [0, 100, 300, 500, 800][linesCleared];
+      attack = [0, 0, 1, 2, 4][linesCleared] || 0; // 普通消除攻擊表 (Tetris = 4)
+      if (linesCleared === 4) {
+        difficult = true;
+        msg = 'Tetris';
+      }
+    }
+
+    if (base > 0) {
+      if (isPerfectClear) playSound('perfect');
+      else if (tSpinType) { playSound('tspin'); shakeMag = 12; }
+      else if (linesCleared === 4) { playSound('tetris'); shakeMag = 16; }
+      else if (linesCleared > 0) { playSound('clear', combo > 0 ? combo : 0); shakeMag = 5 + linesCleared * 2; }
+      
+      // B2B 判定
+      if (difficult) {
+        if (linesCleared > 0) {
+          if (b2b > 0) {
+            base = Math.floor(base * 1.5);
+            attack = Math.ceil(attack * 1.5);
+            msg = `B2B ${msg}`;
+          }
+          b2b++; 
+        }
+      } else if (linesCleared > 0) {
+        b2b = 0; 
+      }
+
+      // Combo 加成
+      if (combo > 0) {
+        base += 50 * combo;
+        const comboBonuses = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4]; // Tetris Battle 在 7 Combo 以上時，固定最多送 4 行
+        attack += comboBonuses[Math.min(combo, 10)] || 0;
+        msg = msg ? `${msg} + COMBO ${combo}` : `COMBO ${combo}`;
+
+        // 觸發 Combo 漂浮文字 (連擊越高，字越大越紅)
+        const comboColor = combo >= 5 ? '#ff0d62' : (combo >= 3 ? '#f7dd16' : '#48d62f'); 
+        const comboSize = 24 + Math.min(combo * 3, 20); 
+        myFloatingTexts.push(new FloatingText(`${combo} COMBO!`, (COLS * SIZE) / 2, (VISIBLE_ROWS * SIZE) / 2 + 40, comboColor, comboSize));
+      }
+
+      if (isPerfectClear) {
+        base += 3000;
+        attack += 10; // 全清攻擊力 +10 (毀滅性打擊)
+        msg = 'PERFECT CLEAR!';
+        shakeMag = 20; 
+      }
+      
+      score += base * level;
+
+      // 將大招式的文字也轉換成強烈視覺特效
+      if (msg) {
+        showMsg(msg); // 保持右邊的靜態文字
+        
+        // 抓出「非 Combo」的純招式名稱 (例如 Tetris, T-Spin)
+        let cleanMsg = msg.replace(` + COMBO ${combo}`, ''); 
+        if (cleanMsg !== '' && !cleanMsg.startsWith('COMBO')) {
+          let floatColor = '#ffffff'; let floatSize = 28;
+          if (cleanMsg.includes('PERFECT')) { floatColor = '#f7dd16'; floatSize = 40; }
+          else if (cleanMsg.includes('Tetris')) { floatColor = '#38bdee'; floatSize = 34; }
+          else if (cleanMsg.includes('T-Spin')) { floatColor = '#b144f7'; floatSize = 32; }
+          
+          myFloatingTexts.push(new FloatingText(cleanMsg, (COLS * SIZE) / 2, (VISIBLE_ROWS * SIZE) / 2 - 20, floatColor, floatSize));
+        }
+      }
+    }
+    
+    // --- 抵消 (Cancel) 與 送出攻擊 (Send) ---
+    if (linesCleared > 0 && attack > 0) {
+      // 先抵消馬上要進來的危險垃圾 (紅色)
+      if (activeGarbage > 0) {
+        if (attack >= activeGarbage) { attack -= activeGarbage; activeGarbage = 0; }
+        else { activeGarbage -= attack; attack = 0; }
+      }
+      // 如果還有攻擊力，再抵消寬限期中的垃圾 (黃色)
+      if (attack > 0 && nextGarbage > 0) {
+        if (attack >= nextGarbage) { attack -= nextGarbage; nextGarbage = 0; }
+        else { nextGarbage -= attack; attack = 0; }
+      }
+      // 抵消後還有剩，就打給對手
+      if (attack > 0 && isMultiplayer && conn && conn.open) {
+        conn.send({ type: 'ATTACK', lines: attack });
+        // 更新我的 LINES SENT
+        myLinesSent += attack;
+        const myLinesEl = document.getElementById('my-lines-sent-display');
+        if (myLinesEl) myLinesEl.textContent = myLinesSent;
+
+        // 在對手的盤面上噴出受到傷害的紅色大數字 (-X)
+        oppFloatingTexts.push(new FloatingText(`-${attack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+      }
+    }
+
+    updateHUD();
+  }
+
+  // --- 鎖定函數 (判定引爆、T轉與天花板死亡) ---
+  function lockPiece() {
+    const tSpin = getTSpinType(); 
+
+    let isLockOut = true;
+
+    // 鎖定方塊到盤面上
+    for (let r = 0; r < current.matrix.length; r++) {
+      for (let c = 0; c < current.matrix[r].length; c++) {
+        if (!current.matrix[r][c]) continue;
+        const br = current.row + r;
+        const bc = current.col + c;
+
+        // 只要確保在陣列範圍內，就寫入盤面
+        if (br >= 0) {
+          board[br][bc] = current.type; 
+          
+          // --- 修正：必須有一格 >= 20 (VISIBLE_ROWS)，才算踏進畫面，才能活命！ ---
+          if (br >= VISIBLE_ROWS) {
+            isLockOut = false; 
+          }
+        }
+      }
+    }
+
+    // 只有當整顆方塊都鎖死在隱藏區 (畫面外) 才結束遊戲
+    if (isLockOut) {
+      triggerGameOver();
+      return;
+    }
+
+    // 尋找是否有炸彈被觸發 (方塊落在炸彈正上方)
+    let detonatedRows = new Set();
+    for (let r = 0; r < current.matrix.length; r++) {
+      for (let c = 0; c < current.matrix[r].length; c++) {
+        if (!current.matrix[r][c]) continue;
+        const br = current.row + r;
+        const bc = current.col + c;
+        
+        // 往下檢查，如果有連鎖炸彈，一起引爆
+        let checkR = br + 1;
+        while (checkR < ROWS && board[checkR][bc] === 'B') {
+           detonatedRows.add(checkR);
+           checkR++;
+        }
+      }
+    }
+
+    // 尋找一般的滿行 (排除垃圾行)
+    const fullRows = [];
+    for (let r = 0; r < ROWS; r++) {
+      let full = true;
+      let isGarbage = false;
+      for (let c = 0; c < COLS; c++) {
+        if (!board[r][c]) { full = false; break; }
+        if (board[r][c] === 'G' || board[r][c] === 'B') isGarbage = true;
+      }
+      // 只有完全沒有 G 和 B 的滿行，才算一般消行
+      if (full && !isGarbage) fullRows.push(r);
+    }
+
+    // 合併所有要消除的行 (一般消行 + 炸彈行)
+    const allRowsToClear = [...new Set([...fullRows, ...detonatedRows])].sort((a,b) => a - b);
+
+    if (allRowsToClear.length > 0) {
+      clearFx = { rows: allRowsToClear, elapsed: 0, duration: SETTINGS.clearDuration, tSpin: tSpin };
+      sendState();
+    } else {
+      applyScore(0, tSpin, false);
+      applyGarbage(); 
+      
+      activeGarbage += nextGarbage;
+      nextGarbage = 0;
+      spawn();
+    }
+  }
+
+  // --- 將垃圾行從底部推入盤面 (2-2-2 凌亂垃圾機制) ---
+  function applyGarbage() {
+    if (activeGarbage <= 0) return;
+    
+    const linesToAdd = activeGarbage;
+    let linesAdded = 0;
+    let consecutiveHoles = 0; // 記錄目前這個洞口已經連續幾行了
+
+    for (let i = 0; i < linesToAdd; i++) {
+      // 如果同一個洞口已經連續 2 行，強制換一個新的
+      if (consecutiveHoles >= 2 || lastGarbageHole === -1) {
+        let newHole;
+        do {
+          newHole = Math.floor(Math.random() * COLS);
+        } while (newHole === lastGarbageHole);
+        lastGarbageHole = newHole;
+        consecutiveHoles = 0; // 重置計數
+      }
+
+      board.shift(); 
+      const newRow = Array(COLS).fill('G'); 
+      newRow[lastGarbageHole] = 'B'; 
+      board.push(newRow);
+
+      linesAdded++;
+      consecutiveHoles++;
+    }
+    
+    if (linesAdded > 0) {
+      playSound('drop');
+      shakeMag = 10 + linesAdded * 2; 
+    }
+    
+    activeGarbage -= linesAdded; 
+  }
+
+  // --- 清除函數 (發送分數) ---
+  function clearRows(rowsToClear) {
+    const tSpin = clearFx ? clearFx.tSpin : null;
+
+    // 計算炸彈數量
+    let bombsCleared = 0;
+    
+    rowsToClear.forEach(r => {
+      let hasBomb = false;
+      board[r].forEach(cell => {
+        if (cell === 'B') hasBomb = true;
+      });
+      if (hasBomb) bombsCleared++;
+    });
+
+    // 過濾掉被消除的行，留下沒被消除的行
+    const newBoard = board.filter((row, index) => !rowsToClear.includes(index));
+    
+    // 在頂部補齊空行
+    while (newBoard.length < ROWS) {
+      newBoard.unshift(Array(COLS).fill(null));
+    }
+    board = newBoard;
+
+    let isPerfectClear = true;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (board[r][c]) { isPerfectClear = false; break; }
+      }
+      if (!isPerfectClear) break;
+    }
+
+    // 呼叫計分系統，只傳入「一般消行」的數量！
+    applyScore(rowsToClear.length, tSpin, isPerfectClear);
+
+    // 炸彈追加攻擊！每引爆一顆炸彈，額外送出 1 行垃圾！
+    if (bombsCleared > 0 && isMultiplayer && conn && conn.open) {
+       conn.send({ type: 'ATTACK', lines: bombsCleared });
+       myLinesSent += bombsCleared;
+       const myLinesEl = document.getElementById('my-lines-sent-display');
+       if (myLinesEl) myLinesEl.textContent = myLinesSent;
+       
+       // 炸彈爆發特效與音效
+       playSound('drop');
+       shakeMag = 15;
+       myFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
+       oppFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+    }
+
+    activeGarbage += nextGarbage;
+    nextGarbage = 0;
+    clearFx = null;
+    spawn();
+  }
+
+  function hold() {
+    if (!current || gameOver || clearFx || holdUsed || isKOed) return;
+    const t = current.type;
+    if (!holdType) {
+      holdType = t;
+      spawn(true); // ★ 傳入 true，告訴 spawn 這顆方塊是因為 Hold 而來的，不要觸發 IHS
+    } else {
+      const swap = holdType;
+      holdType = t;
+      current = makePiece(swap);
+      if (!valid(current.matrix, current.row, current.col)) triggerGameOver();
+    }
+    holdUsed = true;
+    renderPanels();
+    sendState();
+  }
+
+  function processHorizontal(delta) {
+    const left = keysDown.has('ArrowLeft');
+    const right = keysDown.has('ArrowRight');
+
+    let dir = 0;
+    if (left && right) dir = lastDirKey; 
+    else if (left) dir = -1;
+    else if (right) dir = 1;
+
+    // 如果沒有按下任何方向鍵
+    if (dir === 0) {
+      activeDir = 0;
+      return;
+    }
+
+    // 當方向發生改變（包含剛放開反方向鍵，露出原本長按的鍵）
+    if (activeDir !== dir) {
+      activeDir = dir;
+      dasTimer = 0;
+      arrTimer = 0;
+      tryMove(dir); // 觸發改變方向後的第一步
+      return;
+    }
+
+    // 方向一致，開始計算 DAS 與極速 ARR
+    dasTimer += delta;
+    if (dasTimer >= SETTINGS.das) {
+      arrTimer += delta;
+      while (arrTimer >= SETTINGS.arr) {
+        arrTimer -= SETTINGS.arr; 
+        
+        // 防呆：如果 tryMove 回傳 false (代表撞到牆壁了)，立刻跳出迴圈！
+        // 這樣就不會發生「按住方向鍵不放時，系統卡死或重複發送訊號」的問題
+        if (!tryMove(dir)) break; 
+      }
+    }
+  }
+  
+
+  function processSoftDrop(delta, currentGravity) {
+    if (!keysDown.has('ArrowDown') || !current || gameOver || clearFx || isKOed) return;
+    
+    const sdInterval = currentGravity / 20; // 官方：永遠是當前重力的 20 倍速
+    
+    moveCooldown += delta;
+    while (moveCooldown >= sdInterval) {
+      moveCooldown -= sdInterval;
+      if (!softDrop(true)) break;
+    }
+  }
+
+  // --- 即時狀態同步發射器 ---
+  function sendState() {
+    if (!conn || !conn.open) return;
+    try {
+      let compressedBoard = '';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          compressedBoard += board[r][c] ? board[r][c] : '.';
+        }
+      }
+      conn.send({
+        type: 'STATE',
+        state: {
+          b: compressedBoard,
+          s: score,
+          g: activeGarbage,  // 傳送紅色的危險垃圾
+          ng: nextGarbage,   // 傳送黃色的寬限期垃圾
+          k: myKOs,
+          ls: myLinesSent,
+          lp: myLP || 0,
+          isGuest: !currentUserUID,
+          c: current ? { t: current.type, r: current.row, c: current.col, rot: current.rot } : null
+        }
+      });
+    } catch (err) {
+      console.error("狀態同步錯誤:", err);
+    }
+  }
+
+  function update(delta) {
+    if (shakeMag > 0) shakeMag = Math.max(0, shakeMag - delta * 0.08); // 處理震動衰減
+
+    // 加入嚴格防呆，確保變數存在才倒數，防止當機
+    if (typeof oppKOTimer !== 'undefined' && oppKOTimer > 0) {
+      oppKOTimer -= delta; 
+    }
+
+    // --- 更新所有粒子 ---
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.update(delta);
+      if (p.life <= 0) particles.splice(i, 1); // 壽命結束則移除
+    }
+
+    // 更新所有漂浮文字 (雙畫面)
+    for (let i = myFloatingTexts.length - 1; i >= 0; i--) {
+      const ft = myFloatingTexts[i];
+      ft.update(delta);
+      if (ft.life <= 0) myFloatingTexts.splice(i, 1);
+    }
+    for (let i = oppFloatingTexts.length - 1; i >= 0; i--) {
+      const ft = oppFloatingTexts[i];
+      ft.update(delta);
+      if (ft.life <= 0) oppFloatingTexts.splice(i, 1);
+    }
+
+    if (!gameStarted || gameOver || isPaused || isKOed) return;
+    
+    // AFK 掛機偵測系統 (對戰模式限定)
+    if (isMultiplayer && gameStarted && !gameOver && countdownValue <= 0) {
+      // 如果超過 25 秒沒有任何操作 (25000 毫秒)
+      if (Date.now() - lastActionTime > 25000) {
+        console.log("偵測到掛機，自動踢出");
+        
+        // 1. 發送退出訊號，讓對手安全結束並看到 OPPONENT DISCONNECTED
+        if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
+        
+        // 2. 把自己的畫面強制結束，並顯示被踢出的警告
+        gameOver = true;
+        current = null;
+        showMsg("KICKED FOR AFK");
+        playSound('lose');
+        
+        const connStatus = document.getElementById('conn-status');
+        if (connStatus) {
+          connStatus.textContent = 'Disconnected - AFK';
+          connStatus.style.color = 'var(--Z)';
+        }
+        
+        // 3. 關閉連線，觸發 UI 重置
+        if (conn) { conn.close(); conn = null; }
+        return; // 終止後續的遊戲邏輯
+      }
+    }
+
+    // --- 官方重力公式 (分流單機與連線) ---
+    let gravityInterval;
+    if (isMultiplayer || isPracticeMode) {
+      gravityInterval = 1000; // 對戰模式：重力鎖定為極慢 (1秒1格)，純靠手動下落
+    } else {
+      const gravitySeconds = Math.pow(0.8 - ((level - 1) * 0.007), level - 1);
+      gravityInterval = gravitySeconds * 1000; // 單機模式：越玩越快
+    }
+
+    // --- 執行下落 ---
+    if (gravityInterval < 2) { 
+      // 【自然達到 20G】當間距小於 2ms，在網頁渲染中視為瞬間到底
+      if (current) {
+        const gRow = ghostRow();
+        if (current.row < gRow) {
+          current.row = gRow;           // 瞬間貼地
+          current.lowestRow = gRow;     // 更新歷史最低點
+          lockTimer = 0;                // 觸發 0.5 秒的 Lock Delay 給玩家續命
+          sendState();                  // 瞬間同步給對手
+        }
+      }
+    } else {
+      // 【標準自然下落 (1G 以下 ~ 3G)】
+      gravityTimer += delta;
+      // 官方細節：如果延遲很大，可能會一幀掉落好幾格，用 while 可以確保精準度
+      while (gravityTimer >= gravityInterval && current) {
+        gravityTimer -= gravityInterval; 
+        softDrop(false);
+      }
+    }
+
+    processHorizontal(delta);
+    processSoftDrop(delta, gravityInterval);
+
+    if (clearFx) {
+      clearFx.elapsed += delta;
+      if (clearFx.elapsed >= clearFx.duration) clearRows(clearFx.rows.slice());
+      return;
+    }
+
+    // 觸地鎖定延遲計時
+    if (current && !valid(current.matrix, current.row + 1, current.col)) {
+      lockTimer += delta;
+      if (lockTimer >= SETTINGS.lockDelay) {
+        lockTimer = 0;
+        lockPiece();
+      }
+    }
+  }
+
+  function gameLoop(ts) {
+    if (!lastTime) lastTime = ts;
+    let delta = ts - lastTime;
+    if (delta > 34) delta = 34;
+    lastTime = ts;
+    update(delta);
+    draw();
+    renderPanels();
+    drawOpponent();
+    requestAnimationFrame(gameLoop);
+  }
+
+
+  // 只要滑鼠點擊畫面任何地方，解鎖音樂 (對付瀏覽器限制)
+  document.addEventListener('click', () => {
+    if (!bgmStarted && !isBgmMuted && !isMultiplayer) {
+      bgm.play().catch(err => console.log("等待互動解鎖音樂"));
+      bgmStarted = true;
+    }
+  });
+
+  // --- 鍵盤按下事件 (改用 e.code 防呆) ---
+  document.addEventListener('keydown', (e) => {
+    // 【重要防呆】如果玩家正在「輸入對手 ID」的文字框裡打字，絕對不要攔截按鍵！
+    if (e.target.tagName === 'INPUT') return;
+
+    // 只要按下任何鍵，解鎖音樂
+    if (!bgmStarted && !isBgmMuted && !isMultiplayer) {
+      bgm.play().catch(err => console.log("等待互動解鎖音樂"));
+      bgmStarted = true;
+    }
+
+    const k = e.code; // 使用 e.code，抓取鍵盤「實體位置」，無視任何中文輸入法
+
+    // 阻擋預設行為 (例如按空白鍵或上下鍵時，防止網頁跟著捲動)
+    if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyX','KeyZ','KeyC','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Escape','Enter','NumpadEnter'].includes(k)) {
+      e.preventDefault();
+    }
+
+    // Emoji 嘲諷快捷鍵 (支援主鍵盤 1~4 與九宮格數字鍵)
+    if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4'].includes(k)) {
+      if (!isMultiplayer) return;
+
+      const now = Date.now();
+      if (now - lastEmojiTime < 1000) return;
+      lastEmojiTime = now;
+
+      let emoji = '';
+      if (k === 'Digit1' || k === 'Numpad1') emoji = '😅';
+      if (k === 'Digit2' || k === 'Numpad2') emoji = '😡';
+      if (k === 'Digit3' || k === 'Numpad3') emoji = '🥶';
+      if (k === 'Digit4' || k === 'Numpad4') emoji = '🤣';
+
+      // 在對手的畫面上噴出 Emoji (稍微大一點，停留時間短一點)
+      oppFloatingTexts.push(new FloatingText(emoji, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ffffff', 55));
+      playSound('move'); 
+
+      // 發送給對手
+      if (conn && conn.open) conn.send({ type: 'EMOJI', emoji: emoji });
+      return;
+    }
+
+    // 只要有按鍵操作，就更新最後活動時間
+    if (isMultiplayer && gameStarted) {
+      lastActionTime = Date.now();
+    }
+
+    // 音量與靜音控制
+    if (k === 'KeyM') {
+      isBgmMuted = !isBgmMuted;
+      // 如果解除靜音時，主音量是 0，自動拉回 50%
+      if (!isBgmMuted && masterVolume === 0) {
+        masterVolume = 0.5;
+        localStorage.setItem('tetrisVolume', masterVolume);
+      }
+
+      localStorage.setItem('tetrisBgmMuted', isBgmMuted);
+      updateSoundUI();
+      
+      // 如果解除靜音，檢查當下該播哪首並啟動
+      if (!isBgmMuted && bgmStarted) {
+        if (isMultiplayer && gameStarted) battleBgm.play().catch(e=>{});
+        else if (!isMultiplayer && gameStarted) bgm.play().catch(e=>{});
+      }
+      return;
+    }
+    if (k === 'KeyN') {
+      isSfxMuted = !isSfxMuted;
+
+      // 🔥 救援機制：如果解除靜音時，主音量是 0，自動拉回 50%
+      if (!isSfxMuted && masterVolume === 0) {
+        masterVolume = 0.5;
+        localStorage.setItem('tetrisVolume', masterVolume);
+      }
+
+      localStorage.setItem('tetrisSfxMuted', isSfxMuted);
+      updateSoundUI();
+      playSound('move'); // 偷播一個音效測試
+      return;
+    }
+    if (k === 'Minus' || k === 'NumpadSubtract') {
+      // 利用 *10 轉整數再 /10，完美消除 JavaScript 小數點計算誤差
+      masterVolume = Math.max(0, Math.round((masterVolume - 0.1) * 10) / 10);
+      localStorage.setItem('tetrisVolume', masterVolume);
+      updateSoundUI();
+      playSound('move');
+      return;
+    }
+    if (k === 'Equal' || k === 'NumpadAdd') {
+      // 一樣加入防小數點誤差機制
+      masterVolume = Math.min(1, Math.round((masterVolume + 0.1) * 10) / 10);
+      localStorage.setItem('tetrisVolume', masterVolume);
+      updateSoundUI();
+      playSound('move');
+      return;
+    }
+
+    if (isPaused && !['KeyP', 'Escape', 'KeyR'].includes(k)) return;
+    
+    // 全面封殺瀏覽器原生 repeat！防止空白鍵雙重硬降與任何意外連發
+    if (e.repeat) return;
+
+    if (k === 'ArrowLeft') {
+      keysDown.add(k); lastDirKey = -1; activeDir = -1; dasTimer = 0; arrTimer = 0; tryMove(-1); return;
+    }
+    if (k === 'ArrowRight') {
+      keysDown.add(k); lastDirKey = 1; activeDir = 1; dasTimer = 0; arrTimer = 0; tryMove(1); return;
+    }
+    if (k === 'ArrowDown') {
+      keysDown.add(k); moveCooldown = 0; softDrop(true); return;
+    }
+
+    // KO / 消行 / 暫停 / 已結束時，不接受遊戲操作鍵
+    const gameplayKeys = [
+      'ArrowLeft','ArrowRight','ArrowDown','ArrowUp',
+      'Space','KeyX','KeyZ','KeyC',
+      'ShiftLeft','ShiftRight','ControlLeft','ControlRight'
+    ];
+
+    if ((gameOver || isPaused || clearFx || isKOed) && gameplayKeys.includes(k)) {
+      return;
+    }
+
+    keysDown.add(k);
+
+    // 旋轉與掉落
+    if (k === 'ArrowUp' || k === 'KeyX') tryRotate(1);
+    else if (k === 'KeyZ' || k === 'ControlLeft' || k === 'ControlRight') tryRotate(-1);
+    else if (k === 'Space') hardDrop();
+    else if (k === 'KeyC' || k === 'ShiftLeft' || k === 'ShiftRight') hold();
+    
+    // 遊戲流程控制 (開始、重啟)
+    if (k === 'Enter' || k === 'NumpadEnter' || k === 'KeyR') {
+      if (!isMultiplayer) { 
+        // 如果是中途活著按 R 重新開始，也要先把可能破紀錄的分數結算上傳！
+        if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
+           db.collection('users').doc(currentUserUID).set({
+             username: currentPlayer,
+             highScore: highScore,
+             lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
+           }, { merge: true });
+        }
+
+        if (!gameStarted || gameOver || k === 'KeyR') startCountdown();
+      } else {
+        if (gameOver) {
+          if (k === 'KeyR') {
+            if (conn) conn.close(); 
+            startCountdown();              
+          } else if (k === 'Enter' || k === 'NumpadEnter') {
+            if (readyBtn && !readyBtn.disabled) readyBtn.click();
+          }
+        } else if (!gameStarted && !iAmReady && countdownValue === 0) {
+          if (k === 'Enter' || k === 'NumpadEnter') {
+            if (readyBtn && !readyBtn.disabled) readyBtn.click();
+          }
+        }
+      }
+      return;
+    }
+    else if (k === 'KeyP' || k === 'Escape') {
+      if (!gameOver && !isMultiplayer) {
+        isPaused = !isPaused;
+      }
+    }
+  });
+
+  // --- 鍵盤放開事件 ---
+  document.addEventListener('keyup', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    const k = e.code;
+
+    // KO 期間直接忽略，真正的清空交給 KO 復活邏輯統一處理
+    if (isKOed) return;
+
+    keysDown.delete(k);
+
+    if (k === 'ArrowDown') {
+      moveCooldown = 0;
+    }
+  });
+
+  window.addEventListener('resize', fitLayout);
+
+  function initMenu() {
+    board = createBoard();
+    bag = [];          // 初始化隨機袋，防止崩潰
+    queue = [];        // 初始化預覽陣列，防止崩潰
+    current = null;    // 清空當前方塊
+    holdType = null;   // 清空保留方塊
+    gameStarted = false;
+    gameOver = false;
+    score = 0; lines = 0; level = 1;
+    activeGarbage = 0;
+    nextGarbage = 0;
+
+    // 徹底清空殘留的粒子與文字特效
+    particles.length = 0;
+    myFloatingTexts.length = 0;
+    oppFloatingTexts.length = 0;
+    oppKOTimer = 0; // 把對手的黑畫面計時器歸零
+
+    updateHUD();
+    renderPanels();    // 確保側邊欄一開始是乾淨的空畫面
+    draw();
+  }
+  
+  if (typeof Peer !== 'undefined') initNetwork();
+  fitLayout();
+
+  // --- 玩家身分系統 UI 控制 (結合 Firebase 雲端) ---
+  const loginForm = document.getElementById('login-form');
+  const loggedInInfo = document.getElementById('logged-in-info');
+  const loginBtn = document.getElementById('login-btn');
+  const logoutBtn = document.getElementById('logout-btn');
+  const usernameInput = document.getElementById('username-input');
+  const passwordInput = document.getElementById('password-input');
+  const displayUsername = document.getElementById('display-username');
+
+  let currentPlayer = null;
+
+  // === 排行榜防呆鎖與啟動函數 ===
+  let leaderboardsInitialized = false;
+
+  function initLeaderboards() {
+    if (leaderboardsInitialized) return; // 如果已經啟動過，就不要重複執行
+    leaderboardsInitialized = true;
+
+    // 全球 Top 5 即時排行榜 (監聽 Firestore 資料變化)
+    db.collection('users').orderBy('highScore', 'desc').limit(5).onSnapshot((snapshot) => {
+      const listEl = document.getElementById('score-leaderboard-list');
+      if (!listEl) return;
+      listEl.innerHTML = ''; 
+      
+      if (snapshot.empty) {
+        listEl.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size: 12px; margin-top: 10px;">No records yet</div>';
+        return;
+      }
+
+      let rank = 1;
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (!data.username || data.username === 'undefined' || data.username === 'Admin_Mars') return;
+
+        let color = 'var(--white)';
+        if (rank === 1) color = 'var(--O)';       
+        else if (rank === 2) color = '#C0C0C0';   
+        else if (rank === 3) color = '#CD7F32';   
+        
+        listEl.innerHTML += `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+            <span style="color: ${color};"><span style="font-size:11px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
+            <span style="color: var(--S); font-weight: 900;">${data.highScore || 0}</span>
+          </div>
+        `;
+        rank++;
+      });
+    });
+
+    // 全球 TOP 5 積分排行榜 (依據 LP 排序)
+    db.collection('users').orderBy('lp', 'desc').orderBy('wins', 'desc').limit(5).onSnapshot((snapshot) => {
+      const listEl = document.getElementById('wins-leaderboard-list');
+      if (!listEl) return;
+      listEl.innerHTML = ''; 
+      
+      let rank = 1;
+      let hasData = false;
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.lp === undefined && !data.wins) return; 
+        
+        if (data.username === 'Admin_Mars') return;
+
+        hasData = true;
+        let rankColor = '#CD7F32'; 
+        if (rank === 1) rankColor = 'var(--Z)';       
+        else if (rank === 2) rankColor = '#C0C0C0';   
+        else if (rank === 3) rankColor = '#CD7F32';   
+        else rankColor = 'var(--white)';
+
+        const matches = data.matches || 0;
+        const wins = data.wins || 0;
+        const winRate = matches > 0 ? Math.round((wins / matches) * 100) : 0;
+        const winStreak = data.winStreak || 0;
+
+        const fireIcon = winStreak >= 3 ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;" title="3連勝以上！">🔥</span>' : '';
+
+        let lp = data.lp || 0;
+        let badgeName = '銅牌'; let badgeColor = '#CD7F32';
+        if (lp >= 1200) { badgeName = '菁英'; badgeColor = '#00FFFF'; }
+        else if (lp >= 1000) { badgeName = '大師'; badgeColor = '#FF00FF'; }
+        else if (lp >= 800) { badgeName = '鑽石'; badgeColor = '#b9f2ff'; }
+        else if (lp >= 600) { badgeName = '白金'; badgeColor = '#00FF7F'; }
+        else if (lp >= 400) { badgeName = '金牌'; badgeColor = '#FFD700'; }
+        else if (lp >= 200) { badgeName = '銀牌'; badgeColor = '#C0C0C0'; }
+
+        listEl.innerHTML += `
+          <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.3); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color: ${rankColor}; font-weight: bold;"><span style="font-size:11px; margin-right:4px; opacity:0.7;">#${rank}</span>${data.username}${fireIcon}</span>
+              <span style="color: ${badgeColor}; font-weight: 900; text-shadow: 0 0 5px ${badgeColor};">${badgeName} <span style="font-size:10px">(${lp})</span></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: rgba(255,255,255,0.6);">
+              <span>勝率: <span style="color:var(--S); font-weight:bold;">${winRate}%</span></span>
+              <span><span style="color:var(--white);">${wins}</span> 勝 / ${matches} 場</span>
+            </div>
+          </div>
+        `;
+        rank++;
+      });
+
+      if (!hasData) {
+        listEl.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size: 12px; margin-top: 10px;">No ranked players yet</div>';
+      }
+      
+    }, (error) => {
+      console.error("讀取排行榜失敗:", error);
+      const listEl = document.getElementById('wins-leaderboard-list');
+      if (listEl) {
+        listEl.innerHTML = `<div style="color:var(--Z); font-size:11px; margin-top:10px; line-height:1.4;">
+          讀取失敗。請按 F12 開啟開發者 Console，並點擊裡面的 Firebase 連結來建立複合索引。
+        </div>`;
+      }
+    });
+  }
+
+  // === Realtime Database 線上狀態機制 ===
+  // 處理個別玩家上下線的機制
+  function setupPresence(uid, username) {
+    const userStatusDatabaseRef = rtdb.ref('/status/' + uid);
+    const isOfflineForDatabase = {
+      state: 'offline',
+      last_changed: firebase.database.ServerValue.TIMESTAMP,
+    };
+    const isOnlineForDatabase = {
+      state: 'online',
+      username: username,
+      last_changed: firebase.database.ServerValue.TIMESTAMP,
+    };
+
+    rtdb.ref('.info/connected').on('value', function(snapshot) {
+      if (snapshot.val() === false) return;
+      userStatusDatabaseRef.onDisconnect().set(isOfflineForDatabase).then(function() {
+        userStatusDatabaseRef.set(isOnlineForDatabase);
+      });
+    });
+  }
+
+  // 監聽所有人狀態並更新畫面的機制
+  function listenToOnlineUsers() {
+    const listEl = document.getElementById('online-users-list');
+    const countEl = document.getElementById('online-count');
+    if (!listEl || !countEl) return;
+
+    rtdb.ref('/status/').orderByChild('state').equalTo('online').on('value', (snapshot) => {
+      let validUsersHTML = '';
+      let validCount = 0;
+
+      snapshot.forEach((childSnapshot) => {
+        const data = childSnapshot.val();
+        if (data.username && data.username !== 'undefined' && data.username.trim() !== '' && data.username !== 'Admin_Mars') {
+          validCount++;
+          
+          // 如果是自己，隱藏按鈕改成顯示 (YOU)
+          let inviteButtonHTML = '';
+          if (data.username !== currentPlayer) {
+             inviteButtonHTML = `<button class="quick-invite-btn" data-username="${data.username}" style="background:var(--I); color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:pointer; font-size:10px; padding:3px 8px;">INVITE</button>`;
+          } else {
+             inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
+          }
+
+          validUsersHTML += `
+            <div class="online-user-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; width: 100%;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="online-dot"></div>
+                <span style="color: var(--white);">${data.username}</span>
+              </div>
+              ${inviteButtonHTML}
+            </div>
+          `;
+        }
+      });
+
+      countEl.textContent = validCount;
+      if (validCount === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size: 12px;">No one is online</div>';
+      } else {
+        listEl.innerHTML = validUsersHTML;
+      }
+    });
+  }
+
+  // 網頁載入時直接啟動監聽器
+  listenToOnlineUsers();
+
+  document.getElementById('online-users-list').addEventListener('click', (e) => {
+    if (e.target.classList.contains('quick-invite-btn')) {
+      const btn = e.target;
+      
+      // --- 防呆攔截！如果按鈕已經被 disabled，直接中斷，不執行後續連線 ---
+      if (btn.disabled) return;
+
+      const targetName = btn.getAttribute('data-username');
+      const oppInput = document.getElementById('opp-id-input');
+      const connectBtn = document.getElementById('connect-btn');
+      
+      if (oppInput && connectBtn) {
+        oppInput.value = targetName;
+        connectBtn.click(); // 自動觸發連線按鈕
+
+        // --- 變更按鈕為不可點擊狀態 ---
+        const originalText = btn.textContent;
+        const originalBg = btn.style.background;
+        
+        btn.textContent = 'SENT';
+        btn.style.background = '#666666'; // 變成灰色，視覺上更像「已停用」
+        btn.style.color = 'var(--white)';
+        btn.style.cursor = 'not-allowed'; // 讓滑鼠游標變成「禁止」符號 🚫
+        btn.disabled = true;              // 標記為停用
+
+        // 3 秒後恢復原狀
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.background = originalBg;
+          btn.style.color = 'var(--bg)';
+          btn.style.cursor = 'pointer';   // 恢復可點擊的游標 👆
+          btn.disabled = false;
+        }, 3000);
+      }
+    }
+  });
+
+  // 修改密碼
+  const changePwdBtn = document.getElementById('change-pwd-btn');
+  if (changePwdBtn) {
+    changePwdBtn.addEventListener('click', () => {
+      const user = firebase.auth().currentUser;
+      if (!user) return;
+      
+      const newPwd = prompt("請輸入新密碼 (至少 6 位數)：");
+      if (newPwd && newPwd.length >= 6) {
+        user.updatePassword(newPwd).then(() => {
+          alert("密碼修改成功！下次請使用新密碼登入。");
+          localStorage.setItem('tetris_saved_pass', newPwd); // 更新本機儲存
+        }).catch(err => {
+          alert("修改失敗：" + err.message + "\\n(為了安全性，您可能需要登出再重新登入一次才能修改密碼)");
+        });
+      } else if (newPwd) {
+        alert("密碼長度必須至少 6 個字元！");
+      }
+    });
+  }
+
+  // 1. 玩家手動登入/註冊
+  loginBtn.addEventListener('click', () => {
+    const user = usernameInput.value.trim();
+    const pass = passwordInput.value.trim();
+
+    if (!user || !pass) { alert("請輸入名稱與密碼！"); return; }
+    
+    // 將輸入的帳號密碼存入瀏覽器，下次打開自動填寫
+    localStorage.setItem('tetris_saved_user', user);
+    localStorage.setItem('tetris_saved_pass', pass);
+
+    loginBtn.textContent = 'CONNECTING...';
+    const email = user.toLowerCase() + '@tetris.com'; 
+
+    auth.signInWithEmailAndPassword(email, pass)
+      .then((userCredential) => {
+        // 登入成功：完全不理會雲端大小寫，直接使用你剛剛輸入的 user 變數！
+        handleLoginSuccess(user, userCredential.user.uid);
+      })
+      .catch((error) => {
+        auth.createUserWithEmailAndPassword(email, pass)
+          .then((userCredential) => {
+            alert(`🎉 註冊成功！歡迎加入 JUST FUCKING TETRIS，${user}！`);
+            handleLoginSuccess(user, userCredential.user.uid);
+          })
+          .catch((regError) => {
+            if (regError.code === 'auth/email-already-in-use') alert("密碼錯誤！或者這個名稱被別人用囉。");
+            else alert("發生錯誤：" + regError.message);
+            loginBtn.textContent = 'Login / Register';
+          });
+      });
+  });
+
+  // 網頁載入時：自動填寫
+  window.addEventListener('DOMContentLoaded', () => {
+
+    // 不管有沒有登入，立刻去抓排行榜
+    initLeaderboards();
+    // 把上次儲存的帳號密碼填進輸入框
+    const savedUser = localStorage.getItem('tetris_saved_user');
+    const savedPass = localStorage.getItem('tetris_saved_pass');
+    if (savedUser) usernameInput.value = savedUser;
+    if (savedPass) passwordInput.value = savedPass;
+
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+
+        // 如果玩家已經透過點擊按鈕手動登入了，自動登入就不要出來搗亂
+        if (currentPlayer) return;
+
+        // 重新抓取「最新」的本機儲存名字，而不是用網頁剛載入時的舊記憶
+        const currentSavedUser = localStorage.getItem('tetris_saved_user');
+        if (currentSavedUser) {
+          handleLoginSuccess(currentSavedUser, user.uid);
+        } else {
+          db.collection('users').doc(user.uid).get().then(doc => {
+            if (doc.exists && doc.data().username) {
+              handleLoginSuccess(doc.data().username, user.uid);
+            }
+          });
+        }
+      }
+    });
+  });
+
+  // 登入/註冊成功後的處理邏輯
+  function handleLoginSuccess(username, uid) {
+    // 如果名字是空的，或是字面上的 undefined，不准執行
+    if (!username || username === 'undefined') return;
+
+    initMenu();
+    currentPlayer = username;
+    currentUserUID = uid;
+    
+    // 切換 UI
+    loginForm.classList.add('hidden');
+    loggedInInfo.classList.remove('hidden');
+    loginBtn.textContent = 'Login / Register';
+
+    // 顯示線上玩家面板並更新資料庫狀態
+    const onlinePanel = document.getElementById('online-panel');
+    if (onlinePanel) onlinePanel.classList.remove('hidden');
+
+    const adminPanel = document.getElementById('admin-panel');
+    const playerStatsPanel = document.getElementById('player-stats');
+
+    // 判斷是否為管理員
+    if (currentPlayer === 'Admin_Mars') {
+      if (adminPanel) adminPanel.classList.remove('hidden');
+      if (playerStatsPanel) playerStatsPanel.style.display = 'none'; // 隱藏數據框
+
+      // 賦予超然的稱號
+      document.getElementById('display-username').innerHTML = '<span style="color:#ff0000; text-shadow:0 0 10px #ff0000; letter-spacing: 1px; font-size: 18px; white-space: nowrap; display: inline-block;">👑 SYSTEM ADMIN</span>';
+
+      if (myIdEl) myIdEl.textContent = 'Loading...';
+      initNetwork(); // 不傳入 uid，當作隱形人連線，不留門牌
+
+      // 管理員不寫入/讀取玩家資料庫，直接結束函數！
+      highScore = 0; myLP = 0; myWinStreak = 0;
+      updateHUD();
+      return; // 切斷管理員與 Firebase 戰績系統的連結
+    }
+      // 只有一般玩家才會註冊到線上名單
+    setupPresence(uid, currentPlayer);
+    
+    // ===== 以下為一般玩家的正常邏輯 =====
+    if (adminPanel) adminPanel.classList.add('hidden');
+    if (playerStatsPanel) playerStatsPanel.style.display = 'flex'; // 恢復顯示數據框
+
+    const myFire = (myWinStreak >= 3) ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
+    document.getElementById('display-username').innerHTML = currentPlayer + myFire;
+
+    if (myIdEl) myIdEl.textContent = 'Loading...';
+
+    // 去雲端把這個玩家的最高分與戰績抓下來
+    db.collection('users').doc(uid).get().then((doc) => {
+      const data = doc.exists ? doc.data() : {};
+      
+      // 印出雲端給了我們什麼
+      console.log("📥 雲端資料庫回傳的內容：", data);
+
+      // 確保抓下來的是數字
+      highScore = parseInt(data.highScore) || 0;
+      
+      // 確認程式有沒有算錯
+      console.log("🎯 準備更新到畫面的最高分：", highScore);
+
+      let wins = data.wins || 0;
+      let matches = data.matches || 0;
+      if (wins > matches) matches = wins;
+
+      myLP = data.lp || 0;
+      myWinStreak = data.winStreak || 0;
+
+      const winRate = matches > 0 ? Math.round((wins / matches) * 100) : 0;
+      
+      // 更新側邊欄 UI
+      document.getElementById('display-matches').textContent = matches;
+      document.getElementById('display-winrate').textContent = winRate + '%';
+      document.getElementById('display-streak').textContent = myWinStreak + ' W';
+      updateRankUI(myLP);
+
+      // 判斷「剛註冊的新帳號」的標準改為「缺少核心戰績欄位」
+      if (data.lp === undefined || data.highScore === undefined || !data.username) {
+        db.collection('users').doc(uid).set({
+          username: currentPlayer, // 再次確保名字寫入，雙重防護
+          lp: myLP,
+          matches: matches,
+          wins: wins,
+          winStreak: myWinStreak,
+          highScore: highScore
+        }, { merge: true });
+      }
+      
+      isCloudDataLoaded = true; // 雲端資料抓取成功，解鎖上傳權限
+      updateHUD(); 
+      
+      initNetwork(uid); // 等資料全部安穩載入後，才啟動 PeerJS 網路連線與寫入動態門牌
+    }).catch(err => {
+      // 如果有錯誤，強制彈出警告視窗
+      console.error("❌ 讀取資料大失敗：", err);
+      alert("讀取雲端存檔失敗！被 Firebase 擋住了，請按 F12 查看錯誤訊息。");
+    });
+  }
+
+  // 根據 LP 更新段位 UI 與顏色的輔助函數
+  function updateRankUI(lp) {
+    const rankEl = document.getElementById('display-rank');
+    if (!rankEl) return;
+    let rankName = '銅牌'; let color = '#CD7F32';
+    if (lp >= 1200) { rankName = '菁英'; color = '#00FFFF'; }
+    else if (lp >= 1000) { rankName = '大師'; color = '#FF00FF'; }
+    else if (lp >= 800) { rankName = '鑽石'; color = '#b9f2ff'; }
+    else if (lp >= 600) { rankName = '白金'; color = '#00FF7F'; }
+    else if (lp >= 400) { rankName = '金牌'; color = '#FFD700'; }
+    else if (lp >= 200) { rankName = '銀牌'; color = '#C0C0C0'; }
+
+    rankEl.innerHTML = `${rankName} <span style="font-size:12px">(${lp} LP)</span>`;
+    rankEl.style.color = color;
+    rankEl.style.textShadow = `0 0 5px ${color}`;
+  }
+
+  logoutBtn.addEventListener('click', () => {
+    if (isMultiplayer && conn && conn.open) {
+      conn.send({ type: 'OPPONENT_DISCONNECTED' });
+    }
+
+    // 將雲端狀態設為下線，並隱藏面板
+    if (currentUserUID) {
+      rtdb.ref('/status/' + currentUserUID).update({ state: 'offline' });
+    }
+    const onlinePanel = document.getElementById('online-panel');
+    if (onlinePanel) onlinePanel.classList.add('hidden');
+
+    initMenu();
+    auth.signOut().then(() => {
+      currentPlayer = null;
+      currentUserUID = null;
+      usernameInput.value = '';
+      passwordInput.value = '';
+      
+      loggedInInfo.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+
+      const adminPanel = document.getElementById('admin-panel');
+      if (adminPanel) adminPanel.classList.add('hidden');
+
+      if (myIdEl) myIdEl.textContent = 'Loading...';
+      initNetwork();
+
+      // 恢復成單機版的暫存分數
+      highScore = parseInt(localStorage.getItem('tetrisHighScore')) || 0;
+      isCloudDataLoaded = false; // 登出時，把雲端上傳鎖重新鎖上
+      updateHUD();
+    });
+  });
+
+  // GM 開發者控制台系統邏輯
+  const adminUpdateBtn = document.getElementById('admin-update-btn');
+  const adminResetBtn = document.getElementById('admin-reset-btn');
+
+  if (adminUpdateBtn) {
+    adminUpdateBtn.addEventListener('click', async () => {
+      const targetName = document.getElementById('admin-target-user').value.trim();
+      const setHighScore = parseInt(document.getElementById('admin-set-highscore').value);
+      const setLp = parseInt(document.getElementById('admin-set-lp').value);
+      const setWins = parseInt(document.getElementById('admin-set-wins').value);
+      const setStreak = parseInt(document.getElementById('admin-set-streak').value);
+      
+
+      if (!targetName) return alert("請輸入目標玩家名稱！");
+
+      try {
+        adminUpdateBtn.textContent = 'Updating...';
+        
+        // 去資料庫找這位玩家
+        const snapshot = await db.collection('users').where('username', '==', targetName).get();
+        if (snapshot.empty) return alert("找不到這個玩家！");
+
+        let targetDocId = null;
+        let currentMatches = 0;
+        snapshot.forEach(doc => { 
+          targetDocId = doc.id; 
+          currentMatches = doc.data().matches || 0;
+        });
+
+        // 打包要修改的數據
+        let updateData = {};
+        if (!isNaN(setHighScore)) updateData.highScore = setHighScore;
+        if (!isNaN(setLp)) updateData.lp = setLp;
+        if (!isNaN(setStreak)) updateData.winStreak = setStreak;
+        if (!isNaN(setWins)) {
+          updateData.wins = setWins;
+          // 防呆：為了避免勝率超過 100% 的 Bug，如果修改的勝場大於總場次，自動把總場次拉高
+          if (setWins > currentMatches) updateData.matches = setWins; 
+        }
+
+        if (Object.keys(updateData).length === 0) return alert("請至少輸入一項要修改的數值！");
+
+        // 強制寫入 Firebase (使用 merge: true 只會更新你輸入的欄位，不會洗掉其他資料)
+        await db.collection('users').doc(targetDocId).set(updateData, { merge: true });
+        
+        // 清空輸入框
+        document.getElementById('admin-set-highscore').value = '';
+        document.getElementById('admin-set-lp').value = '';
+        document.getElementById('admin-set-wins').value = '';
+        document.getElementById('admin-set-streak').value = '';
+        
+        alert(`成功修改玩家 ${targetName} 的數據！\n(請該玩家重新登入，或打完一局結算後就會更新畫面)`);
+      } catch (err) {
+        console.error("修改失敗:", err);
+        alert("修改失敗！");
+      } finally {
+        adminUpdateBtn.textContent = 'Update Player Stats';
+      }
+    });
+  }
+
+  // 賽季重置功能
+  if (adminResetBtn) {
+    adminResetBtn.addEventListener('click', async () => {
+      const pwd = prompt("⚠️ 警告：即將重置賽季。\n為確保安全，請輸入您 ADMIN 帳號的登入密碼：");
+      if (!pwd) return;
+
+      adminResetBtn.textContent = 'Verifying...';
+      try {
+        // 直接向 Firebase 雲端驗證這個帳號的真實密碼
+        const email = currentPlayer.toLowerCase() + '@tetris.com';
+        await auth.signInWithEmailAndPassword(email, pwd);
+      } catch (error) {
+        alert("密碼錯誤！請輸入您登入此帳號的正確密碼。");
+        adminResetBtn.textContent = '⚠️ RESET SEASON';
+        return;
+      }
+
+      adminResetBtn.textContent = 'Resetting...';
+      try {
+        const snapshot = await db.collection('users').get();
+        const batch = db.batch(); 
+
+        snapshot.forEach(doc => {
+          batch.update(doc.ref, { lp: 0, matches: 0, wins: 0, winStreak: 0 });
+        });
+
+        await batch.commit();
+        alert("🎉 賽季重置完成！全伺服器玩家已歸零。");
+      } catch (err) {
+        console.error("重置失敗:", err);
+        alert("重置失敗！請檢查網路。");
+      } finally {
+        adminResetBtn.textContent = '⚠️ RESET SEASON';
+      }
+    });
+  }
+  
+  // 綁定連線邀請通知 (Toast) 的按鈕事件
+  const acceptBtn = document.getElementById('invite-accept-btn');
+  const rejectBtn = document.getElementById('invite-reject-btn');
+  
+  if (acceptBtn) {
+    acceptBtn.addEventListener('click', () => {
+      document.getElementById('invite-toast').classList.add('hidden');
+      if (inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
+      if (conn && conn.open) {
+        conn.send({ type: 'INVITE_ACCEPT' });
+        enterMultiplayerMode(); // 接收方同意後，正式進入雙人畫面
+      }
+    });
+  }
+
+  if (rejectBtn) {
+    rejectBtn.addEventListener('click', () => {
+      document.getElementById('invite-toast').classList.add('hidden');
+      if (inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
+      if (conn && conn.open) {
+        conn.send({ type: 'INVITE_REJECT' }); // 告訴對方我拒絕了
+        conn.close(); // 中斷連線
+      }
+    });
+  }
+
+  // 練習模式切換邏輯
+  const practiceBtn = document.getElementById('practice-btn');
+  const myNameDisplay = document.getElementById('my-name-display');
+
+  if (practiceBtn) {
+    practiceBtn.addEventListener('click', () => {
+      if (isMultiplayer) return; // 對戰中不允許切換
+
+      isPracticeMode = !isPracticeMode;
+
+      if (isPracticeMode) {
+        practiceBtn.textContent = '🟩 EXIT PRACTICE MODE';
+        practiceBtn.style.background = 'var(--S)';
+        practiceBtn.style.color = 'var(--bg)';
+        practiceBtn.style.borderColor = 'var(--S)';
+        if (myNameDisplay) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+      } else {
+        practiceBtn.textContent = '🟨 ENTER PRACTICE MODE';
+        practiceBtn.style.background = 'transparent';
+        practiceBtn.style.color = 'var(--O)';
+        practiceBtn.style.borderColor = 'var(--O)';
+        if (myNameDisplay) myNameDisplay.innerHTML = 'You';
+      }
+
+      // 如果遊戲正在進行中，強制重新開始以套用設定
+      if (gameStarted || countdownValue > 0) {
+        gameOver = true;
+        startCountdown();
+      }
+    });
+  }
+
+  // 當玩家直接關閉網頁分頁或重整時，瞬間通知對手
+  window.addEventListener('beforeunload', () => {
+    if (isMultiplayer && conn && conn.open) {
+      conn.send({ type: 'OPPONENT_DISCONNECTED' });
+    }
+  });
+
+  initMenu();
+  updateSoundUI();
+  requestAnimationFrame(gameLoop);
+})();
+</script>
+</body>
+</html>
