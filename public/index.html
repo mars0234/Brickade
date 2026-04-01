@@ -762,6 +762,7 @@
   let activeGarbage = 0; // 準備湧入的垃圾 (危險：紅色)
   let nextGarbage = 0;   // 剛收到的垃圾，還在寬限期 (警告：黃色)
   let lastGarbageHole = -1; // 記憶上一次垃圾行的缺口位置
+  let consecutiveGarbageHoles = 0; // 跨回合記憶目前缺口連續出現的次數
   // --- 記錄戰況變數 ---
   let myKOs = 0;
   let oppKOs = 0;
@@ -1078,6 +1079,8 @@
       connStatus.textContent = 'Status: PLAYING...';
       connStatus.style.color = 'var(--S)';
     }
+    
+    // 將所有遊戲狀態歸零
     bag = []; queue = []; current = null; holdType = null; holdUsed = false;
     score = 0; lines = 0; level = 1; activeGarbage = 0; nextGarbage = 0;
     gameOver = false; isPaused = false; gravityTimer = 0; lastTime = 0;
@@ -1085,8 +1088,17 @@
     dasTimer = 0; arrTimer = 0; activeDir = 0; keysDown = new Set();
     lastMoveType = null; lastKickIndex = 0; b2b = 0; combo = -1;
 
+    // --- 確保每一局新開局時，垃圾行的洞口記憶都重新計算 ---
+    lastGarbageHole = -1;
+    consecutiveGarbageHoles = 0;
+
     isKOed = false; // 確保每次新開局，絕對不會帶著上一局的死亡狀態
     matchResult = null; // 強制重置上一局的勝負結果
+
+    // --- 清除上一局對手與自己畫面上可能殘留的文字特效與黑幕 ---
+    oppKOTimer = 0;
+    oppFloatingTexts.length = 0;
+    myFloatingTexts.length = 0;
 
     if (actionMsgEl) actionMsgEl.textContent = '';
     
@@ -1111,7 +1123,7 @@
           }
         }
     
-    prepareGame(); // ★ 倒數前，先準備好盤面與預覽方塊讓你偷看！
+    prepareGame(); // 倒數前，先準備好盤面與預覽方塊讓你偷看
     
     // 重置對戰數據
     myKOs = 0; oppKOs = 0; myLinesSent = 0; oppLinesSent = 0;
@@ -1252,13 +1264,7 @@
     lastHeartbeat = Date.now(); 
 
     pingInterval = setInterval(() => {
-      if (isMultiplayer && gameStarted && !gameOver) {
-        if (Date.now() - lastHeartbeat > 10000 && countdownValue <= 0) {
-          gameOver = true;
-          alert("⚠️ 對手連線超時 (可能已斷網)！本局不結算。");
-          if (conn) { conn.close(); conn = null; }
-        }
-      }
+      // 維持連線的 PING
       if (conn && conn.open) {
         lastPingTime = Date.now();
         conn.send({ type: 'PING' }); 
@@ -1444,6 +1450,24 @@
 
           // 設定對手盤面變暗 1 秒 (1000 毫秒)
           oppKOTimer = 1000;
+        }
+      }
+      // --- 收到對手自己疊死 (Top Out) 的訊號 ---
+      else if (data.type === 'TOP_OUT_LOSE') {
+        if (!gameOver) {
+          showMsg("OPPONENT TOPPED OUT!");
+          
+          // 先把特效加進畫面並播放音效
+          oppFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
+          playSound('perfect');
+          
+          // 讓遊戲先執行結算，這時畫面上會同時印出大大的 YOU WIN
+          endBattleMatch('WIN');
+          
+          // 將 alert 延遲 1200 毫秒，讓瀏覽器「有時間」把剛剛的特效畫出來
+          setTimeout(() => {
+            alert("🎉 對手疊到天花板自爆啦！你獲得了本局勝利！");
+          }, 1200); 
         }
       }
       else if (data.type === 'OPPONENT_DISCONNECTED') {
@@ -1776,11 +1800,45 @@
   function triggerGameOver() {
     if (gameOver) return;
     if (isMultiplayer && isKOed) return; // 防呆：避免一瞬間重複死兩次
+
+    // --- 檢查場上是否有任何垃圾行或炸彈 ---
+    let hasGarbage = false;
+    for (let r = 0; r < ROWS; r++) {
+      if (board[r].includes('G') || board[r].includes('B')) {
+        hasGarbage = true;
+        break;
+      }
+    }
     
     shakeMag = 20; 
     playSound('drop');
 
     if (isMultiplayer) {
+      // --- 如果場上完全沒有垃圾 (自己疊死)，直接判輸 ---
+      if (!hasGarbage) {
+        // 讓自己進入死亡僵直，畫面稍微變暗並沒收方塊控制權
+        isKOed = true;
+        current = null;
+        
+        // 發送自爆訊號給對手
+        if (conn && conn.open) conn.send({ type: 'TOP_OUT_LOSE' });
+        
+        // 在自己的畫面上噴出 TOP OUT 動畫與提示
+        showMsg("TOP OUT!");
+        myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
+        playSound('lose'); // 提早播一個嘆息音效
+        
+        // 等待 1.2 秒讓動畫飄完，再跳出最終的 YOU LOSE 結算畫面
+        setTimeout(() => {
+          if (!gameOver) { // 防呆：確保這 1.2 秒內沒有因為時間到而重複結算
+            endBattleMatch('LOSE');
+          }
+        }, 1200);
+        
+        return; // 結束，絕對不執行後續的復活流程
+      }
+
+      // --- 如果有垃圾，走 KO 復活流程 ---
       isKOed = true; // 進入死亡僵直
       if (conn && conn.open) conn.send({ type: 'I_AM_KO' });
 
@@ -1803,15 +1861,10 @@
       setTimeout(() => {
         if (!isMultiplayer || matchResult) return;
 
-        // 過濾掉所有包含 'G' 的垃圾行
-        let newBoard = board.filter(row => !row.includes('G'));
-        
-        // 強制削平最上面 4 行，確保新方塊絕對有空間出生！
-        while (newBoard.length > VISIBLE_ROWS - 4) {
-          newBoard.shift(); 
-        }
+        // --- 復活清理：只抽掉所有的垃圾與炸彈，自己疊的方塊原封不動保留 ---
+        let newBoard = board.filter(row => !row.includes('G') && !row.includes('B'));
 
-        // 在頂部補齊空行，讓玩家的方塊自然下墜
+        // 在頂部補齊空行，讓玩家剩下的方塊自然下墜
         while (newBoard.length < ROWS) {
           newBoard.unshift(Array(COLS).fill(null));
         }
@@ -1857,7 +1910,6 @@
           console.log("✅ 最高分已成功寫入雲端伺服器！");
         }).catch(err => {
           console.error("上傳最高分失敗:", err);
-          // ★ 強制跳出錯誤視窗，抓出拒絕存檔的兇手！
           alert("⚠️ 雲端存檔被伺服器拒絕！\n\n錯誤原因：" + err.message + "\n\n(這通常是因為資料庫權限過期，或是配額還沒解鎖)");
         });
       }
@@ -2269,6 +2321,12 @@
 
     ctx.restore(); // 恢復畫布狀態
 
+    // --- 讓我方輸的時候，或是處於 KO 狀態時，盤面變暗 (畫在結算面板的下方) ---
+    if ((isMultiplayer && isKOed && !gameOver) || (gameOver && matchResult === 'LOSE')) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; 
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     // --- 遊戲結束結算畫面 ---
     if (gameOver) {
       ctx.fillStyle = 'rgba(6,0,79,0.9)';
@@ -2339,12 +2397,6 @@
       }
     }
 
-    // 如果我處於 KO 懲罰狀態，將整個遊戲盤面蓋上一層黑色半透明，凸顯 KO 字樣
-    if (isMultiplayer && isKOed) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // 40% 的黑色
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
     myFloatingTexts.forEach(ft => ft.draw(ctx));
   }
 
@@ -2363,6 +2415,9 @@
       oppCtx.fillText('WAITING FOR', oppCanvas.width/2, oppCanvas.height/2 - 10);
       oppCtx.fillText('OPPONENT', oppCanvas.width/2, oppCanvas.height/2 + 10);
     } else {
+      // --- 判斷是否正在倒數中 ---
+      const isCountingDown = (countdownValue > 0);
+
       // --- 解碼並繪製對手的靜態盤面 ---
       const oppSize = 34;
       const bStr = oppState.b;
@@ -2373,7 +2428,8 @@
             const char = bStr[charIndex++];
             if (r < VISIBLE_ROWS) continue; // 隱藏區不畫
 
-            if (char !== '.') {
+            // --- 如果在倒數中 (!isCountingDown 為 false)，一律畫空的網格 ---
+            if (char !== '.' && !isCountingDown) {
               drawCell(oppCtx, c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, COLORS[char]);
             } else {
               oppCtx.fillStyle = CELL_BG;
@@ -2386,44 +2442,47 @@
         }
       }
 
-      const curr = oppState.c;
-      if (curr) {
-        const matrix = PIECES[curr.t][curr.rot];
-        for (let r = 0; r < matrix.length; r++) {
-          for (let c = 0; c < matrix[r].length; c++) {
-            if (matrix[r][c]) {
-              const rr = curr.r + r;
-              const cc = curr.c + c;
-              if (rr >= VISIBLE_ROWS) { // 大於 20 才畫
-                drawCell(oppCtx, cc * oppSize, (rr - VISIBLE_ROWS) * oppSize, oppSize, COLORS[curr.t]);
+      if (!isCountingDown) {
+        const curr = oppState.c;
+        if (curr) {
+          const matrix = PIECES[curr.t][curr.rot];
+          for (let r = 0; r < matrix.length; r++) {
+            for (let c = 0; c < matrix[r].length; c++) {
+              if (matrix[r][c]) {
+                const rr = curr.r + r;
+                const cc = curr.c + c;
+                if (rr >= VISIBLE_ROWS) { // 大於 20 才畫
+                  drawCell(oppCtx, cc * oppSize, (rr - VISIBLE_ROWS) * oppSize, oppSize, COLORS[curr.t]);
+                }
               }
             }
           }
         }
-      }
-      
-      // --- 繪製對手的垃圾行警告條 ---
-      const oppG = oppState.g || 0;
-      const oppNg = oppState.ng || 0;
-      
-      if (oppG > 0 || oppNg > 0) {
-        const totalG = Math.min(oppG + oppNg, ROWS);
-        const activeHeight = Math.min(oppG, ROWS) * oppSize;
-        const totalHeight = totalG * oppSize;
         
-        if (oppG > 0) {
-          oppCtx.fillStyle = '#ff0d62';
-          oppCtx.fillRect(0, oppCanvas.height - activeHeight, 4, activeHeight);
-        }
-        if (oppNg > 0) {
-          const nextHeight = totalHeight - activeHeight;
-          oppCtx.fillStyle = '#f7dd16';
-          oppCtx.fillRect(0, oppCanvas.height - totalHeight, 4, nextHeight);
+        // --- 繪製對手的垃圾行警告條 ---
+        const oppG = oppState.g || 0;
+        const oppNg = oppState.ng || 0;
+        
+        if (oppG > 0 || oppNg > 0) {
+          const totalG = Math.min(oppG + oppNg, ROWS);
+          const activeHeight = Math.min(oppG, ROWS) * oppSize;
+          const totalHeight = totalG * oppSize;
+          
+          if (oppG > 0) {
+            oppCtx.fillStyle = '#ff0d62';
+            oppCtx.fillRect(0, oppCanvas.height - activeHeight, 4, activeHeight);
+          }
+          if (oppNg > 0) {
+            const nextHeight = totalHeight - activeHeight;
+            oppCtx.fillStyle = '#f7dd16';
+            oppCtx.fillRect(0, oppCanvas.height - totalHeight, 4, nextHeight);
+          }
         }
       }
     }
 
-    if (typeof oppKOTimer !== 'undefined' && oppKOTimer > 0) {
+    // --- 如果對手在 KO 狀態，或是對手輸了(代表我方贏了)，對手的盤面變暗 ---
+    if ((typeof oppKOTimer !== 'undefined' && oppKOTimer > 0 && !gameOver) || (gameOver && matchResult === 'WIN')) {
       oppCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
     }
@@ -2845,17 +2904,16 @@
     
     const linesToAdd = activeGarbage;
     let linesAdded = 0;
-    let consecutiveHoles = 0; // 記錄目前這個洞口已經連續幾行了
 
     for (let i = 0; i < linesToAdd; i++) {
       // 如果同一個洞口已經連續 2 行，強制換一個新的
-      if (consecutiveHoles >= 2 || lastGarbageHole === -1) {
+      if (consecutiveGarbageHoles >= 2 || lastGarbageHole === -1) {
         let newHole;
         do {
           newHole = Math.floor(Math.random() * COLS);
         } while (newHole === lastGarbageHole);
         lastGarbageHole = newHole;
-        consecutiveHoles = 0; // 重置計數
+        consecutiveGarbageHoles = 0; // 換新洞口後，重置計數
       }
 
       board.shift(); 
@@ -2864,7 +2922,7 @@
       board.push(newRow);
 
       linesAdded++;
-      consecutiveHoles++;
+      consecutiveGarbageHoles++; // 每推入一行，連續次數 +1
     }
     
     if (linesAdded > 0) {
@@ -3055,33 +3113,6 @@
     }
 
     if (!gameStarted || gameOver || isPaused || isKOed) return;
-    
-    // AFK 掛機偵測系統 (對戰模式限定)
-    if (isMultiplayer && gameStarted && !gameOver && countdownValue <= 0) {
-      // 如果超過 25 秒沒有任何操作 (25000 毫秒)
-      if (Date.now() - lastActionTime > 25000) {
-        console.log("偵測到掛機，自動踢出");
-        
-        // 1. 發送退出訊號，讓對手安全結束並看到 OPPONENT DISCONNECTED
-        if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
-        
-        // 2. 把自己的畫面強制結束，並顯示被踢出的警告
-        gameOver = true;
-        current = null;
-        showMsg("KICKED FOR AFK");
-        playSound('lose');
-        
-        const connStatus = document.getElementById('conn-status');
-        if (connStatus) {
-          connStatus.textContent = 'Disconnected - AFK';
-          connStatus.style.color = 'var(--Z)';
-        }
-        
-        // 3. 關閉連線，觸發 UI 重置
-        if (conn) { conn.close(); conn = null; }
-        return; // 終止後續的遊戲邏輯
-      }
-    }
 
     // --- 官方重力公式 (分流單機與連線) ---
     let gravityInterval;
@@ -3136,13 +3167,27 @@
   function gameLoop(ts) {
     if (!lastTime) lastTime = ts;
     let delta = ts - lastTime;
-    if (delta > 34) delta = 34;
     lastTime = ts;
-    update(delta);
+
+    // --- 切換分頁防護與補償機制 ---
+    if (delta > 500) { 
+      
+      // 如果掛機超過 3 分鐘 (180000 毫秒)，最多只補償 3 分鐘
+      // 避免 while 迴圈跑幾萬次把瀏覽器卡死
+      if (delta > 180000) delta = 180000; 
+    }
+
+    // --- 把流失的時間切成 16ms 的小碎塊，強制執行進度 ---
+    // 這會讓切換分頁的人，切回來時方塊會「瞬間瘋狂結算落下」到死，無法利用切換分頁作弊
+    while (delta > 0) {
+      let step = Math.min(delta, 16); 
+      update(step);
+      delta -= step;
+    }
+
     draw();
     renderPanels();
     drawOpponent();
-    requestAnimationFrame(gameLoop);
   }
 
 
@@ -3355,6 +3400,14 @@
     oppFloatingTexts.length = 0;
     oppKOTimer = 0; // 把對手的黑畫面計時器歸零
 
+    // --- 直接在本地端瞬間把對手畫面清空 ---
+    if (oppState) {
+      oppState.b = '.'.repeat(ROWS * COLS); // 產生 400 個 '.' (空點)，瞬間清空對手盤面
+      oppState.c = null; // 清空對手正在掉落的方塊
+      oppState.g = 0;    // 清空對手的紅色垃圾警告條
+      oppState.ng = 0;   // 清空對手的黃色垃圾警告條
+    }
+
     updateHUD();
     renderPanels();    // 確保側邊欄一開始是乾淨的空畫面
     draw();
@@ -3508,40 +3561,53 @@
     if (!listEl || !countEl) return;
 
     rtdb.ref('/status/').orderByChild('state').equalTo('online').on('value', (snapshot) => {
-      let validUsersHTML = '';
+      let users = []; // 改用陣列來收集名單
       let validCount = 0;
 
       snapshot.forEach((childSnapshot) => {
         const data = childSnapshot.val();
         if (data.username && data.username !== 'undefined' && data.username.trim() !== '' && data.username !== 'Admin_Mars') {
           validCount++;
-          
-          // 如果是自己，隱藏按鈕改成顯示 (YOU)
-          let inviteButtonHTML = '';
-          if (data.username !== currentPlayer) {
-             inviteButtonHTML = `<button class="quick-invite-btn" data-username="${data.username}" style="background:var(--I); color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:pointer; font-size:10px; padding:3px 8px;">INVITE</button>`;
-          } else {
-             inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
-          }
-
-          validUsersHTML += `
-            <div class="online-user-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; width: 100%;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <div class="online-dot"></div>
-                <span style="color: var(--white);">${data.username}</span>
-              </div>
-              ${inviteButtonHTML}
-            </div>
-          `;
+          users.push(data.username);
         }
       });
 
       countEl.textContent = validCount;
       if (validCount === 0) {
         listEl.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size: 12px;">No one is online</div>';
-      } else {
-        listEl.innerHTML = validUsersHTML;
+        return;
       }
+
+      // --- 將自己的名字強制排序到陣列最前面 ---
+      users.sort((a, b) => {
+        if (a === currentPlayer) return -1; // 遇到自己，就排到前面
+        if (b === currentPlayer) return 1;  
+        return 0; 
+      });
+
+      let validUsersHTML = '';
+      
+      // 排序完成後，才產生 HTML
+      users.forEach((username) => {
+        let inviteButtonHTML = '';
+        if (username !== currentPlayer) {
+           inviteButtonHTML = `<button class="quick-invite-btn" data-username="${username}" style="background:var(--I); color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:pointer; font-size:10px; padding:3px 8px;">INVITE</button>`;
+        } else {
+           inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
+        }
+
+        validUsersHTML += `
+          <div class="online-user-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; width: 100%;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="online-dot"></div>
+              <span style="color: var(--white);">${username}</span>
+            </div>
+            ${inviteButtonHTML}
+          </div>
+        `;
+      });
+
+      listEl.innerHTML = validUsersHTML;
     });
   }
 
@@ -3988,7 +4054,31 @@
 
   initMenu();
   updateSoundUI();
-  requestAnimationFrame(gameLoop);
+
+  // --- 利用 Web Worker 建立不受分頁休眠影響的「背景引擎」 ---
+  // 一段寫在字串裡的微型腳本，用來在背景獨立計時
+  const workerCode = `
+    let timer = null;
+    self.onmessage = function(e) {
+      if (e.data === 'start') {
+        // 每 16 毫秒發送一次訊號 (相當於 60 FPS)
+        timer = setInterval(() => self.postMessage('tick'), 16); 
+      }
+    };
+  `;
+  
+  // 將字串轉換成瀏覽器可執行的 Blob 物件
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  const engineWorker = new Worker(URL.createObjectURL(blob));
+
+  // 當收到背景 Worker 傳來的 tick 訊號時，執行遊戲迴圈
+  engineWorker.onmessage = function() {
+    // 使用 performance.now() 取得極高精度的時間戳，確保背景計時精準
+    gameLoop(performance.now()); 
+  };
+
+  // 啟動背景引擎
+  engineWorker.postMessage('start');
 })();
 </script>
 </body>
