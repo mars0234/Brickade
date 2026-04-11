@@ -1460,6 +1460,12 @@
       aiQueue = []; aiCurrent = null;
       aiScore = 0; aiLines = 0; aiLevel = 1;
       aiGameOver = false; aiThinkTimer = 0;
+      // 清空 AI 身上殘留的垃圾與破洞記憶
+      aiActiveGarbage = 0;
+      aiNextGarbage = 0;
+      aiLastGarbageHole = -1;
+      aiConsecutiveGarbageHoles = 0;
+
       aiSyncOppState();
     }
     score = 0; lines = 0; level = 1; activeGarbage = 0; nextGarbage = 0;
@@ -3437,8 +3443,8 @@
           return 0;
         }));
         const pressureBonus = Math.max(0, (maxH - 10) * 50);
-        const hesitateChance = { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.05, god: 0.01 }[aiSpeedMode] || 0.12;
-        const hesitateMs = { rookie: 300, casual: 180, adaptive: 100, pro: 50, god: 15 }[aiSpeedMode] || 100;
+        const hesitateChance = { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.1, god: 0.01 }[aiSpeedMode] || 0.12;
+        const hesitateMs = { rookie: 300, casual: 180, adaptive: 100, pro: 120, god: 15 }[aiSpeedMode] || 100;
         
         if (Math.random() < hesitateChance) {
           aiCurrent._hesitating = true;
@@ -3492,23 +3498,23 @@
       }
     }
 
-    let baseStepDelay = 40;
-    if (aiSpeedMode === 'rookie') baseStepDelay = 1000; // 菜鳥：想很久，1秒才下一顆
-    else if (aiSpeedMode === 'casual') baseStepDelay = 700; // 休閒：0.7秒下一顆
-    else if (aiSpeedMode === 'adaptive') {
-      baseStepDelay = Math.max(120, currentAiThinkInterval); 
-    }
-    else if (aiSpeedMode === 'pro') baseStepDelay = 250; // 高手：一秒 4 顆
-    else if (aiSpeedMode === 'god') baseStepDelay = 15;
-
-    const jitterRatio = { rookie: 0.5, casual: 0.3, adaptive: 0.2, pro: 0.1, god: 0.05 }[aiSpeedMode] || 0.2;
-    const aiStepDelay = baseStepDelay * (1 + (Math.random() * jitterRatio));
+    // ---------------------------------------------------------
+    // 🚀 全新木偶操控系統：將 C++ 的運算結果轉化為擬人化動畫
+    // ---------------------------------------------------------
+    
+    // 決定 AI 移動方塊的「手指速度」 (毫秒/格)。數字越小，畫面看起來手速越狂！
+    const fingerDelay = { rookie: 120, casual: 60, adaptive: Math.max(16, currentAiThinkInterval / 8), pro: 40, god: 5 }[aiSpeedMode] || 30;
 
     aiThinkTimer += delta;
-    if (aiThinkTimer >= aiStepDelay) {
-      aiThinkTimer = 0;
+    // 確保上限「絕對大於」AI 移動所需的最低時間 (給予 1.5 倍的緩衝空間)
+    const maxTimeDebt = Math.max(100, fingerDelay * 1.5);
+    if (aiThinkTimer > maxTimeDebt) aiThinkTimer = maxTimeDebt;
 
-      // 如果 C++ 說這步按 Hold 分數更高
+    while (aiThinkTimer >= fingerDelay) {
+      // 扣除時間，進入下一步
+      aiThinkTimer -= fingerDelay;
+
+      // 處理 Hold 邏輯
       if (aiCurrent.target.useHold && !aiHoldUsed) {
          if (!aiHoldType) {
             aiHoldType = aiCurrent.type;
@@ -3520,17 +3526,35 @@
             aiCurrent = aiMakePiece(swap);
          }
          aiHoldUsed = true;
-         aiCurrent.target = null; // 換完牌後，清空目標，下一幀再問一次 C++ 新方塊要放哪
+         aiCurrent.target = null;
          aiSyncOppState();
-         return;
+         return; // 換牌需要花掉剩餘的時間，直接跳出這幀的計算
       }
 
-      // 瞬間移動並鎖定
-      aiExecuteMove(aiCurrent.target);
-      
-      // 每次落塊都強制把畫面同步給對手
-      aiSyncOppState(); 
-      return;
+      let moved = false;
+      let target = aiCurrent.target;
+
+      if (aiCurrent.rot !== target.rot) {
+        aiCurrent.rot = target.rot;
+        aiCurrent.matrix = clone(PIECES[aiCurrent.type][aiCurrent.rot]);
+        moved = true;
+      }
+      else if (aiCurrent.col !== target.col) {
+        aiCurrent.col += (target.col > aiCurrent.col) ? 1 : -1;
+        moved = true;
+      }
+      else if (aiCurrent.row < target.row) {
+        let dropSpeed = { rookie: 1, casual: 1, adaptive: 2, pro: 4, god: 20 }[aiSpeedMode] || 2;
+        aiCurrent.row = Math.min(aiCurrent.row + dropSpeed, target.row);
+        moved = true;
+      }
+
+      if (!moved) {
+        aiExecuteMove(target);
+        break; // 已經撞到底部鎖定了，直接跳出 while 迴圈，不要浪費多餘的時間去干擾下一顆方塊
+      } else {
+        aiSyncOppState();
+      }
     }
   }
 
@@ -3775,9 +3799,15 @@
     aiCombo = -1;
     aiGameOver = false; aiGravityTimer = 0; aiThinkTimer = 0;
 
+    // 清空 AI 身上殘留的垃圾與破洞記憶
+    aiActiveGarbage = 0;
+    aiNextGarbage = 0;
+    aiLastGarbageHole = -1;
+    aiConsecutiveGarbageHoles = 0;
+
     // 初始化適應性 AI 數據
     // 根據玩家選擇的速度模式初始化思考間距
-    const speedMap = { rookie: 900, casual: 600, adaptive: 4000, pro: 250, god: 80 };
+    const speedMap = { rookie: 900, casual: 600, adaptive: 4000, pro: 400, god: 80 };
     currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
     myLastLockTime = performance.now();
     myLockIntervals = [currentAiThinkInterval, currentAiThinkInterval];
@@ -4603,6 +4633,12 @@
         document.querySelectorAll('#ai-speed-group .ai-option-btn').forEach(b => b.classList.remove('selected-speed'));
         btn.classList.add('selected-speed');
         aiSpeedMode = btn.dataset.speed;
+        // --- 切換速度時的「即時反應」機制 ---
+        aiThinkTimer = 0; // 直接沒收時間債，防止舊的延遲干擾
+        if (aiCurrent) {
+           aiCurrent._hesitating = false;
+           aiCurrent._hesitateEnd = 0;
+        }
         if (isAIMode && aiSpeedMode !== 'adaptive') {
           const speedMap = { rookie: 900, casual: 600, pro: 250, god: 80 };
           currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
