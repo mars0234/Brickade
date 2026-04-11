@@ -2,6 +2,13 @@
 // 📝 以後你只要在這裡新增/修改文字就好，完全不用去動 index.html！
 
 const CHANGELOG_DATA = [
+ {
+    version: "v2.1.1",
+    title: "🐛 AI 邏輯熱修復 (Hotfix)",
+    changes: [
+      "修復了 AI 在「菜鳥」與「適應模式」下，會因為動作緩衝上限卡死而不掉落方塊（石化）的 Bug。"
+    ]
+  },
   {
     version: "v2.1.0",
     title: "🔥 究極街機更新",

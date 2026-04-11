@@ -430,7 +430,7 @@
 <div class="viewport" id="viewport">
 
   <div id="version-tag" style="position: absolute; bottom: 15px; right: 20px; font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.4); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease;">
-    Build <span id="version-text" style="color: var(--I);">v2.1.0</span>
+    Build <span id="version-text" style="color: var(--I);"></span>
   </div>
 
   <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 90%; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px;">
@@ -722,7 +722,7 @@
 
 
 (() => {
-  const GAME_VERSION = 'v2.1.0'; // 目前遊戲版本號
+  const GAME_VERSION = 'v2.1.1'; // 目前遊戲版本號
   const COLS = 10;
   const ROWS = 40;           // 陣列總高度改為 40 (官方標準)
   const VISIBLE_ROWS = 20;   // 畫面只顯示下半部 20 行
@@ -3436,6 +3436,22 @@
     if (!isAIMode || aiGameOver || gameOver || !isAiReady || isPaused || countdownValue > 0) return;
     if (!aiCurrent) return;
 
+    // ---------------------------------------------------------
+    // 🪀 隱形橡皮筋機制 (Dynamic Difficulty Adjustment)
+    // ---------------------------------------------------------
+    // 1 KO 大約等同於 20 行的壓制力。計算雙方目前的「綜合戰力」
+    const myPower = myLinesSent + (myKOs * 20);
+    const aiPower = oppLinesSent + (oppKOs * 20);
+    const powerDiff = aiPower - myPower; // 正數: AI 領先 / 負數: 玩家領先
+
+    // 計算橡皮筋係數 (預設 1.0)
+    // 如果差距 20，係數會變成 1.5 或 0.5。為了不被察覺，限制在 0.6 ~ 1.4 之間
+    let rubberBand = 1.0;
+    if (aiSpeedMode === 'adaptive') { // 適應模式套用橡皮筋機制
+       rubberBand = 1.0 + (powerDiff / 40); 
+       rubberBand = Math.max(0.6, Math.min(rubberBand, 1.4)); 
+    }
+
     if (!aiCurrent.target) {
       if (!aiCurrent._hesitating) {
         const maxH = Math.max(...Array.from({length: COLS}, (_, c) => {
@@ -3443,8 +3459,12 @@
           return 0;
         }));
         const pressureBonus = Math.max(0, (maxH - 10) * 50);
-        const hesitateChance = { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.1, god: 0.01 }[aiSpeedMode] || 0.12;
-        const hesitateMs = { rookie: 300, casual: 180, adaptive: 100, pro: 120, god: 15 }[aiSpeedMode] || 100;
+        
+        // 🪀 套用橡皮筋：領先時發呆機率變高、想更久；落後時變專心
+        const baseHesChance = { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.1, god: 0.01 }[aiSpeedMode] || 0.12;
+        const baseHesMs = { rookie: 300, casual: 180, adaptive: 100, pro: 120, god: 15 }[aiSpeedMode] || 100;
+        const hesitateChance = baseHesChance * rubberBand; 
+        const hesitateMs = baseHesMs * rubberBand;
         
         if (Math.random() < hesitateChance) {
           aiCurrent._hesitating = true;
@@ -3499,11 +3519,12 @@
     }
 
     // ---------------------------------------------------------
-    // 🚀 全新木偶操控系統：將 C++ 的運算結果轉化為擬人化動畫
+    // 全新木偶操控系統：將 C++ 的運算結果轉化為擬人化動畫
     // ---------------------------------------------------------
     
-    // 決定 AI 移動方塊的「手指速度」 (毫秒/格)。數字越小，畫面看起來手速越狂！
-    const fingerDelay = { rookie: 120, casual: 60, adaptive: Math.max(16, currentAiThinkInterval / 8), pro: 40, god: 5 }[aiSpeedMode] || 30;
+    // 套用橡皮筋：領先時手指移動變慢；落後時飆手速
+    const baseFingerDelay = { rookie: 120, casual: 60, adaptive: Math.max(16, currentAiThinkInterval / 8), pro: 40, god: 5 }[aiSpeedMode] || 30;
+    const fingerDelay = baseFingerDelay * rubberBand;
 
     aiThinkTimer += delta;
     // 確保上限「絕對大於」AI 移動所需的最低時間 (給予 1.5 倍的緩衝空間)
