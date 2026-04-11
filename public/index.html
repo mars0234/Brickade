@@ -27,13 +27,6 @@
     font-family:Arial,Helvetica,sans-serif;
     overflow:hidden;
   }
-  .viewport{
-    width:100vw;
-    height:100vh;
-    overflow:hidden;
-    position:relative;
-    padding: 24px 40px;
-  }
   .logo-word{
     font-weight:900;
     font-size:66px;
@@ -120,6 +113,7 @@
     width: 100vw;
     height: 100vh;
     overflow: hidden; /* 防止捲軸 */
+    padding: 24px 40px;
   }
 
   /* 全場主標題 (TETRIS) */
@@ -136,17 +130,6 @@
     color: var(--white);
     text-shadow: 0 0 20px var(--I);
     margin-bottom: 0;
-  }
-
-  /* 戰鬥競技場 (用來置中與縮放) */
-  .battle-layout {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 30px;
-    position: absolute;
-    top: 50%;
-    left: 50%;
   }
 
   .wing {
@@ -167,11 +150,40 @@
     justify-content: flex-start;
   }
 
+  /* 戰鬥競技場 (用來置中與縮放) */
+  .battle-layout {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  }
+
   /* 當進入連線模式時，釋放右翼的寬度限制，讓對手畫面自然展開 */
   .battle-layout.is-multiplayer .right-wing {
     width: max-content;
   }
 
+  /* 雙人模式下，解除無意義的強制寬度，並榨乾多餘縫隙 */
+  .battle-layout.is-multiplayer { 
+    gap: 45px !important; 
+  }
+  .battle-layout.is-multiplayer .left-wing {
+    width: 540px !important; /* 拔除幽靈寬度，恢復原本大小 */
+    align-items: flex-end; /* 讓左邊的選單靠右貼緊，畫面更集中 */
+  }
+  .battle-layout.is-multiplayer .right-wing {
+    width: max-content !important; /* 讓右邊自然包覆對手 */
+  }
+  
+  /* 稍微縮小雙人模式的框線內距，為遊戲主體爭取最大化空間 */
+  .battle-layout.is-multiplayer .game-section {
+    padding: 12px !important;
+    gap: 10px !important;
+  }
+  
   .battle-arena {
     display: flex;
     justify-content: center;
@@ -180,7 +192,7 @@
     flex-wrap: nowrap !important;
   }
 
-  /* 關鍵：flex-shrink: 0 確保對手跟你的框一模一樣大，絕對不縮水！ */
+  /* flex-shrink: 0 確保對手跟你的框一模一樣大 */
   .game-section {
     display: flex;
     align-items: flex-start;
@@ -248,6 +260,65 @@
 
   .hidden { display: none !important; }
 
+  /* === AI 設定面板 === */
+  #ai-settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ai-setting-group {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 10px;
+    border-radius: 6px;
+  }
+  .ai-setting-label {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .ai-btn-group {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .ai-option-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 2px;
+    font-size: 11px;
+    font-weight: 900;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.3);
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ai-option-btn:hover {
+    border-color: var(--T);
+    color: var(--T);
+    background: rgba(177,68,247,0.1);
+  }
+  .ai-option-btn.selected {
+    border-color: var(--T);
+    background: var(--T);
+    color: var(--white);
+    box-shadow: 0 0 8px rgba(177,68,247,0.5);
+  }
+  .ai-option-btn.selected-speed {
+    border-color: var(--I);
+    background: var(--I);
+    color: var(--bg);
+    box-shadow: 0 0 8px rgba(56,189,238,0.5);
+  }
+
   @media (max-height: 760px){
     .logo-word{font-size:58px}
     .info-card{padding:12px;margin-bottom:10px}
@@ -257,30 +328,6 @@
     .wide{min-width:68px}
     .controls-section{width:248px}
     .sidebar{width:292px}
-  }
-
-  /* === 雙人連線版面緊湊優化 === */
-  .battle-layout { gap: 30px; }
-
-  /* 單人模式：維持 510px */
-  .left-wing, .right-wing { width: 540px; }
-
-  /* 雙人模式下，解除無意義的強制寬度，並榨乾多餘縫隙 */
-  .battle-layout.is-multiplayer { 
-    gap: 45px !important; 
-  }
-  .battle-layout.is-multiplayer .left-wing {
-    width: 540px !important; /* 拔除幽靈寬度，恢復原本大小 */
-    align-items: flex-end; /* 讓左邊的選單靠右貼緊，畫面更集中 */
-  }
-  .battle-layout.is-multiplayer .right-wing {
-    width: max-content !important; /* 讓右邊自然包覆對手 */
-  }
-  
-  /* 稍微縮小雙人模式的框線內距，為遊戲主體爭取最大化空間 */
-  .battle-layout.is-multiplayer .game-section {
-    padding: 12px !important;
-    gap: 10px !important;
   }
 
   /* 右側上線玩家面板 */
@@ -313,7 +360,7 @@
     box-shadow: 0 0 5px var(--S);
   }
 
-  /* 新增：連線邀請通知 (Toast) */
+  /* 連線邀請通知 (Toast) */
   .invite-toast {
     background: rgba(0,0,0,0.95);
     border: 2px solid var(--I);
@@ -342,6 +389,31 @@
   }
   .btn-accept { background: var(--S); color: var(--bg); }
   .btn-reject { background: var(--Z); color: var(--white); }
+  /* === 系統通知 Toast === */
+  #system-toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: rgba(6, 0, 79, 0.97);
+    border: 2px solid var(--white);
+    color: var(--white);
+    padding: 12px 28px;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    border-radius: 6px;
+    z-index: 9999;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+    opacity: 0;
+    white-space: nowrap;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  #system-toast.toast-show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
 
   </style>
 
@@ -351,11 +423,26 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+
+  <script src="changelog.js"></script>
 </head>
 <body>
 <div class="viewport" id="viewport">
 
-  <button id="mp-leave-btn" class="hidden" style="position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: var(--Z); border: 2px solid var(--Z); padding: 8px 16px; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 4px; z-index: 1000; letter-spacing: 1px;">🚪 LEAVE ROOM</button>
+  <div id="version-tag" style="position: absolute; bottom: 15px; right: 20px; font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.4); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease;">
+    Build <span id="version-text" style="color: var(--I);">v2.1.0</span>
+  </div>
+
+  <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 90%; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px;">
+    <h2 style="margin: 0; color: var(--I); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; font-size: 20px; letter-spacing: 2px;">PATCH NOTES</h2>
+    
+    <div id="changelog-content" style="max-height: 350px; overflow-y: auto; padding-right: 10px; line-height: 1.6;">
+    </div>
+
+    <button id="close-changelog-btn" style="width: 100%; padding: 10px; background: var(--I); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
+  </div>
+
+  <div id="system-toast"></div>
 
   <div id="online-panel" class="online-panel hidden">
     <h2 style="text-align:center; color:var(--S); margin:0 0 10px 0; font-size:16px;">🟢 ONLINE (<span id="online-count">0</span>)</h2>
@@ -364,6 +451,8 @@
 
   <div class="battle-layout" id="layout" style="transform-origin: center center;">
     
+    <button id="mp-leave-btn" class="hidden" style="position: absolute; top: -65px; right: 0; background: rgba(0,0,0,0.8); color: var(--Z); border: 2px solid var(--Z); padding: 8px 16px; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 4px; z-index: 1000; letter-spacing: 1px;">🚪 LEAVE ROOM</button>
+
     <div id="vs-timer" class="hidden" style="position: absolute; top: -75px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; width: 200px;">
       <div style="font-size: 16px; font-weight: 900; color: var(--O); letter-spacing: 4px; text-shadow: 0 0 10px var(--O); margin-bottom: -5px;">TIME</div>
       <div id="battle-timer" style="font-size: 48px; font-weight: 900; color: var(--white); text-shadow: 0 0 15px var(--white); line-height: 1.1;">02:00</div>
@@ -374,15 +463,58 @@
         <div class="logo-word match-title">TETRIS</div>
       </div>
       <div style="display: flex; gap: 20px; width: 100%;">
-        <div style="width: 260px; display: flex; flex-direction: column; gap: 20px; flex-shrink: 0;">
-          <div class="info-panel" id="score-leaderboard-section">
-            <h2 style="text-align:center; color:var(--O); margin:0 0 10px 0; font-size:18px;">TOP 5 SCORE</h2>
-            <div id="score-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+        <div style="width: 260px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0;">
+
+          <!-- 排行榜（預設顯示） -->
+          <div id="leaderboard-container" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="info-panel" id="score-leaderboard-section">
+              <h2 style="text-align:center; color:var(--O); margin:0 0 10px 0; font-size:18px;">TOP 5 SCORE</h2>
+              <div id="score-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
+            <div class="info-panel" id="wins-leaderboard-section">
+              <h2 style="text-align:center; color:var(--Z); margin:0 0 10px 0; font-size:18px;">TOP 5 RANK</h2>
+              <div id="wins-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
           </div>
-          <div class="info-panel" id="wins-leaderboard-section">
-            <h2 style="text-align:center; color:var(--Z); margin:0 0 10px 0; font-size:18px;">TOP 5 RANK</h2>
-            <div id="wins-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+
+          <!-- AI 設定面板（進 AI 模式才顯示，取代排行榜） -->
+          <div class="info-panel hidden" id="ai-config-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
+            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:15px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
+
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">⚡ 速度 / 難度</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="ai-speed-group">
+                <button class="ai-option-btn" data-speed="rookie">🐢 菜鳥</button>
+                <button class="ai-option-btn" data-speed="casual">😊 休閒</button>
+                <button class="ai-option-btn selected-speed" data-speed="adaptive" style="grid-column:1/-1;">🎯 適應模式（跟著你的手速）</button>
+                <button class="ai-option-btn" data-speed="pro">💀 高手</button>
+                <button class="ai-option-btn" data-speed="god">👾 神</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">📐 打法風格（右側保留坑寬）</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;" id="ai-wide-group">
+                <button class="ai-option-btn selected" data-wide="auto" style="grid-column:1/-1;">🧠 自動（AI 自行決策）</button>
+                <button class="ai-option-btn" data-wide="1">1-wide</button>
+                <button class="ai-option-btn" data-wide="2">2-wide</button>
+                <button class="ai-option-btn" data-wide="3">3-wide</button>
+                <button class="ai-option-btn" data-wide="4" style="grid-column:2/4;">4-wide Combo</button>
+              </div>
+              <div id="ai-wide-hint" style="font-size:10px; color:rgba(255,255,255,0.4); margin-top:6px; line-height:1.5; min-height:30px;"></div>
+            </div>
+
+            <div style="background:rgba(177,68,247,0.06); border:1px solid rgba(177,68,247,0.2); border-radius:5px; padding:8px;">
+              <div class="ai-setting-label" style="color:rgba(177,68,247,0.8); margin-bottom:4px;">🎭 擬人特性</div>
+              <div style="font-size:10px; color:rgba(255,255,255,0.4); line-height:1.7;">
+                ✦ 模擬你的落塊手速<br>
+                ✦ 偶爾假裝「想一下」<br>
+                ✦ 壓力大時反應變慢<br>
+                ✦ 偷看 Next 預判決策
+              </div>
+            </div>
           </div>
+
         </div>
 
         <div class="left-sidebar" style="width: 260px; display: flex; flex-direction: column; gap: 20px; flex-shrink: 0;">
@@ -441,6 +573,9 @@
               <input type="text" id="opp-id-input" placeholder="Opponent ID" style="width:60%; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 4px;">
               <button id="connect-btn" style="width:40%; background: var(--I); color: var(--bg); border: 2px solid var(--white); font-weight: 900; cursor: pointer;">CONNECT</button>
             </div>
+
+            <button id="ai-btn" style="width:100%; padding:8px; background:var(--T); color:var(--white); border:2px solid var(--white); font-weight:900; font-size:13px; cursor:pointer; margin-bottom:10px; letter-spacing:1px;">🤖 VS AI</button>
+            
             <div id="mp-ready-group" style="display:none; margin-bottom:10px;">
               <button id="ready-btn" style="width:100%; padding:8px; background:var(--S); color:var(--bg); font-weight:bold; border:2px solid var(--white); cursor:pointer;">READY</button>
             </div>
@@ -587,6 +722,7 @@
 
 
 (() => {
+  const GAME_VERSION = 'v2.1.0'; // 目前遊戲版本號
   const COLS = 10;
   const ROWS = 40;           // 陣列總高度改為 40 (官方標準)
   const VISIBLE_ROWS = 20;   // 畫面只顯示下半部 20 行
@@ -599,6 +735,23 @@
     G:'#666666', // 新垃圾行的灰色
     B:'#ff1111'  // 炸彈的亮紅色
   };
+
+  // --- 效能優化：離線暫存網格畫布 (只畫一次) ---
+  const gridCanvas = document.createElement('canvas');
+  gridCanvas.width = 340;
+  gridCanvas.height = 680;
+  const gCtx = gridCanvas.getContext('2d', { alpha: false });
+  gCtx.fillStyle = '#06004f';
+  gCtx.fillRect(0, 0, 340, 680);
+  for (let r = 0; r < 20; r++) { 
+    for (let c = 0; c < 10; c++) {
+      gCtx.fillStyle = '#0b0767';
+      gCtx.fillRect(c * 34, r * 34, 34, 34);
+      gCtx.strokeStyle = '#06004f';
+      gCtx.lineWidth = 4;
+      gCtx.strokeRect(c * 34, r * 34, 34, 34);
+    }
+  }
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d', { alpha:false });
@@ -701,7 +854,7 @@
     '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
   };
 
-  let board, bag, queue, current, holdType, holdUsed, score, lines, level, gameOver, isPaused;
+  let board, queue, current, holdType, holdUsed, score, lines, level, gameOver, isPaused;
   let gravityTimer, lastTime, clearFx, lockTimer, lockResets;
   let moveCooldown = 0;
   let dasTimer = 0;
@@ -720,17 +873,160 @@
   const audioCtx = new AudioContext();
   let shakeMag = 0; // 螢幕震動幅度
 
+  // --- 🎮 PS4 搖桿設定區 ---
+  const GAMEPAD_BUTTON_MAPPING = {
+    6: 'KeyZ',        // L2 -> 逆時針旋轉 (向左轉)
+    7: 'KeyX',        // R2 -> 順時針旋轉 (向右轉)
+    4: 'KeyC',        // L1 -> Hold
+    5: 'Space',       // R1 -> 硬降 (瞬間落下)
+    9: 'Escape',      // Options -> 暫停
+    
+    // --- 保留原本的基礎按鍵，讓你隨時可以混著用 ---
+    12: 'ArrowUp',    // D-pad 上
+    13: 'ArrowDown',  // D-pad 下
+    14: 'ArrowLeft',  // D-pad 左
+    15: 'ArrowRight', // D-pad 右
+    0: 'Space',       // ❌ (Cross) -> 備用硬降
+    1: 'KeyX',        // ⭕️ (Circle) -> 備用順時針
+    2: 'KeyZ',        // ⬜️ (Square) -> 備用逆時針
+  };
+
+  // 專門用來記憶蘑菇頭狀態
+  let lastAxesState = { 
+    rightX: 0, 
+    rightY: 0, 
+    leftActive: false, 
+    leftLastAngle: 0, 
+    leftAccumulated: 0 
+  }; 
+
+  let lastGamepadState = {};
+
+  function pollGamepad() {
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gp = gamepads[0]; 
+    if (!gp) return;
+
+    // ==========================================
+    // 1. 處理一般按鈕
+    // ==========================================
+    for (let i = 0; i < gp.buttons.length; i++) {
+      const isPressed = gp.buttons[i].pressed;
+      const wasPressed = lastGamepadState[i];
+      const targetKey = GAMEPAD_BUTTON_MAPPING[i];
+
+      if (targetKey) {
+        // 模擬真實的鍵盤點擊瞬間
+        if (isPressed && !wasPressed) document.dispatchEvent(new KeyboardEvent('keydown', { code: targetKey }));
+        else if (!isPressed && wasPressed) document.dispatchEvent(new KeyboardEvent('keyup', { code: targetKey }));
+      }
+      lastGamepadState[i] = isPressed;
+    }
+
+    // ==========================================
+    // 2. 右蘑菇頭 (移動與軟降 : gp.axes[2], gp.axes[3])
+    // ==========================================
+    const THRESHOLD = 0.5; 
+    let currentRightX = 0;
+    if (gp.axes[2] < -THRESHOLD) currentRightX = -1;
+    else if (gp.axes[2] > THRESHOLD) currentRightX = 1;
+
+    if (currentRightX !== lastAxesState.rightX) {
+      if (lastAxesState.rightX === -1) document.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowLeft' }));
+      if (lastAxesState.rightX === 1) document.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowRight' }));
+      if (currentRightX === -1) document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft' }));
+      if (currentRightX === 1) document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight' }));
+      lastAxesState.rightX = currentRightX;
+    }
+
+    let currentRightY = 0;
+    if (gp.axes[3] > THRESHOLD) currentRightY = 1;
+
+    if (currentRightY !== lastAxesState.rightY) {
+      if (lastAxesState.rightY === 1) document.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowDown' }));
+      if (currentRightY === 1) document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown' }));
+      lastAxesState.rightY = currentRightY;
+    }
+
+    // ==========================================
+    // 3. 左蘑菇頭 (十字全向起手撥動 + 邊緣畫圈) : gp.axes[0], gp.axes[1]
+    // ==========================================
+    // 把死區從 0.6
+    // 現在你必須把蘑菇頭往外推超過 60% 才會觸發起手撥動，完全防止手抖誤觸。
+    const SPIN_THRESHOLD = 0.6; 
+    const leftX = gp.axes[0];
+    const leftY = gp.axes[1]; 
+    const distance = Math.sqrt(leftX * leftX + leftY * leftY);
+
+    if (distance > SPIN_THRESHOLD) {
+      const currentAngle = Math.atan2(leftY, leftX);
+
+      if (!lastAxesState.leftActive) {
+        // --- 模式 A：剛從中間死區推出來的瞬間 (十字向 Flick 撥動) ---
+        lastAxesState.leftActive = true;
+        lastAxesState.leftLastAngle = currentAngle;
+        lastAxesState.leftAccumulated = 0;
+
+        if (Math.abs(leftX) > Math.abs(leftY)) {
+          if (leftX < -0.2) {
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ' })); 
+            document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyZ' }));
+          } else if (leftX > 0.2) {
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX' })); 
+            document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX' }));
+          }
+        } else {
+          if (leftY < -0.2) {
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX' })); 
+            document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX' }));
+          } else if (leftY > 0.2) {
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ' })); 
+            document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyZ' }));
+          }
+        }
+      } else {
+        // --- 模式 B：已經推到底部，正在邊緣滑動 (Circle 畫圈) ---
+        let delta = currentAngle - lastAxesState.leftLastAngle;
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+
+        lastAxesState.leftAccumulated += delta;
+        lastAxesState.leftLastAngle = currentAngle;
+
+        // 畫圈角度 Math.PI / 3 (60度)
+        const triggerAngle = Math.PI / 3; 
+
+        if (lastAxesState.leftAccumulated >= triggerAngle) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX' }));
+          document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX' }));
+          lastAxesState.leftAccumulated -= triggerAngle;
+        } else if (lastAxesState.leftAccumulated <= -triggerAngle) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ' }));
+          document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyZ' }));
+          lastAxesState.leftAccumulated += triggerAngle;
+        }
+      }
+    } else {
+      lastAxesState.leftActive = false;
+    }
+  }
+
   // 將靜音變數拆分為兩個
   let isBgmMuted = localStorage.getItem('tetrisBgmMuted') === 'true';
   let isSfxMuted = localStorage.getItem('tetrisSfxMuted') === 'true';
   let masterVolume = parseFloat(localStorage.getItem('tetrisVolume'));
   if (isNaN(masterVolume)) masterVolume = 0.5;
+  // --- 音訊資源路徑 ---
+  const AUDIO_PATHS = {
+    bgm: './Game 8-Bit On.mp3',
+    battleBgm: './Return To The 8-Bit Past.mp3'
+  };
   // 單人模式背景音樂 
-  const bgm = new Audio('./Game 8-Bit On.mp3');
+  const bgm = new Audio(AUDIO_PATHS.bgm);
   bgm.loop = true; // 設定循環播放
   bgm.volume = masterVolume * 0.15; // 背景音樂建議稍微小聲一點
   // 雙人對戰模式背景音樂
-  const battleBgm = new Audio('./Return To The 8-Bit Past.mp3');
+  const battleBgm = new Audio(AUDIO_PATHS.battleBgm);
   battleBgm.loop = true; // 設定循環播放
   battleBgm.volume = masterVolume * 0.15;
   let bgmStarted = false; // 紀錄是否已經解鎖自動播放
@@ -758,6 +1054,9 @@
   let lastActionTime = Date.now(); // 記錄玩家最後一次按鍵的時間
   let lastHeartbeat = Date.now(); // 紀錄最後一次收到對手訊息的時間
   let lastOpponentId = null; // 用來記憶上一個對手的 ID
+  let piecePool = [];
+  let myPieceIndex = 0;
+  let aiPieceIndex = 0;
   // --- 垃圾行系統變數 ---
   let activeGarbage = 0; // 準備湧入的垃圾 (危險：紅色)
   let nextGarbage = 0;   // 剛收到的垃圾，還在寬限期 (警告：黃色)
@@ -776,7 +1075,54 @@
   // --- 段位積分 (LP) 與連勝次數 ---
   let myLP = 0; 
   let myWinStreak = 0;
-  
+  // --- AI對戰 ---
+  let isAIMode = false; // 是否處於AI對戰模式
+  let aiBoard = null;        // AI 的盤面
+  let aiBag = [];            // AI 的隨機袋
+  let aiQueue = [];          // AI 的預覽隊列
+  let aiCurrent = null;      // AI 當前方塊
+  let aiHoldType = null;     // AI 的 hold
+  let aiHoldUsed = false;    // 記錄 AI 這回合是否用過 Hold
+  let aiGravityTimer = 0;    // AI 的下落計時
+  let aiThinkTimer = 0;      // AI 思考間隔計時器
+  let aiScore = 0;
+  let aiLines = 0;
+  let aiLevel = 1;
+  // --- 適應性 AI 變數 ---
+  let currentAiThinkInterval = 500; // AI 當前的思考間隔 (會根據你的手速動態變化)
+  let myLastLockTime = 0;           // 紀錄玩家上一次放置方塊的時間
+  let myLockIntervals = [];         // 儲存玩家最近 5 次的手速，用來算平均值避免暴衝
+  // AI 專用的垃圾行變數
+  let aiGameOver = false;
+  let aiActiveGarbage = 0;
+  let aiNextGarbage = 0;
+  let aiLastGarbageHole = -1;
+  let aiConsecutiveGarbageHoles = 0;
+  let aiCombo = -1;  // 記錄 AI 的連擊數
+  // --- AI 設定（使用者可調整）---
+  let aiSpeedMode = 'adaptive'; // 'rookie'|'casual'|'adaptive'|'pro'|'god'
+  let aiWideMode = 'auto';      // 'auto'|1|2|3|4 (right-side columns to keep empty)
+
+  // --- 背景 AI 大腦連線設定 ---
+  const aiWorker = new Worker('ai_worker.js');
+  let isAiReady = false;
+  let isAiThinking = false; // 防呆鎖：確保 AI 一次只思考一步
+
+  aiWorker.onmessage = function(e) {
+    if (e.data.type === 'READY') {
+      isAiReady = true;
+      console.log("🟢 系統廣播：背景 C++ 大腦已成功上線！");
+    } 
+    else if (e.data.type === 'RESULT') {
+      // 收到 AI 算好的結果了！解開思考鎖定
+      isAiThinking = false;
+
+      // 如果這顆方塊還在，就把目標設定給它
+      if (aiCurrent) {
+        aiCurrent.target = e.data.bestMove;
+      }
+    }
+  };
 
   const pingDisplay = document.getElementById('ping-display');
   const scoreboardEl = document.getElementById('scoreboard');
@@ -805,7 +1151,7 @@
   const SETTINGS = {
     das: 167,
     arr: 33,
-    softDropInterval: 30,
+    softDropInterval: 33,
     lockDelay: 500,
     clearDuration: 150
   };
@@ -827,6 +1173,7 @@
     }
     draw(ctx) {
       ctx.save();
+      // 確保透明度不會變成負數而報錯
       ctx.globalAlpha = Math.max(0, this.life);
       const scale = 1 + (1 - this.life) * 0.5; // 隨時間稍微放大
       ctx.translate(this.x, this.y);
@@ -1034,7 +1381,7 @@
     readyBtn.addEventListener('click', () => {
       if (!isMultiplayer) return;
 
-      // 如果現在按鈕是「投降」模式
+      // 把投降的判定移到最上面，確保投降不會被 AI 模式攔截
       if (readyBtn.textContent.includes('SURRENDER')) {
         if (confirm("確定要投降嗎？這將會讓對手直接獲得 1 勝！")) {
           if (conn && conn.open) conn.send({ type: 'SURRENDER' });
@@ -1043,14 +1390,26 @@
         return;
       }
 
-      // 如果是準備模式
+      // 如果已經按了準備，就不要重複執行
       if (iAmReady) return;
+      
+      // 按下 READY 後，立刻把按鈕變灰，讓玩家知道有點到了
       iAmReady = true;
       readyBtn.textContent = 'WAITING...';
       readyBtn.style.background = 'gray';
+      readyBtn.style.color = 'white';
       readyBtn.disabled = true;
       
       mySeed = Math.floor(Math.random() * 1000000); // 產生我方種子
+
+      // AI 模式的處理 (AI 直接準備完畢)
+      if (isAIMode) {
+        oppIsReady = true;
+        checkBothReady();
+        return;
+      }
+
+      // 真人對戰發送準備訊號
       if (conn && conn.open) conn.send({ type: 'READY', seed: mySeed });
       checkBothReady();
     });
@@ -1062,6 +1421,18 @@
       currentSeed = mySeed + oppSeed; // 雙方種子相加，變成世界上獨一無二且雙方共同的密碼！
       connStatus.textContent = 'Status: STARTING...';
       connStatus.style.color = 'var(--S)';
+      
+      // 進入倒數時，把按鈕變成醒目的橘色 STARTING...
+      const rBtn = document.getElementById('ready-btn');
+      if (rBtn) {
+        rBtn.textContent = 'STARTING...';
+        rBtn.style.background = 'var(--O)';           // 橘色背景
+        rBtn.style.color = 'var(--bg)';               // 深藍字體
+        rBtn.style.borderColor = 'var(--white)';      // 保持邊框
+        rBtn.style.cursor = 'default';                // 滑鼠變回普通箭頭，表示不可按
+        rBtn.disabled = true;                         // 徹底鎖死按鈕
+      }
+
       startCountdown();
     }
   }
@@ -1081,7 +1452,16 @@
     }
     
     // 將所有遊戲狀態歸零
-    bag = []; queue = []; current = null; holdType = null; holdUsed = false;
+    piecePool = []; myPieceIndex = 0; aiPieceIndex = 0; // 重置共用方塊池
+    queue = []; current = null; holdType = null; holdUsed = false;
+    // AI 模式：同步清空 AI 盤面，讓雙方都從乾淨狀態開始
+    if (isAIMode) {
+      aiBoard = createBoard();
+      aiQueue = []; aiCurrent = null;
+      aiScore = 0; aiLines = 0; aiLevel = 1;
+      aiGameOver = false; aiThinkTimer = 0;
+      aiSyncOppState();
+    }
     score = 0; lines = 0; level = 1; activeGarbage = 0; nextGarbage = 0;
     gameOver = false; isPaused = false; gravityTimer = 0; lastTime = 0;
     clearFx = null; lockTimer = 0; lockResets = 0; moveCooldown = 0;
@@ -1107,6 +1487,33 @@
     ensureQueue();  // 預先抽好 5 顆預覽方塊
     renderPanels(); // 畫到畫面的 NEXT 與 QUEUE 面板上
     draw();         // 畫出乾淨的盤面
+  }
+
+  // --- 暫停恢復時的 3 秒緩衝倒數 ---
+  function resumeCountdown() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    isPaused = false; // 先解除死當的暫停狀態，讓畫面切換到倒數 UI
+    countdownValue = 3;
+    playSound('move');
+
+    countdownInterval = setInterval(() => {
+      countdownValue--;
+      if (countdownValue > 0) {
+        playSound('move');
+      } else {
+        playSound('perfect');
+        clearInterval(countdownInterval);
+        
+        lastActionTime = Date.now(); // 倒數結束，重置掛機判定
+        if (isAIMode) {
+           aiThinkTimer = 0; // 防止 AI 一解凍就瞬間把方塊砸下來
+        }
+        if (!current) {
+          if (isAIMode && !aiCurrent) startAI(); // 確保 AI 也一起啟動
+          spawn();
+        }
+      }
+    }, 1000);
   }
 
   // --- 啟動 3、2、1 倒數 (單人/雙人共用) ---
@@ -1159,15 +1566,17 @@
           if (readyBtn) {
              readyBtn.textContent = '🏳️ SURRENDER'; // 變成投降
              readyBtn.disabled = false;
-             readyBtn.style.background = 'var(--Z)'; // 紅色按鍵
-             readyBtn.style.color = 'var(--white)';  // 白色字體
+             readyBtn.style.background = 'var(--Z)';      // 紅色按鍵
+             readyBtn.style.color = 'var(--white)';       // 白色字體
+             readyBtn.style.borderColor = 'var(--white)'; // 恢復白色邊框
+             readyBtn.style.cursor = 'pointer';           // 恢復可點擊的滑鼠手勢
           }
           connStatus.textContent = 'Status: CONNECTED! GO!';
           
           battleTime = 120;
           if (timerInterval) clearInterval(timerInterval);
           timerInterval = setInterval(() => {
-            if (!gameOver && isMultiplayer) {
+            if (!gameOver && isMultiplayer && !isPaused && countdownValue <= 0) {
               battleTime--;
               let mins = Math.floor(battleTime / 60);
               let secs = battleTime % 60;
@@ -1181,7 +1590,11 @@
           }, 1000);
         }
         lastActionTime = Date.now(); // 倒數結束，開始嚴格計算掛機時間
-        spawn(); // 倒數結束，第一顆方塊才真正落下！
+        // AI 模式：直接啟動 AI (方塊池會自動產生雙方同步的方塊)
+        if (isAIMode) {
+          startAI();
+        }
+        spawn(); // 倒數結束，第一顆方塊才真正落下
       }
     }, 1000); 
   }
@@ -1256,6 +1669,10 @@
     const mpReadyGroup = document.getElementById('mp-ready-group');
     if(mpInputGroup) mpInputGroup.style.display = 'none';
     if(mpReadyGroup) mpReadyGroup.style.display = 'flex';
+
+    // 進入連線房後，統一隱藏 VS AI 按鈕，避免誤觸
+    const aiBtnEl = document.getElementById('ai-btn');
+    if (aiBtnEl) aiBtnEl.classList.add('hidden');
     
     const pingDisplay = document.getElementById('ping-display');
     if (pingDisplay) pingDisplay.style.display = 'inline';
@@ -1283,10 +1700,19 @@
     if (timerInterval) clearInterval(timerInterval); // 退出時確保計時器徹底停止
     if (gameStarted && !gameOver) {
       gameOver = true;
-      alert("⚠️ 對手已斷線或離開遊戲！本局不結算。");
+      showToast("⚠️ 對手已斷線或離開遊戲！本局不結算。");
     }
 
-    isMultiplayer = false; iAmReady = false; oppIsReady = false;
+    isMultiplayer = false; isAIMode = false; iAmReady = false; oppIsReady = false;
+    // 退出AI模式時，恢復顯示 AI 按鈕
+    const aiBtnEl = document.getElementById('ai-btn');
+    if (aiBtnEl) aiBtnEl.classList.remove('hidden');
+
+    // 恢復排行榜，隱藏 AI 設定面板
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+    const aiConfigPanel = document.getElementById('ai-config-panel');
+    if (leaderboardContainer) leaderboardContainer.style.display = 'flex';
+    if (aiConfigPanel) aiConfigPanel.classList.add('hidden');
 
     // 隱藏離開房間按鈕
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
@@ -1348,6 +1774,8 @@
       readyBtn.textContent = 'READY';
       readyBtn.style.background = 'var(--S)';
       readyBtn.style.color = 'var(--bg)';
+      readyBtn.style.borderColor = 'var(--white)'; // 恢復邊框
+      readyBtn.style.cursor = 'pointer';           // 恢復滑鼠手勢
       readyBtn.disabled = false;
     }
   }
@@ -1361,7 +1789,8 @@
 
     // 將發送邀請的動作包裝起來
       const sendInvite = () => {
-        conn.send({ type: 'INVITE', from: currentPlayer || 'Guest' });
+        // 在邀請函中附上目前的系統版本號
+        conn.send({ type: 'INVITE', from: currentPlayer || 'Guest', version: GAME_VERSION });
         // 15秒超時自動放棄
         conn.inviteTimeout = setTimeout(() => {
           if (conn) {
@@ -1385,6 +1814,16 @@
 
       // === 連線邀請階段 (Handshake) ===
       if (data.type === 'INVITE') {
+        // 版本檢查鎖：如果對方的版本跟我不一樣，直接拒絕並回傳警告
+        if (data.version !== GAME_VERSION) {
+          conn.send({ 
+            type: 'INVITE_VERSION_MISMATCH', 
+            serverVersion: GAME_VERSION, 
+            clientVersion: data.version || 'v1.0.0' 
+          });
+          setTimeout(() => conn.close(), 500);
+          return;
+        }
         // 接收方收到邀請：顯示 Toast (這時原本的單機遊戲依然可繼續玩)
         const toast = document.getElementById('invite-toast');
         document.getElementById('invite-sender-name').textContent = data.from;
@@ -1416,6 +1855,16 @@
         connStatus.style.color = 'var(--Z)';
         conn.close();
       }
+      else if (data.type === 'INVITE_VERSION_MISMATCH') {
+        // 發送方收到版本不符的退貨通知
+        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        connStatus.textContent = 'Status: Version Mismatch!';
+        connStatus.style.color = 'var(--Z)';
+        
+        // 跳出警告視窗，強制中斷
+        alert(`❌ 連線失敗：版本不一致！\n\n你的版本：${data.clientVersion}\n對手版本：${data.serverVersion}\n\n請確認雙方都已經按下 F5 重新整理，更新到最新版！`);
+        conn.close();
+      }
       
       // === 遊戲進行階段 ===
       else if (data.type === 'READY') {
@@ -1426,6 +1875,7 @@
         if (!gameOver) handleSurrender(true); // true 代表是對手投降
       } else if (data.type === 'STATE') {
         oppState = data.state; 
+        renderOpponentPanels(); // 收到對手新狀態才重畫面板
       } else if (data.type === 'ATTACK') {
         if (!gameOver) {
           oppLinesSent += data.lines;
@@ -1472,7 +1922,7 @@
       }
       else if (data.type === 'OPPONENT_DISCONNECTED') {
         // 移除遊戲狀態的限制。不管在準備中還是結算畫面，只要對方離開就一起退出
-        alert("🚪 對手已離開對戰房間，即將為您返回單人模式。");
+        showToast("🚪 對手已離開對戰房間，即將為您返回單人模式。");
         gameOver = true; // 設為 true 避免觸發 exitMultiplayerMode 內建的重複警告
         if (conn) conn.close(); // 關閉連線，這會自動在背景觸發 exitMultiplayerMode() 幫你切換回單機 UI
       }
@@ -1486,13 +1936,7 @@
             oppTitleEl.style.color = 'var(--white)';
           } else {
             let lp = p.lp || 0;
-            let rankName = '銅牌'; let color = '#CD7F32';
-            if (lp >= 1200) { rankName = '菁英'; color = '#00FFFF'; }
-            else if (lp >= 1000) { rankName = '大師'; color = '#FF00FF'; }
-            else if (lp >= 800) { rankName = '鑽石'; color = '#b9f2ff'; }
-            else if (lp >= 600) { rankName = '白金'; color = '#00FF7F'; }
-            else if (lp >= 400) { rankName = '金牌'; color = '#FFD700'; }
-            else if (lp >= 200) { rankName = '銀牌'; color = '#C0C0C0'; }
+            const { name: rankName, color } = getRankInfo(lp);
             oppTitleEl.innerHTML = `
               <div style="white-space: nowrap; line-height: 1;">${p.name}${oppFire}</div>
               <div style="font-size:12px; font-weight:bold; color:${color}; letter-spacing:1px; text-shadow:0 0 5px ${color}; margin-top:6px; line-height: 1;">${rankName} (${lp} LP) | ${p.matches}局 | 勝率${p.winRate}</div>
@@ -1528,9 +1972,6 @@
       }
     });
   }
-
-  // 確保 PeerJS 載入後啟動網路功能
-  if (typeof Peer !== 'undefined') initNetwork();
 
   // 更新畫面上 SOUND 的 ON/OFF 顯示，並同步控制 BGM
   function updateSoundUI() {
@@ -1673,7 +2114,7 @@
     }
   } 
 
-  // --- 粒子引擎與特效 (必須在全局環境) ---
+  // --- 粒子引擎與特效 ---
   class Particle {
     constructor(x, y, color) {
       this.x = x;
@@ -1693,12 +2134,17 @@
     }
     draw(ctx) {
       ctx.save();
-      ctx.globalAlpha = this.life; 
+      // 內核 (實心)
+      ctx.globalAlpha = Math.max(0, this.life); 
       ctx.fillStyle = this.color;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = this.color;
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 外暈 (半透明假發光，拔除了超卡的 shadowBlur)
+      ctx.globalAlpha = Math.max(0, this.life * 0.3); 
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 2.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -1737,6 +2183,12 @@
     const offsetY = isMultiplayer ? 'calc(-50% + 25px)' : '-50%';
     
     layout.style.transform = `translate(-50%, ${offsetY}) scale(${scale})`;
+    // --- 右上角的 ONLINE 面板也跟隨遊戲主體的比例同步縮放 ---
+    const onlinePanel = document.getElementById('online-panel');
+    if (onlinePanel) {
+      onlinePanel.style.transform = `scale(${scale})`;
+      onlinePanel.style.transformOrigin = 'top right'; // 將縮放錨點釘死在右上角
+    }
   }
 
   function clone(m) { return m.map(row => row.slice()); }
@@ -1744,8 +2196,8 @@
 
   // --- 偽隨機數生成器 (PRNG) ---
   function rng() {
-    if (!isMultiplayer) return Math.random(); // 單機模式維持原生隨機
-    // 連線模式：使用線性同餘生成器 (LCG)，確保雙方拿到一樣的數字
+    // 只有「真實連線對戰」才需要同步隨機數，其餘都用原生亂數
+    if (!isMultiplayer || isAIMode) return Math.random();
     currentSeed = (currentSeed * 9301 + 49297) % 233280;
     return currentSeed / 233280;
   }
@@ -1757,14 +2209,33 @@
     }
     return arr;
   }
-  function refillBag() { bag = shuffle(['I','J','L','O','S','T','Z']); }
+  
+  // --- 共享方塊生成池 ---
+  function getPieceFromPool(index) {
+    // 如果池子裡的方塊不夠，就再生成一包 (7顆) 塞進去
+    while (piecePool.length <= index) {
+      let chunk = ['I','J','L','O','S','T','Z'];
+      // 雙人連線時使用共同的 rng()，其餘使用原生的亂數
+      for (let i = chunk.length - 1; i > 0; i--) {
+        const r = (isMultiplayer && !isAIMode) ? rng() : Math.random();
+        const j = Math.floor(r * (i + 1));
+        [chunk[i], chunk[j]] = [chunk[j], chunk[i]];
+      }
+      piecePool.push(...chunk);
+    }
+    return piecePool[index];
+  }
+
   function pullBag() {
-    if (!bag.length) refillBag();
-    return bag.pop();
+    return getPieceFromPool(myPieceIndex++);
   }
-  function ensureQueue() {
-    while (queue.length < 5) queue.push(pullBag());
+
+  function aiPullBag() {
+    return getPieceFromPool(aiPieceIndex++);
   }
+
+  function ensureQueue() { while (queue.length < 5) queue.push(pullBag()); }
+  function aiEnsureQueue() { while (aiQueue.length < 5) aiQueue.push(aiPullBag()); }
 
   function makePiece(type) {
     const matrix = clone(PIECES[type][0]);
@@ -1797,89 +2268,61 @@
   }
 
   // --- 遊戲結束 / KO 處理系統 ---
-  function triggerGameOver() {
+  function triggerGameOver(saveCurrent = false) {
     if (gameOver) return;
-    if (isMultiplayer && isKOed) return; // 防呆：避免一瞬間重複死兩次
+    if (isMultiplayer && isKOed) return;
 
-    // --- 檢查場上是否有任何垃圾行或炸彈 ---
+    // 如果是還沒落地的方塊導致 KO (例如被垃圾頂死)，把這顆方塊記下來！
+    let pieceToSave = (saveCurrent && current) ? current.type : null;
+
     let hasGarbage = false;
     for (let r = 0; r < ROWS; r++) {
-      if (board[r].includes('G') || board[r].includes('B')) {
-        hasGarbage = true;
-        break;
-      }
+      if (board[r].includes('G') || board[r].includes('B')) { hasGarbage = true; break; }
     }
     
     shakeMag = 20; 
     playSound('drop');
 
     if (isMultiplayer) {
-      // --- 如果場上完全沒有垃圾 (自己疊死)，直接判輸 ---
       if (!hasGarbage) {
-        // 讓自己進入死亡僵直，畫面稍微變暗並沒收方塊控制權
         isKOed = true;
         current = null;
-        
-        // 發送自爆訊號給對手
         if (conn && conn.open) conn.send({ type: 'TOP_OUT_LOSE' });
-        
-        // 在自己的畫面上噴出 TOP OUT 動畫與提示
         showMsg("TOP OUT!");
         myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
-        playSound('lose'); // 提早播一個嘆息音效
-        
-        // 等待 1.2 秒讓動畫飄完，再跳出最終的 YOU LOSE 結算畫面
-        setTimeout(() => {
-          if (!gameOver) { // 防呆：確保這 1.2 秒內沒有因為時間到而重複結算
-            endBattleMatch('LOSE');
-          }
-        }, 1200);
-        
-        return; // 結束，絕對不執行後續的復活流程
+        playSound('lose'); 
+        setTimeout(() => { if (!gameOver) endBattleMatch('LOSE'); }, 1200);
+        return; 
       }
 
-      // --- 如果有垃圾，走 KO 復活流程 ---
-      isKOed = true; // 進入死亡僵直
+      isKOed = true; 
       if (conn && conn.open) conn.send({ type: 'I_AM_KO' });
 
-      // 把尚未進場的垃圾條清空
       activeGarbage = 0;
       nextGarbage = 0;
-
-      // 我被 KO，對手的 KO 數要在我的畫面也同步 +1
       oppKOs++;
       const oppKoEl = document.getElementById('opp-ko-display');
       if (oppKoEl) oppKoEl.textContent = oppKOs;
 
-      // 在自己的畫面上噴出超巨大的 K.O. 字樣
       myFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
 
       current = null; 
       sendState();    
       
-      // 1 秒的死亡懲罰時間
       setTimeout(() => {
         if (!isMultiplayer || matchResult) return;
 
-        // --- 復活清理：只抽掉所有的垃圾與炸彈，自己疊的方塊原封不動保留 ---
         let newBoard = board.filter(row => !row.includes('G') && !row.includes('B'));
-
-        // 在頂部補齊空行，讓玩家剩下的方塊自然下墜
         while (newBoard.length < ROWS) {
           newBoard.unshift(Array(COLS).fill(null));
         }
         board = newBoard;
 
-        // 再次確保垃圾歸零
         activeGarbage = 0;
         nextGarbage = 0;
-
-        // 把所有輸入/鎖定/計時狀態一起重置
-        current = null;
         holdUsed = false;
-        isKOed = false; // 解除死亡狀態，讓遊戲繼續
+        isKOed = false; 
         clearFx = null;
-
         lockTimer = 0;
         lockResets = 0;
         gravityTimer = 0;
@@ -1889,16 +2332,20 @@
         activeDir = 0;
         lastMoveType = null;
         lastKickIndex = 0;
-
-        // 清空所有仍然按著的鍵，避免復活時自動 hard drop
         keysDown.clear();
 
-        spawn(); // 重新產生方塊
-        sendState();
+        // 如果剛才有記下被沒收的方塊，直接還給玩家，不動 Queue
+        if (pieceToSave) {
+          current = makePiece(pieceToSave);
+          renderPanels(); 
+          sendState();
+        } else {
+          spawn(); 
+        }
       }, 1000);
 
     } else {
-      // 單機模式的 Game Over 處理
+      // (單機版 Game Over 邏輯保持不變...)
       gameOver = true;
       playSound('lose'); 
       if (!isPracticeMode && isCloudDataLoaded && currentUserUID && currentPlayer && currentPlayer !== 'Admin_Mars') {
@@ -1906,11 +2353,8 @@
           username: currentPlayer,
           highScore: highScore,
           lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).then(() => {
-          console.log("✅ 最高分已成功寫入雲端伺服器！");
-        }).catch(err => {
-          console.error("上傳最高分失敗:", err);
-          alert("⚠️ 雲端存檔被伺服器拒絕！\n\n錯誤原因：" + err.message + "\n\n(這通常是因為資料庫權限過期，或是配額還沒解鎖)");
+        }, { merge: true }).catch(err => {
+          console.error("雲端存檔失敗:", err.message); 
         });
       }
     }
@@ -1972,8 +2416,8 @@
       let oppLP = (oppState && oppState.lp) ? oppState.lp : 0;
       let oppIsGuest = (oppState && oppState.isGuest) ? true : false;
       
-      // 條件：時間耗盡(0秒)、我方破千分、對方破千分、我方非訪客、對方非訪客
-      let isValidMatch = (battleTime <= 0) && (score >= 1000) && (oppScore >= 1000) && currentUserUID && !oppIsGuest && currentPlayer !== 'Admin_Mars';
+      // 條件：時間耗盡(0秒)、我方破千分、對方破千分、我方非訪客、對方非訪客、非AI
+      let isValidMatch = !isAIMode && (battleTime <= 0) && (score >= 1000) && (oppScore >= 1000) && currentUserUID && !oppIsGuest && currentPlayer !== 'Admin_Mars';
 
       // 如果是投降局，只要雙方不是訪客/管理員，無條件視為「有效對戰」進行扣分與加分！
       if (forcedResult && currentUserUID && !oppIsGuest && currentPlayer !== 'Admin_Mars') {
@@ -2066,6 +2510,8 @@
         readyBtn.textContent = 'READY';
         readyBtn.style.background = 'var(--S)';
         readyBtn.style.color = 'var(--bg)';
+        readyBtn.style.borderColor = 'var(--white)'; // 恢復邊框
+        readyBtn.style.cursor = 'pointer';           // 恢復滑鼠手勢
         readyBtn.disabled = false;
       }
 
@@ -2109,12 +2555,15 @@
 
       // 畫中間發光的紅色核心
       target.fillStyle = '#ff1111';
-      target.shadowBlur = 12;
-      target.shadowColor = '#ff1111';
       target.beginPath();
-      target.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+      target.arc(cx, cy, r * 0.5, 0, Math.PI * 2); 
       target.fill();
-      target.shadowBlur = 0; // 恢復陰影設定
+      
+      // 用一層半透明圓形模擬原本的紅色光暈，效能較佳
+      target.fillStyle = 'rgba(255, 17, 17, 0.4)'; 
+      target.beginPath();
+      target.arc(cx, cy, r * 0.5 + 4, 0, Math.PI * 2); // 在原本圓形的基礎上多加 4px 光暈
+      target.fill();
 
       // 3. 畫一顆白色的高光反光點 (增加立體感)
       target.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -2142,18 +2591,8 @@
   }
 
   function drawGrid() {
-    ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // --- 背景網格只要畫畫面上的 20 行就好 ---
-    for (let r = 0; r < VISIBLE_ROWS; r++) { 
-      for (let c = 0; c < COLS; c++) {
-        ctx.fillStyle = CELL_BG;
-        ctx.fillRect(c * SIZE, r * SIZE, SIZE, SIZE);
-        ctx.strokeStyle = BG;
-        ctx.lineWidth = 4;
-        ctx.strokeRect(c * SIZE, r * SIZE, SIZE, SIZE);
-      }
-    }
+    // 直接貼上已經預先畫好的整張網格圖片
+    ctx.drawImage(gridCanvas, 0, 0);
   }
 
   function ghostRow() {
@@ -2211,6 +2650,9 @@
     queueCtx.fillStyle = BG;
     queueCtx.fillRect(0,0,queueCanvas.width,queueCanvas.height);
 
+    // 只要還在 3、2、1 倒數中，就不畫出任何方塊，完全淨空
+    if (countdownValue > 0 && !current) return;
+
     if (holdType) {
       const holdColor = holdUsed ? '#666666' : null; 
       drawMini(holdCtx, holdType, 0, holdColor);
@@ -2243,6 +2685,65 @@
     }
   }
 
+  // --- 繪製對手(或AI)的 HOLD / NEXT / QUEUE 面板 ---
+  function renderOpponentPanels() {
+    const oppHoldCanvas = document.getElementById('opp-hold-canvas');
+    const oppNextCanvas = document.getElementById('opp-next-canvas');
+    const oppQueueCanvas = document.getElementById('opp-queue-canvas');
+    
+    if (!oppHoldCanvas || !oppNextCanvas || !oppQueueCanvas) return;
+
+    const oHoldCtx = oppHoldCanvas.getContext('2d', { alpha: false });
+    const oNextCtx = oppNextCanvas.getContext('2d', { alpha: false });
+    const oQueueCtx = oppQueueCanvas.getContext('2d', { alpha: false });
+
+    // 清空背景
+    oHoldCtx.fillStyle = BG;
+    oHoldCtx.fillRect(0, 0, oppHoldCanvas.width, oppHoldCanvas.height);
+    oNextCtx.fillStyle = BG;
+    oNextCtx.fillRect(0, 0, oppNextCanvas.width, oppNextCanvas.height);
+    oQueueCtx.fillStyle = BG;
+    oQueueCtx.fillRect(0, 0, oppQueueCanvas.width, oppQueueCanvas.height);
+
+    // 倒數中不顯示對手或 AI 的任何手牌，倒數完才瞬間出現
+    if (countdownValue > 0 && !current) return;
+
+    if (!oppState) return;
+
+    // 畫對手的 Hold 區
+    if (oppState.h) {
+      const holdColor = oppState.hu ? '#666666' : null; // 如果對手用過 Hold，變灰色
+      drawMini(oHoldCtx, oppState.h, 0, holdColor);
+    }
+
+    // 畫對手的 Next 與 Queue 區
+    const q = oppState.q;
+    if (q && q.length > 0) {
+      drawMini(oNextCtx, q[0]); // 畫 Next (第一顆)
+
+      // 畫剩下的 4 顆 Queue
+      for (let i = 1; i < Math.min(q.length, 5); i++) {
+        const type = q[i];
+        const matrix = PIECES[type][0];
+        const cell = 16;
+        const w = matrix[0].length * cell;
+        const h = matrix.length * cell;
+        const ox = Math.floor((oppQueueCanvas.width - w) / 2);
+        const slotHeight = oppQueueCanvas.height / 4; 
+        const slotCenterY = (i - 1) * slotHeight + (slotHeight / 2);
+        let oy = slotCenterY - (h / 2);
+        
+        if (type !== 'O') oy += cell / 2;
+
+        for (let r = 0; r < matrix.length; r++) {
+          for (let c = 0; c < matrix[r].length; c++) {
+            if (matrix[r][c]) drawCell(oQueueCtx, ox + c * cell, oy + r * cell, cell, COLORS[type]);
+          }
+        }
+      }
+    }
+  }
+
   function draw() {
     ctx.save(); // 儲存畫布狀態
     drawGrid();
@@ -2265,18 +2766,7 @@
           for (const row of clearFx.rows) if (row === r) { skip = true; break; }
         }
         if (!skip) {
-          // 修改 Y 座標
           drawCell(ctx, c * SIZE, (r - VISIBLE_ROWS) * SIZE, SIZE, COLORS[cell]);
-          if (cell === 'B') {
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#ff1111';
-            ctx.beginPath();
-            // 修改 Y 座標
-            ctx.arc(c * SIZE + SIZE/2, (r - VISIBLE_ROWS) * SIZE + SIZE/2, SIZE/4, 0, Math.PI*2);
-            ctx.fill();
-            ctx.shadowBlur = 0; 
-          }
         }
       }
     }
@@ -2404,9 +2894,8 @@
   function drawOpponent() {
     if (!oppCtx) return;
     
-    // 畫背景
-    oppCtx.fillStyle = BG;
-    oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+    // 一次性畫好完整的漂亮網格背景！
+    oppCtx.drawImage(gridCanvas, 0, 0);
 
     if (!oppState) {
       oppCtx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -2415,12 +2904,10 @@
       oppCtx.fillText('WAITING FOR', oppCanvas.width/2, oppCanvas.height/2 - 10);
       oppCtx.fillText('OPPONENT', oppCanvas.width/2, oppCanvas.height/2 + 10);
     } else {
-      // --- 判斷是否正在倒數中 ---
-      const isCountingDown = (countdownValue > 0);
-
-      // --- 解碼並繪製對手的靜態盤面 ---
+      const isCountingDown = (countdownValue > 0 && !current);
       const oppSize = 34;
       const bStr = oppState.b;
+      
       if (bStr) {
         let charIndex = 0;
         for (let r = 0; r < ROWS; r++) {
@@ -2428,15 +2915,9 @@
             const char = bStr[charIndex++];
             if (r < VISIBLE_ROWS) continue; // 隱藏區不畫
 
-            // --- 如果在倒數中 (!isCountingDown 為 false)，一律畫空的網格 ---
+            // 只要畫有方塊的地方就好，不用再浪費效能畫空網格了！
             if (char !== '.' && !isCountingDown) {
               drawCell(oppCtx, c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, COLORS[char]);
-            } else {
-              oppCtx.fillStyle = CELL_BG;
-              oppCtx.fillRect(c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, oppSize);
-              oppCtx.strokeStyle = BG;
-              oppCtx.lineWidth = 2;
-              oppCtx.strokeRect(c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, oppSize);
             }
           }
         }
@@ -2451,7 +2932,7 @@
               if (matrix[r][c]) {
                 const rr = curr.r + r;
                 const cc = curr.c + c;
-                if (rr >= VISIBLE_ROWS) { // 大於 20 才畫
+                if (rr >= VISIBLE_ROWS) { 
                   drawCell(oppCtx, cc * oppSize, (rr - VISIBLE_ROWS) * oppSize, oppSize, COLORS[curr.t]);
                 }
               }
@@ -2459,10 +2940,9 @@
           }
         }
         
-        // --- 繪製對手的垃圾行警告條 ---
+        // 繪製對手的垃圾行警告條
         const oppG = oppState.g || 0;
         const oppNg = oppState.ng || 0;
-        
         if (oppG > 0 || oppNg > 0) {
           const totalG = Math.min(oppG + oppNg, ROWS);
           const activeHeight = Math.min(oppG, ROWS) * oppSize;
@@ -2481,13 +2961,21 @@
       }
     }
 
-    // --- 如果對手在 KO 狀態，或是對手輸了(代表我方贏了)，對手的盤面變暗 ---
     if ((typeof oppKOTimer !== 'undefined' && oppKOTimer > 0 && !gameOver) || (gameOver && matchResult === 'WIN')) {
       oppCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
     }
 
-    // 將對手的 Emoji 繪製移到絕對最底層！
+    // --- 讓對手的畫面在暫停與倒數時，也跟著一起變暗 ---
+    if (isPaused && !gameOver) {
+      oppCtx.fillStyle = 'rgba(6,0,79,0.7)'; 
+      oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+    } else if (countdownValue > 0 && current) {
+      // 正在 3-2-1 恢復倒數中，讓畫面保持半暗，讓玩家專心看中間的數字
+      oppCtx.fillStyle = 'rgba(6,0,79,0.5)';
+      oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+    }
+
     oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
   }
 
@@ -2498,7 +2986,7 @@
     holdUsed = false;
 
     // --- IHS (Initial Hold System) 預先保留 ---
-    // ★ 加入 !isFromHold 防呆，確保按 Hold 的瞬間不會因為手指還沒放開而連續觸發
+    // 加入 !isFromHold 防呆，確保按 Hold 的瞬間不會因為手指還沒放開而連續觸發
     if (!isFromHold && (keysDown.has('KeyC') || keysDown.has('ShiftLeft') || keysDown.has('ShiftRight'))) {
       const t = current.type;
       if (!holdType) {
@@ -2536,7 +3024,7 @@
     lockTimer = 0;
     lockResets = 0;
     renderPanels();
-    if (!valid(current.matrix, current.row, current.col)) triggerGameOver();
+    if (!valid(current.matrix, current.row, current.col)) triggerGameOver(true);
     sendState(); 
     oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
   }
@@ -2546,7 +3034,7 @@
   }
 
   function tryMove(dx) {
-    if (!current || gameOver || clearFx || isKOed) return false;
+    if (!current || gameOver || clearFx || isKOed || isPaused || countdownValue > 0) return false;
     if (valid(current.matrix, current.row, current.col + dx)) {
       current.col += dx;
       lastMoveType = 'move';
@@ -2564,7 +3052,7 @@
   }
 
   function tryRotate(dir) {
-    if (!current || gameOver || clearFx || isKOed) return false;
+    if (!current || gameOver || clearFx || isKOed || isPaused || countdownValue > 0) return false;
     const from = current.rot;
     const to = (from + (dir === 1 ? 1 : 3)) % 4;
     const rotated = clone(PIECES[current.type][to]);
@@ -2606,7 +3094,7 @@
   }
 
   function softDrop(byKey=false) {
-    if (!current || gameOver || clearFx || isKOed) return false;
+    if (!current || gameOver || clearFx || isKOed || isPaused || countdownValue > 0) return false;
     if (valid(current.matrix, current.row + 1, current.col)) {
       current.row += 1;
       lastMoveType = 'drop';
@@ -2627,7 +3115,7 @@
   }
 
   function hardDrop() {
-    if (!current || gameOver || clearFx || isKOed) return;
+    if (!current || gameOver || clearFx || isKOed || isPaused || countdownValue > 0) return;
     let cells = 0;
     while (valid(current.matrix, current.row + 1, current.col)) {
       current.row += 1;
@@ -2648,6 +3136,655 @@
     playSound('drop');
     shakeMag = 8; 
     lockPiece();
+  }
+
+  // --- 系統通知 Toast (固定在畫面頂部) ---
+  let toastTimeout = null;
+  function showToast(text, duration = 3000) {
+    const toast = document.getElementById('system-toast');
+    if (!toast) return;
+    toast.textContent = text;
+    toast.classList.add('toast-show');
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toast.classList.remove('toast-show');
+    }, duration);
+  }
+
+  // ============================================================
+  //  AI 對戰引擎
+  // ============================================================
+  function aiMakePiece(type) {
+    const matrix = clone(PIECES[type][0]);
+    const width = matrix[0].length;
+    const startRow = type === 'I' ? 18 : 19;
+    return { type, matrix, rot: 0, row: startRow, col: Math.floor(COLS / 2) - Math.ceil(width / 2) };
+  }
+
+  function aiValid(matrix, row, col, board) {
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+        const br = row + r, bc = col + c;
+        if (bc < 0 || bc >= COLS || br >= ROWS) return false;
+        if (br >= 0 && board[br][bc]) return false;
+      }
+    }
+    return true;
+  }
+
+  // 終極 PD 演算法
+  function aiEvaluate(simData, currentCombo) {
+    const board = simData.b;
+    const linesCleared = simData.lines;
+    const bombsCleared = simData.bombs;
+
+    const colHeights = new Array(COLS).fill(0);
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (board[r][c]) { colHeights[c] = ROWS - r; break; }
+      }
+    }
+    const maxHeight = Math.max(...colHeights);
+
+    if (maxHeight > 18) return -999999999; 
+
+    let score = 0;
+
+    if (aiWideMode === 'auto') {
+      // --- Auto 模式 ---
+      let holes = 0;
+      let bumpiness = 0;
+      for (let c = 0; c < COLS; c++) {
+        let foundTop = false;
+        for (let r = 0; r < ROWS; r++) {
+          if (board[r][c]) foundTop = true;
+          else if (foundTop) holes++;
+        }
+        if (c > 0) bumpiness += Math.abs(colHeights[c] - colHeights[c-1]);
+      }
+      
+      score -= holes * 500000;
+      score -= bumpiness * 20000;
+      score -= maxHeight * 10000;
+
+      // 加入 aiNextGarbage >= 1，看到「黃色垃圾條」立刻防守
+      if (maxHeight >= 14 || aiActiveGarbage >= 1 || aiNextGarbage >= 1) {
+        if (linesCleared > 0) {
+          score += linesCleared * 200000;
+          if (currentCombo >= 0) score += (currentCombo + 1) * 300000;
+        }
+      } else {
+         if (linesCleared === 4) score += 3000000; 
+         else if (linesCleared > 0) {
+             if (currentCombo >= 0) score += (currentCombo + 1) * 200000;
+             else score -= linesCleared * 20000;
+         }
+      }
+    } else {
+      // --- Wide 模式 ---
+      const keepEmpty = parseInt(aiWideMode);
+      const wellStart = COLS - keepEmpty;
+
+      let buildHoles = 0;
+      let buildBumpiness = 0;
+      let wellBlocks = 0; 
+
+      for (let c = 0; c < COLS; c++) {
+        let foundTop = false;
+        for (let r = 0; r < ROWS; r++) {
+          if (board[r][c]) {
+            foundTop = true;
+            if (c >= wellStart) wellBlocks++;
+          } else if (foundTop && c < wellStart) {
+            buildHoles++;
+          }
+        }
+        if (c > 0 && c < wellStart) {
+          buildBumpiness += Math.abs(colHeights[c] - colHeights[c-1]);
+        }
+      }
+
+      const buildMin = Math.min(...colHeights.slice(0, wellStart));
+      const buildMax = Math.max(...colHeights.slice(0, wellStart));
+      const wellMax = Math.max(...colHeights.slice(wellStart));
+
+      score -= buildHoles * 5000000;
+      score -= buildBumpiness * 20000;
+
+      // 計算「加上即將到來的垃圾後，會不會被頂死」
+      const dangerHeight = maxHeight + aiActiveGarbage + aiNextGarbage;
+
+      // 不要看到黃色垃圾就嚇到反擊，不致命的垃圾就當作免費的塔高扛下來
+      // 觸發攻擊的唯一條件：1. 正在連擊中 2. 塔已經自己蓋到 13 樓 3. 加上垃圾後高度超過 16 樓 (快死了才防禦)
+      const isBursting = (aiCombo >= 0) || (buildMin >= 13) || (dangerHeight >= 16);
+
+      if (!isBursting) {
+        // 【蓄力期】
+        score += buildMin * 80000; 
+        score -= wellBlocks * 40000; 
+
+        const requiredDepth = 6;
+        const currentDepth = buildMin - wellMax;
+        if (currentDepth < requiredDepth) {
+          score -= (requiredDepth - currentDepth) * 2000000; 
+        }
+        
+        // 嚴禁提早消行 (扣 500 萬)
+        if (linesCleared > 0) score -= linesCleared * 5000000; 
+      } else {
+        // 【爆發期】
+        if (linesCleared > 0) {
+          score += linesCleared * 500000;
+          score += (currentCombo + 1) * 3000000; 
+        } else {
+          score -= 1000000; 
+          const requiredDepth = 3;
+          const currentDepth = buildMin - wellMax;
+          if (currentDepth < requiredDepth) {
+            score -= (requiredDepth - currentDepth) * 500000; 
+          }
+        }
+      }
+    }
+
+    // 賦予炸彈「絕對權重」(800 萬分)！
+    // 即使在蓄力期消行會被扣 500 萬，點燃炸彈的 +800 萬也能強勢覆蓋，逼迫 AI 成為炸彈狂人
+    if (bombsCleared > 0) score += bombsCleared * 8000000;
+
+    return score;
+  }
+
+  // 模擬將方塊精準放在「特定行與列」(支援 T轉與滑動塞入)
+  function aiSimulatePlacement(board, matrix, row, col) {
+    const newBoard = board.map(r => r.slice());
+
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+        const br = row + r, bc = col + c;
+        if (br >= 0 && br < ROWS) newBoard[br][bc] = 'AI';
+      }
+    }
+
+    let detonatedRows = new Set();
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+        const br = row + r, bc = col + c;
+        let checkR = br + 1;
+        while (checkR < ROWS && newBoard[checkR][bc] === 'B') {
+           detonatedRows.add(checkR);
+           checkR++;
+        }
+      }
+    }
+
+    const fullRows = [];
+    for (let r = 0; r < ROWS; r++) {
+      let full = true;
+      let isGarbage = false;
+      for (let c = 0; c < COLS; c++) {
+        if (!newBoard[r][c]) { full = false; break; }
+        if (newBoard[r][c] === 'G' || newBoard[r][c] === 'B') isGarbage = true;
+      }
+      if (full && !isGarbage) fullRows.push(r);
+    }
+
+    const allRowsToClear = [...new Set([...fullRows, ...detonatedRows])].sort((a,b) => a - b);
+    let bombsCleared = 0;
+    allRowsToClear.forEach(r => {
+      if (newBoard[r].includes('B')) bombsCleared++;
+    });
+
+    const finalBoard = newBoard.filter((_, i) => !allRowsToClear.includes(i));
+    while (finalBoard.length < ROWS) finalBoard.unshift(Array(COLS).fill(null));
+
+    return { b: finalBoard, lines: fullRows.length, bombs: bombsCleared };
+  }
+
+  // 2-Step 光束搜索大腦 (Beam Search Lookahead)
+  function aiFindBestMove(board, piece, depth = 1, currentComboState = aiCombo) {
+    let bestScore = -Infinity;
+    let bestMove = { col: piece.col, rot: piece.rot, row: piece.row, score: -Infinity, path: [] };
+
+    let queue = [{ r: piece.row, c: piece.col, rot: piece.rot, path: "" }];
+    let visited = new Set();
+    let validPlacements = [];
+
+    // 1. 找出當前方塊所有可能的合法落點
+    while (queue.length > 0) {
+      let curr = queue.shift();
+      let key = `${curr.r},${curr.c},${curr.rot}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      const matrix = PIECES[piece.type][curr.rot];
+
+      if (!aiValid(matrix, curr.r + 1, curr.c, board)) {
+        validPlacements.push(curr);
+      }
+
+      if (aiValid(matrix, curr.r + 1, curr.c, board)) queue.push({ r: curr.r + 1, c: curr.c, rot: curr.rot, path: curr.path + 'D' });
+      if (aiValid(matrix, curr.r, curr.c - 1, board)) queue.push({ r: curr.r, c: curr.c - 1, rot: curr.rot, path: curr.path + 'L' });
+      if (aiValid(matrix, curr.r, curr.c + 1, board)) queue.push({ r: curr.r, c: curr.c + 1, rot: curr.rot, path: curr.path + 'R' });
+      
+      const nextRot = (curr.rot + 1) % 4;
+      const nextMatrix = PIECES[piece.type][nextRot];
+      if (aiValid(nextMatrix, curr.r, curr.c, board)) {
+        queue.push({ r: curr.r, c: curr.c, rot: nextRot, path: curr.path + 'C' });
+      } else if (aiValid(nextMatrix, curr.r, curr.c - 1, board)) {
+        queue.push({ r: curr.r, c: curr.c - 1, rot: nextRot, path: curr.path + '1' }); 
+      } else if (aiValid(nextMatrix, curr.r, curr.c + 1, board)) {
+        queue.push({ r: curr.r, c: curr.c + 1, rot: nextRot, path: curr.path + '2' }); 
+      }
+    }
+
+    // 2. 評分並加入「未來預判」
+    validPlacements.forEach(pos => {
+      const matrix = clone(PIECES[piece.type][pos.rot]);
+      const simData = aiSimulatePlacement(board, matrix, pos.r, pos.c);
+      if (!simData) return;
+
+      // 模擬這一步放下去後的 Combo 狀態變化
+      let simulatedCombo = currentComboState;
+      if (simData.lines > 0) simulatedCombo++;
+      else simulatedCombo = -1;
+
+      // 當下這步的基礎分數 (使用模擬後的 Combo)
+      let score = aiEvaluate(simData, simulatedCombo);
+
+      // 預判未來 (Lookahead)
+      if (depth === 1 && aiQueue.length > 0) {
+          const nextPieceSim = aiMakePiece(aiQueue[0]);
+          // ★ 核心修復：把模擬的 Combo 狀態傳遞遞迴給未來！讓 AI 能「看見」連擊
+          const futureBestMove = aiFindBestMove(simData.b, nextPieceSim, 0, simulatedCombo); 
+          
+          if (futureBestMove.score !== -Infinity) {
+              score += futureBestMove.score * 0.8; 
+          }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = { col: pos.c, rot: pos.rot, row: pos.r, score: score, path: pos.path.split('') };
+      }
+    });
+
+    if (bestScore === -Infinity) bestMove.path = [];
+    return bestMove;
+  }
+
+  // AI 備用瞬間移動 (當擬人化卡住時的終極保險機制)
+  function aiExecuteMove(move) {
+    if (!aiCurrent) return;
+    aiCurrent.matrix = clone(PIECES[aiCurrent.type][move.rot]);
+    aiCurrent.rot = move.rot;
+    aiCurrent.col = move.col;
+    aiCurrent.row = move.row; // 精準鎖定在 BFS 找到的行數
+    aiLockPiece();
+  }
+
+  // --- 全新的 C++ 驅動版 updateAI ---
+  function updateAI(delta) {
+    if (!isAIMode || aiGameOver || gameOver || !isAiReady || isPaused || countdownValue > 0) return;
+    if (!aiCurrent) return;
+
+    if (!aiCurrent.target) {
+      if (!aiCurrent._hesitating) {
+        const maxH = Math.max(...Array.from({length: COLS}, (_, c) => {
+          for (let r = 0; r < ROWS; r++) { if (aiBoard[r][c]) return ROWS - r; }
+          return 0;
+        }));
+        const pressureBonus = Math.max(0, (maxH - 10) * 50);
+        const hesitateChance = { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.05, god: 0.01 }[aiSpeedMode] || 0.12;
+        const hesitateMs = { rookie: 300, casual: 180, adaptive: 100, pro: 50, god: 15 }[aiSpeedMode] || 100;
+        
+        if (Math.random() < hesitateChance) {
+          aiCurrent._hesitating = true;
+          aiCurrent._hesitateEnd = performance.now() + hesitateMs + pressureBonus + Math.random() * 80;
+          return; 
+        }
+      }
+      
+      if (aiCurrent._hesitating) {
+        if (performance.now() < aiCurrent._hesitateEnd) return;
+        aiCurrent._hesitating = false;
+      }
+
+      // 準備餵給 C++ 的資料
+      let boardStr = ""; 
+      for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+              boardStr += aiBoard[r][c] ? '1' : '.'; 
+          }
+      }
+      
+      let currentPiece = aiCurrent.type;
+      let holdPiece = aiHoldType ? aiHoldType : "NONE";
+      // 把預覽方塊也傳給 C++
+      let queueStr = aiQueue.slice(0, 3).join('');
+
+      // 讀取你面板上的打法設定 (自動=0, 1-wide=1...以此類推)
+      let keepEmpty = aiWideMode === 'auto' ? 0 : parseInt(aiWideMode);
+
+      // 呼叫 C++ 大腦
+      if (!isAiThinking && isAiReady) {
+        // 準備好資料丟給背景 Worker
+        isAiThinking = true;
+        aiWorker.postMessage({
+          type: 'THINK',
+          payload: {
+            boardStr: boardStr,
+            currentPiece: currentPiece,
+            holdPiece: holdPiece,
+            queueStr: queueStr,
+            aiCombo: aiCombo,
+            keepEmpty: keepEmpty
+          }
+        });
+        
+        // 任務丟出去後立刻 return，不要讓主執行緒等待！
+        return; 
+      } else if (isAiThinking) {
+        // 如果 AI 還在背景苦思冥想，我們就直接跳過這一幀，讓畫面繼續流暢繪製
+        return;
+      }
+    }
+
+    let baseStepDelay = 40;
+    if (aiSpeedMode === 'rookie') baseStepDelay = 1000; // 菜鳥：想很久，1秒才下一顆
+    else if (aiSpeedMode === 'casual') baseStepDelay = 700; // 休閒：0.7秒下一顆
+    else if (aiSpeedMode === 'adaptive') {
+      baseStepDelay = Math.max(120, currentAiThinkInterval); 
+    }
+    else if (aiSpeedMode === 'pro') baseStepDelay = 250; // 高手：一秒 4 顆
+    else if (aiSpeedMode === 'god') baseStepDelay = 15;
+
+    const jitterRatio = { rookie: 0.5, casual: 0.3, adaptive: 0.2, pro: 0.1, god: 0.05 }[aiSpeedMode] || 0.2;
+    const aiStepDelay = baseStepDelay * (1 + (Math.random() * jitterRatio));
+
+    aiThinkTimer += delta;
+    if (aiThinkTimer >= aiStepDelay) {
+      aiThinkTimer = 0;
+
+      // 如果 C++ 說這步按 Hold 分數更高
+      if (aiCurrent.target.useHold && !aiHoldUsed) {
+         if (!aiHoldType) {
+            aiHoldType = aiCurrent.type;
+            aiCurrent = aiMakePiece(aiQueue.shift());
+            aiEnsureQueue();
+         } else {
+            const swap = aiHoldType;
+            aiHoldType = aiCurrent.type;
+            aiCurrent = aiMakePiece(swap);
+         }
+         aiHoldUsed = true;
+         aiCurrent.target = null; // 換完牌後，清空目標，下一幀再問一次 C++ 新方塊要放哪
+         aiSyncOppState();
+         return;
+      }
+
+      // 瞬間移動並鎖定
+      aiExecuteMove(aiCurrent.target);
+      
+      // 每次落塊都強制把畫面同步給對手
+      aiSyncOppState(); 
+      return;
+    }
+  }
+
+  function aiLockPiece() {
+    if (!aiCurrent) return;
+    for (let r = 0; r < aiCurrent.matrix.length; r++) {
+      for (let c = 0; c < aiCurrent.matrix[r].length; c++) {
+        if (!aiCurrent.matrix[r][c]) continue;
+        const br = aiCurrent.row + r, bc = aiCurrent.col + c;
+        if (br >= 0 && br < ROWS) aiBoard[br][bc] = aiCurrent.type;
+      }
+    }
+
+    // 尋找 AI 是否觸發連鎖炸彈
+    let detonatedRows = new Set();
+    for (let r = 0; r < aiCurrent.matrix.length; r++) {
+      for (let c = 0; c < aiCurrent.matrix[r].length; c++) {
+        if (!aiCurrent.matrix[r][c]) continue;
+        const br = aiCurrent.row + r, bc = aiCurrent.col + c;
+        let checkR = br + 1;
+        while (checkR < ROWS && aiBoard[checkR][bc] === 'B') {
+           detonatedRows.add(checkR);
+           checkR++;
+        }
+      }
+    }
+
+    // 尋找一般的滿行 (排除垃圾行)
+    const fullRows = [];
+    for (let r = 0; r < ROWS; r++) {
+      let full = true;
+      let isGarbage = false;
+      for (let c = 0; c < COLS; c++) {
+        if (!aiBoard[r][c]) { full = false; break; }
+        if (aiBoard[r][c] === 'G' || aiBoard[r][c] === 'B') isGarbage = true;
+      }
+      if (full && !isGarbage) fullRows.push(r);
+    }
+
+    // 合併所有要消除的行 (一般消行 + 炸彈)
+    const allRowsToClear = [...new Set([...fullRows, ...detonatedRows])].sort((a,b) => a - b);
+
+    if (allRowsToClear.length > 0) {
+      // 計算 AI 引爆的炸彈數量
+      let bombsCleared = 0;
+      allRowsToClear.forEach(r => {
+        if (aiBoard[r].includes('B')) bombsCleared++;
+      });
+
+      aiBoard = aiBoard.filter((_, i) => !allRowsToClear.includes(i));
+      while (aiBoard.length < ROWS) aiBoard.unshift(Array(COLS).fill(null));
+
+      aiLines += fullRows.length;
+      aiScore += [0, 100, 300, 500, 800][fullRows.length] * aiLevel;
+      aiLevel = Math.floor(aiLines / 10) + 1;
+
+      // --- AI 專屬 Combo 系統 ---
+      aiCombo++; 
+      let attack = [0, 0, 1, 2, 4][fullRows.length] || 0;
+      
+      if (aiCombo > 0) {
+        const comboBonuses = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4];
+        attack += comboBonuses[Math.min(aiCombo, 10)] || 0;
+        
+        const comboColor = aiCombo >= 5 ? '#ff0d62' : (aiCombo >= 3 ? '#f7dd16' : '#48d62f'); 
+        const comboSize = 24 + Math.min(aiCombo * 3, 20);
+        oppFloatingTexts.push(new FloatingText(`${aiCombo} COMBO!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, comboColor, comboSize));
+        playSound('clear', aiCombo); 
+      }
+
+      // 加上炸彈爆發的攻擊力
+      if (bombsCleared > 0) {
+         attack += bombsCleared;
+         // AI 畫面上顯示炸彈爆炸，你的畫面上顯示被扣血
+         oppFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
+         myFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+         playSound('drop'); shakeMag = 15;
+      }
+
+      if (attack > 0) {
+        let remainingAttack = attack;
+        
+        // 抵消邏輯
+        if (aiActiveGarbage > 0) {
+          if (remainingAttack >= aiActiveGarbage) { remainingAttack -= aiActiveGarbage; aiActiveGarbage = 0; }
+          else { aiActiveGarbage -= remainingAttack; remainingAttack = 0; }
+        }
+        if (remainingAttack > 0 && aiNextGarbage > 0) {
+          if (remainingAttack >= aiNextGarbage) { remainingAttack -= aiNextGarbage; aiNextGarbage = 0; }
+          else { aiNextGarbage -= remainingAttack; remainingAttack = 0; }
+        }
+        
+        // 灌垃圾給玩家
+        if (remainingAttack > 0) {
+          nextGarbage += remainingAttack;
+          oppLinesSent += remainingAttack;
+          const oppLinesEl = document.getElementById('opp-lines-sent-display');
+          if (oppLinesEl) oppLinesEl.textContent = oppLinesSent;
+          
+          myFloatingTexts.push(new FloatingText(`+${remainingAttack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, '#ff0d62', 50));
+          playSound('drop');
+          shakeMag = 15;
+        }
+      }
+    } else {
+      aiCombo = -1;
+    }
+
+    // AI 承受未能抵消的垃圾行
+    if (aiActiveGarbage > 0) {
+      for (let i = 0; i < aiActiveGarbage; i++) {
+        if (aiConsecutiveGarbageHoles >= 2 || aiLastGarbageHole === -1) {
+          let newHole;
+          do { newHole = Math.floor(Math.random() * COLS); } while (newHole === aiLastGarbageHole);
+          aiLastGarbageHole = newHole;
+          aiConsecutiveGarbageHoles = 0;
+        }
+        aiBoard.shift();
+        const newRow = Array(COLS).fill('G');
+        newRow[aiLastGarbageHole] = 'B';
+        aiBoard.push(newRow);
+        aiConsecutiveGarbageHoles++;
+      }
+      aiActiveGarbage = 0;
+    }
+    aiActiveGarbage += aiNextGarbage;
+    aiNextGarbage = 0;
+
+    aiSpawnNext();
+  }
+
+  function aiSpawnNext() {
+    aiEnsureQueue();
+    const type = aiQueue.shift();
+    aiCurrent = aiMakePiece(type);
+    aiHoldUsed = false; // 每次出新方塊時，重置 Hold 狀態
+    
+    // 如果出生點就碰壁，檢查生死
+    if (!aiValid(aiCurrent.matrix, aiCurrent.row, aiCurrent.col, aiBoard)) {
+      
+      // 檢查場上是否有垃圾或炸彈
+      let hasGarbage = false;
+      for (let r = 0; r < ROWS; r++) {
+        if (aiBoard[r].includes('G') || aiBoard[r].includes('B')) {
+          hasGarbage = true;
+          break;
+        }
+      }
+
+      if (!hasGarbage) {
+        // 沒有垃圾可以扣除了，AI 自己疊死
+        aiGameOver = true;
+        aiCurrent = null;
+        showMsg("OPPONENT TOPPED OUT!");
+        oppFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
+        playSound('perfect');
+        endBattleMatch('WIN');
+      } else {
+        // 有垃圾，進入 KO 復活流程
+        myKOs++;
+        const myKoEl = document.getElementById('my-ko-display');
+        if (myKoEl) myKoEl.textContent = myKOs;
+
+        oppFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
+        playSound('perfect');
+        oppKOTimer = 1000; // 對手畫面變暗 1 秒
+
+        aiCurrent = null; // 暫時沒收方塊
+
+        // 抽掉盤面上的垃圾與炸彈
+        let newBoard = aiBoard.filter(row => !row.includes('G') && !row.includes('B'));
+        while (newBoard.length < ROWS) {
+          newBoard.unshift(Array(COLS).fill(null));
+        }
+        aiBoard = newBoard;
+        aiActiveGarbage = 0;
+        aiNextGarbage = 0;
+        aiCombo = -1; // 復活後斷連擊
+        aiSyncOppState();
+
+        // 1秒後復活
+        setTimeout(() => {
+          if (!aiGameOver && !gameOver) {
+            aiSpawnNext();
+          }
+        }, 1000);
+      }
+    }
+  }
+
+  // 更新 oppState 讓對手畫面正確渲染 AI 的盤面
+  function aiSyncOppState() {
+    let compressed = '';
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        compressed += aiBoard[r][c] ? aiBoard[r][c] : '.';
+      }
+    }
+    oppState = {
+      b: compressed,
+      s: aiScore,
+      g: aiActiveGarbage,  
+      ng: aiNextGarbage,   
+      k: 0,
+      ls: oppLinesSent,
+      lp: 0,
+      isGuest: true,
+      c: aiCurrent ? { t: aiCurrent.type, r: aiCurrent.row, c: aiCurrent.col, rot: aiCurrent.rot } : null,
+      // 把 AI 的 Hold 與預覽陣列裝進狀態機
+      h: aiHoldType,
+      hu: typeof aiHoldUsed !== 'undefined' ? aiHoldUsed : false,
+      q: aiQueue.slice(0, 5)
+    };
+
+    renderOpponentPanels(); // AI 狀態更新時才重畫對手面板
+  }
+
+  // 初始化 AI 對局
+  function initAI() {
+    // 只設定名牌，不啟動任何方塊或計時，等 startCountdown 裡才真正啟動
+    const oppTitleEl = document.getElementById('opp-name-display');
+    if (oppTitleEl) {
+      oppTitleEl.innerHTML = '🤖 AI<br><span style="font-size:12px; color:rgba(255,255,255,0.6); letter-spacing:0px;">電腦對手</span>';
+      oppTitleEl.style.color = 'var(--T)';
+      oppTitleEl.style.textShadow = '0 0 10px var(--T)';
+    }
+    // --- 拔掉 AI 的記憶，避免重新進房時 AI 自動開疊 ---
+    aiGameOver = true;   // 強制休眠，直到倒數結束才喚醒
+    aiCurrent = null;    // 清空手上拿著的方塊
+    aiBoard = createBoard(); // 給它一個乾淨的空盤面
+    aiSyncOppState();    // 立即把畫面上殘留的對手畫面清空
+  }
+
+  // AI 正式開始（倒數結束後才呼叫）
+  function startAI() {
+    aiBoard = createBoard();
+    aiQueue = [];
+    aiCurrent = null;
+    aiHoldType = null;      // 清空 Hold 區
+    aiHoldUsed = false;     // 重置 Hold 狀態
+    aiScore = 0; aiLines = 0; aiLevel = 1;
+    aiCombo = -1;
+    aiGameOver = false; aiGravityTimer = 0; aiThinkTimer = 0;
+
+    // 初始化適應性 AI 數據
+    // 根據玩家選擇的速度模式初始化思考間距
+    const speedMap = { rookie: 900, casual: 600, adaptive: 4000, pro: 250, god: 80 };
+    currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
+    myLastLockTime = performance.now();
+    myLockIntervals = [currentAiThinkInterval, currentAiThinkInterval];
+
+    aiEnsureQueue();
+    aiSpawnNext();
+    aiSyncOppState();
   }
 
   // --- UI 提示函數 ---
@@ -2701,40 +3838,36 @@
     let msg = '';
     let attack = 0; // 本次操作的攻擊力
 
-    if (linesCleared > 0) {
-      combo++;
-    } else {
-      combo = -1;
-    }
+    if (linesCleared > 0) combo++;
+    else combo = -1;
 
     if (linesCleared > 0) {
       lines += linesCleared;
-      if (!isMultiplayer && !isPracticeMode) { // 「單人」且「非練習」模式下才會升級
-        level = Math.floor(lines / 10) + 1;
-      }
+      if (!isMultiplayer && !isPracticeMode) level = Math.floor(lines / 10) + 1;
     }
 
+    // 依照 Tetris Battle 官方圖表設定基礎分數與攻擊力
     if (tSpinType) {
       difficult = true;
       if (tSpinType === 'Full') {
-        base = [400, 800, 1200, 1600][linesCleared];
-        attack = [0, 2, 4, 6][linesCleared] || 0; // Full T-Spin 攻擊表
+        base = [100, 500, 800, 1200][linesCleared] || 0;
+        attack = [0, 2, 4, 6][linesCleared] || 0;
         msg = linesCleared ? `T-Spin ${['','Single','Double','Triple'][linesCleared]}` : 'T-Spin';
-      } else {
-        base = [100, 200, 400, 0][linesCleared];
-        attack = [0, 0, 1, 0][linesCleared] || 0; // Mini T-Spin 攻擊表
+      } else { // Mini
+        base = [100, 300, 400, 0][linesCleared] || 0;
+        attack = [0, 1, 0, 0][linesCleared] || 0;
         msg = linesCleared ? `Mini T-Spin ${['','Single','Double'][linesCleared]}` : 'Mini T-Spin';
       }
     } else {
-      base = [0, 100, 300, 500, 800][linesCleared];
-      attack = [0, 0, 1, 2, 4][linesCleared] || 0; // 普通消除攻擊表 (Tetris = 4)
+      base = [0, 100, 300, 500, 800][linesCleared] || 0;
+      attack = [0, 0, 1, 2, 4][linesCleared] || 0;
       if (linesCleared === 4) {
         difficult = true;
         msg = 'Tetris';
       }
     }
 
-    if (base > 0) {
+    if (base > 0 || isPerfectClear) {
       if (isPerfectClear) playSound('perfect');
       else if (tSpinType) { playSound('tspin'); shakeMag = 12; }
       else if (linesCleared === 4) { playSound('tetris'); shakeMag = 16; }
@@ -2745,7 +3878,13 @@
         if (linesCleared > 0) {
           if (b2b > 0) {
             base = Math.floor(base * 1.5);
-            attack = Math.ceil(attack * 1.5);
+            // 覆蓋為圖表中的 B2B 攻擊力
+            if (!tSpinType && linesCleared === 4) attack = 6; // B2B Tetris
+            else if (tSpinType === 'Mini' && linesCleared === 1) attack = 2; // B2B T-Spin Mini
+            else if (tSpinType === 'Full' && linesCleared === 1) attack = 3; // B2B T-Spin Single
+            else if (tSpinType === 'Full' && linesCleared === 2) attack = 6; // B2B T-Spin Double
+            else if (tSpinType === 'Full' && linesCleared === 3) attack = 9; // B2B T-Spin Triple
+            
             msg = `B2B ${msg}`;
           }
           b2b++; 
@@ -2757,19 +3896,18 @@
       // Combo 加成
       if (combo > 0) {
         base += 50 * combo;
-        const comboBonuses = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4]; // Tetris Battle 在 7 Combo 以上時，固定最多送 4 行
+        const comboBonuses = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4];
         attack += comboBonuses[Math.min(combo, 10)] || 0;
         msg = msg ? `${msg} + COMBO ${combo}` : `COMBO ${combo}`;
 
-        // 觸發 Combo 漂浮文字 (連擊越高，字越大越紅)
         const comboColor = combo >= 5 ? '#ff0d62' : (combo >= 3 ? '#f7dd16' : '#48d62f'); 
         const comboSize = 24 + Math.min(combo * 3, 20); 
         myFloatingTexts.push(new FloatingText(`${combo} COMBO!`, (COLS * SIZE) / 2, (VISIBLE_ROWS * SIZE) / 2 + 40, comboColor, comboSize));
       }
 
+      // 完美清除
       if (isPerfectClear) {
-        base += 3000;
-        attack += 10; // 全清攻擊力 +10 (毀滅性打擊)
+        attack += 10; 
         msg = 'PERFECT CLEAR!';
         shakeMag = 20; 
       }
@@ -2778,16 +3916,13 @@
 
       // 將大招式的文字也轉換成強烈視覺特效
       if (msg) {
-        showMsg(msg); // 保持右邊的靜態文字
-        
-        // 抓出「非 Combo」的純招式名稱 (例如 Tetris, T-Spin)
+        showMsg(msg); 
         let cleanMsg = msg.replace(` + COMBO ${combo}`, ''); 
         if (cleanMsg !== '' && !cleanMsg.startsWith('COMBO')) {
           let floatColor = '#ffffff'; let floatSize = 28;
           if (cleanMsg.includes('PERFECT')) { floatColor = '#f7dd16'; floatSize = 40; }
           else if (cleanMsg.includes('Tetris')) { floatColor = '#38bdee'; floatSize = 34; }
           else if (cleanMsg.includes('T-Spin')) { floatColor = '#b144f7'; floatSize = 32; }
-          
           myFloatingTexts.push(new FloatingText(cleanMsg, (COLS * SIZE) / 2, (VISIBLE_ROWS * SIZE) / 2 - 20, floatColor, floatSize));
         }
       }
@@ -2806,15 +3941,24 @@
         else { nextGarbage -= attack; attack = 0; }
       }
       // 抵消後還有剩，就打給對手
-      if (attack > 0 && isMultiplayer && conn && conn.open) {
-        conn.send({ type: 'ATTACK', lines: attack });
-        // 更新我的 LINES SENT
-        myLinesSent += attack;
-        const myLinesEl = document.getElementById('my-lines-sent-display');
-        if (myLinesEl) myLinesEl.textContent = myLinesSent;
+      if (attack > 0 && isMultiplayer) {
+        if (isAIMode) {
+          // 玩家打擊 AI 模式
+          aiNextGarbage += attack;
+          myLinesSent += attack;
+          const myLinesEl = document.getElementById('my-lines-sent-display');
+          if (myLinesEl) myLinesEl.textContent = myLinesSent;
+          
+          oppFloatingTexts.push(new FloatingText(`-${attack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+        } else if (conn && conn.open) {
+          // 真人對戰模式
+          conn.send({ type: 'ATTACK', lines: attack });
+          myLinesSent += attack;
+          const myLinesEl = document.getElementById('my-lines-sent-display');
+          if (myLinesEl) myLinesEl.textContent = myLinesSent;
 
-        // 在對手的盤面上噴出受到傷害的紅色大數字 (-X)
-        oppFloatingTexts.push(new FloatingText(`-${attack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+          oppFloatingTexts.push(new FloatingText(`-${attack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+        }
       }
     }
 
@@ -2823,7 +3967,30 @@
 
   // --- 鎖定函數 (判定引爆、T轉與天花板死亡) ---
   function lockPiece() {
-    const tSpin = getTSpinType(); 
+    // --- 適應性 AI：即時記錄玩家的落塊手速 ---
+    if (isAIMode && gameStarted && aiSpeedMode === 'adaptive') {
+      const now = performance.now();
+      if (myLastLockTime > 0) {
+        let interval = now - myLastLockTime;
+        // 如果玩家發呆、剛經歷復活或暫停，時間會拉很長，最高限制在 10000ms
+        if (interval > 10000) interval = 10000; 
+        
+        myLockIntervals.push(interval);
+        if (myLockIntervals.length > 5) myLockIntervals.shift(); // 只抓取最近 5 次的平均值
+        
+        // 計算你最近的平均手速
+        let avg = myLockIntervals.reduce((a, b) => a + b, 0) / myLockIntervals.length;
+        
+        // 設定 AI 的速度：完美模仿你的平均速度
+        currentAiThinkInterval = Math.max(120, avg);
+      }
+      myLastLockTime = now;
+    } else if (isAIMode && gameStarted && aiSpeedMode !== 'adaptive') {
+      // 固定速度模式：不跟隨玩家，但記錄一下時間以備切換
+      myLastLockTime = performance.now();
+    }
+
+    const tSpin = getTSpinType();
 
     let isLockOut = true;
 
@@ -2848,7 +4015,7 @@
 
     // 只有當整顆方塊都鎖死在隱藏區 (畫面外) 才結束遊戲
     if (isLockOut) {
-      triggerGameOver();
+      triggerGameOver(false);
       return;
     }
 
@@ -2968,18 +4135,27 @@
     // 呼叫計分系統，只傳入「一般消行」的數量！
     applyScore(rowsToClear.length, tSpin, isPerfectClear);
 
-    // 炸彈追加攻擊！每引爆一顆炸彈，額外送出 1 行垃圾！
-    if (bombsCleared > 0 && isMultiplayer && conn && conn.open) {
-       conn.send({ type: 'ATTACK', lines: bombsCleared });
-       myLinesSent += bombsCleared;
-       const myLinesEl = document.getElementById('my-lines-sent-display');
-       if (myLinesEl) myLinesEl.textContent = myLinesSent;
-       
-       // 炸彈爆發特效與音效
-       playSound('drop');
-       shakeMag = 15;
-       myFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
-       oppFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+    // 炸彈追加攻擊！每引爆一顆炸彈，額外送出 1 行垃圾
+    if (bombsCleared > 0 && isMultiplayer) {
+       if (isAIMode) {
+         aiNextGarbage += bombsCleared;
+         myLinesSent += bombsCleared;
+         const myLinesEl = document.getElementById('my-lines-sent-display');
+         if (myLinesEl) myLinesEl.textContent = myLinesSent;
+         
+         playSound('drop'); shakeMag = 15;
+         myFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
+         oppFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+       } else if (conn && conn.open) {
+         conn.send({ type: 'ATTACK', lines: bombsCleared });
+         myLinesSent += bombsCleared;
+         const myLinesEl = document.getElementById('my-lines-sent-display');
+         if (myLinesEl) myLinesEl.textContent = myLinesSent;
+         
+         playSound('drop'); shakeMag = 15;
+         myFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
+         oppFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+       }
     }
 
     activeGarbage += nextGarbage;
@@ -2989,16 +4165,21 @@
   }
 
   function hold() {
-    if (!current || gameOver || clearFx || holdUsed || isKOed) return;
+    if (!current || gameOver || clearFx || holdUsed || isKOed || isPaused || countdownValue > 0) return;
     const t = current.type;
     if (!holdType) {
       holdType = t;
-      spawn(true); // ★ 傳入 true，告訴 spawn 這顆方塊是因為 Hold 而來的，不要觸發 IHS
+      spawn(true); // 傳入 true，告訴 spawn 這顆方塊是因為 Hold 而來的，不要觸發 IHS
     } else {
       const swap = holdType;
       holdType = t;
       current = makePiece(swap);
-      if (!valid(current.matrix, current.row, current.col)) triggerGameOver();
+
+      // 確保換出來的新方塊擁有完整的 0.5 秒續命時間
+      lockTimer = 0;    
+      lockResets = 0;
+
+      if (!valid(current.matrix, current.row, current.col)) triggerGameOver(true);
     }
     holdUsed = true;
     renderPanels();
@@ -3046,8 +4227,9 @@
 
   function processSoftDrop(delta, currentGravity) {
     if (!keysDown.has('ArrowDown') || !current || gameOver || clearFx || isKOed) return;
-    
-    const sdInterval = currentGravity / 20; // 官方：永遠是當前重力的 20 倍速
+
+    // 加上 Math.min 防呆：如果玩家玩到超高難度，自然掉落速度已經比 30ms 還快了，就以關卡極速為主，才不會按了下反而變慢。
+    const sdInterval = Math.min(SETTINGS.softDropInterval, currentGravity);
     
     moveCooldown += delta;
     while (moveCooldown >= sdInterval) {
@@ -3071,13 +4253,17 @@
         state: {
           b: compressedBoard,
           s: score,
-          g: activeGarbage,  // 傳送紅色的危險垃圾
-          ng: nextGarbage,   // 傳送黃色的寬限期垃圾
+          g: activeGarbage,
+          ng: nextGarbage,
           k: myKOs,
           ls: myLinesSent,
           lp: myLP || 0,
           isGuest: !currentUserUID,
-          c: current ? { t: current.type, r: current.row, c: current.col, rot: current.rot } : null
+          c: current ? { t: current.type, r: current.row, c: current.col, rot: current.rot } : null,
+          // 把我的 Hold 狀態與預覽陣列 (前 5 顆) 傳給對手
+          h: holdType,
+          hu: holdUsed,
+          q: queue.slice(0, 5) 
         }
       });
     } catch (err) {
@@ -3086,6 +4272,9 @@
   }
 
   function update(delta) {
+    pollGamepad(); // 🎮 每一幀都檢查一次搖桿狀態
+    
+    if (isAIMode) updateAI(delta); // AI 對戰更新
     if (shakeMag > 0) shakeMag = Math.max(0, shakeMag - delta * 0.08); // 處理震動衰減
 
     // 加入嚴格防呆，確保變數存在才倒數，防止當機
@@ -3112,7 +4301,7 @@
       if (ft.life <= 0) oppFloatingTexts.splice(i, 1);
     }
 
-    if (!gameStarted || gameOver || isPaused || isKOed) return;
+    if (!gameStarted || gameOver || isPaused || isKOed || countdownValue > 0) return;
 
     // --- 官方重力公式 (分流單機與連線) ---
     let gravityInterval;
@@ -3163,33 +4352,6 @@
       }
     }
   }
-
-  function gameLoop(ts) {
-    if (!lastTime) lastTime = ts;
-    let delta = ts - lastTime;
-    lastTime = ts;
-
-    // --- 切換分頁防護與補償機制 ---
-    if (delta > 500) { 
-      
-      // 如果掛機超過 3 分鐘 (180000 毫秒)，最多只補償 3 分鐘
-      // 避免 while 迴圈跑幾萬次把瀏覽器卡死
-      if (delta > 180000) delta = 180000; 
-    }
-
-    // --- 把流失的時間切成 16ms 的小碎塊，強制執行進度 ---
-    // 這會讓切換分頁的人，切回來時方塊會「瞬間瘋狂結算落下」到死，無法利用切換分頁作弊
-    while (delta > 0) {
-      let step = Math.min(delta, 16); 
-      update(step);
-      delta -= step;
-    }
-
-    draw();
-    renderPanels();
-    drawOpponent();
-  }
-
 
   // 只要滑鼠點擊畫面任何地方，解鎖音樂 (對付瀏覽器限制)
   document.addEventListener('click', () => {
@@ -3278,7 +4440,7 @@
       playSound('move'); // 偷播一個音效測試
       return;
     }
-    if (k === 'Minus' || k === 'NumpadSubtract') {
+    if (k === 'Minus' || k === 'NumpadSubtract' && !e.ctrlKey) {
       // 利用 *10 轉整數再 /10，完美消除 JavaScript 小數點計算誤差
       masterVolume = Math.max(0, Math.round((masterVolume - 0.1) * 10) / 10);
       localStorage.setItem('tetrisVolume', masterVolume);
@@ -3286,7 +4448,7 @@
       playSound('move');
       return;
     }
-    if (k === 'Equal' || k === 'NumpadAdd') {
+    if (k === 'Equal' || k === 'NumpadAdd' && !e.ctrlKey) {
       // 一樣加入防小數點誤差機制
       masterVolume = Math.min(1, Math.round((masterVolume + 0.1) * 10) / 10);
       localStorage.setItem('tetrisVolume', masterVolume);
@@ -3317,7 +4479,7 @@
       'ShiftLeft','ShiftRight','ControlLeft','ControlRight'
     ];
 
-    if ((gameOver || isPaused || clearFx || isKOed) && gameplayKeys.includes(k)) {
+    if ((gameOver || isPaused || clearFx || isKOed || countdownValue > 0) && gameplayKeys.includes(k)) {
       return;
     }
 
@@ -3359,8 +4521,17 @@
       return;
     }
     else if (k === 'KeyP' || k === 'Escape') {
-      if (!gameOver && !isMultiplayer) {
-        isPaused = !isPaused;
+      if (!gameOver && (!isMultiplayer || isAIMode)) {
+        if (!isPaused) {
+          // 進入暫停
+          isPaused = true; 
+          // 防呆：如果玩家在 3、2、1 倒數到一半時因為太緊張又按了暫停，直接把倒數凍結！
+          if (countdownInterval) clearInterval(countdownInterval);
+          countdownValue = 0; 
+        } else {
+          // 解除暫停，進入 3 秒倒數緩衝
+          resumeCountdown();
+        }
       }
     }
   });
@@ -3415,6 +4586,69 @@
   
   if (typeof Peer !== 'undefined') initNetwork();
   fitLayout();
+
+  // === AI 設定按鈕邏輯 ===
+  const AI_WIDE_HINTS = {
+    auto:  '🧠 AI 自行選擇最佳落點，追求 Tetris 建塔策略',
+    '1':   '1-wide：右側留 1 列深坑，用 I 磚反覆插坑，適合練 Tetris 節奏',
+    '2':   '2-wide：右側留 2 列，穩定版 Tetris 策略，適合中高難度 AI',
+    '3':   '3-wide：右側留 3 列，兼顧平整與消行，節奏型打法',
+    '4':   '4-wide Combo：右側留 4 列通道，每顆方塊都消行，持續 Combo 輸出！',
+  };
+
+  function initAIConfigButtons() {
+    // 速度按鈕
+    document.querySelectorAll('#ai-speed-group .ai-option-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#ai-speed-group .ai-option-btn').forEach(b => b.classList.remove('selected-speed'));
+        btn.classList.add('selected-speed');
+        aiSpeedMode = btn.dataset.speed;
+        if (isAIMode && aiSpeedMode !== 'adaptive') {
+          const speedMap = { rookie: 900, casual: 600, pro: 250, god: 80 };
+          currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
+        }
+      });
+    });
+
+    // Wide 按鈕
+    const wideHintEl = document.getElementById('ai-wide-hint');
+    document.querySelectorAll('#ai-wide-group .ai-option-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#ai-wide-group .ai-option-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        aiWideMode = btn.dataset.wide === 'auto' ? 'auto' : parseInt(btn.dataset.wide);
+        if (wideHintEl) wideHintEl.textContent = AI_WIDE_HINTS[btn.dataset.wide] || '';
+      });
+      // 初始化 hint
+      if (btn.classList.contains('selected') && wideHintEl) {
+        wideHintEl.textContent = AI_WIDE_HINTS[btn.dataset.wide] || '';
+      }
+    });
+  }
+  initAIConfigButtons();
+
+  // === AI 對戰按鈕 ===
+  const aiBtn = document.getElementById('ai-btn');
+  if (aiBtn) {
+    aiBtn.addEventListener('click', () => {
+      if (isMultiplayer) return;
+      isAIMode = true;
+      isMultiplayer = true;
+      conn = null;
+
+      // 切換面板：隱藏排行榜，顯示 AI 設定
+      const leaderboardContainer = document.getElementById('leaderboard-container');
+      const aiConfigPanel = document.getElementById('ai-config-panel');
+      if (leaderboardContainer) leaderboardContainer.style.display = 'none';
+      if (aiConfigPanel) aiConfigPanel.classList.remove('hidden');
+
+      enterMultiplayerMode();
+      initAI();
+      oppIsReady = true;
+      aiBtn.classList.add('hidden'); // 進入AI模式後隱藏按鈕
+      showToast('🤖 AI 對手已就緒！可調整設定後按 READY 開始對戰');
+    });
+  }
 
   // --- 玩家身分系統 UI 控制 (結合 Firebase 雲端) ---
   const loginForm = document.getElementById('login-form');
@@ -3494,13 +4728,7 @@
         const fireIcon = winStreak >= 3 ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;" title="3連勝以上！">🔥</span>' : '';
 
         let lp = data.lp || 0;
-        let badgeName = '銅牌'; let badgeColor = '#CD7F32';
-        if (lp >= 1200) { badgeName = '菁英'; badgeColor = '#00FFFF'; }
-        else if (lp >= 1000) { badgeName = '大師'; badgeColor = '#FF00FF'; }
-        else if (lp >= 800) { badgeName = '鑽石'; badgeColor = '#b9f2ff'; }
-        else if (lp >= 600) { badgeName = '白金'; badgeColor = '#00FF7F'; }
-        else if (lp >= 400) { badgeName = '金牌'; badgeColor = '#FFD700'; }
-        else if (lp >= 200) { badgeName = '銀牌'; badgeColor = '#C0C0C0'; }
+        const { name: badgeName, color: badgeColor } = getRankInfo(lp);
 
         listEl.innerHTML += `
           <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.3); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
@@ -3837,18 +5065,22 @@
     });
   }
 
+  // === 共用段位計算函數 (傳入 LP，回傳 { name, color }) ===
+  function getRankInfo(lp) {
+    if (lp >= 1200) return { name: '菁英', color: '#00FFFF' };
+    if (lp >= 1000) return { name: '大師', color: '#FF00FF' };
+    if (lp >= 800)  return { name: '鑽石', color: '#b9f2ff' };
+    if (lp >= 600)  return { name: '白金', color: '#00FF7F' };
+    if (lp >= 400)  return { name: '金牌', color: '#FFD700' };
+    if (lp >= 200)  return { name: '銀牌', color: '#C0C0C0' };
+    return { name: '銅牌', color: '#CD7F32' };
+  }
+
   // 根據 LP 更新段位 UI 與顏色的輔助函數
   function updateRankUI(lp) {
     const rankEl = document.getElementById('display-rank');
     if (!rankEl) return;
-    let rankName = '銅牌'; let color = '#CD7F32';
-    if (lp >= 1200) { rankName = '菁英'; color = '#00FFFF'; }
-    else if (lp >= 1000) { rankName = '大師'; color = '#FF00FF'; }
-    else if (lp >= 800) { rankName = '鑽石'; color = '#b9f2ff'; }
-    else if (lp >= 600) { rankName = '白金'; color = '#00FF7F'; }
-    else if (lp >= 400) { rankName = '金牌'; color = '#FFD700'; }
-    else if (lp >= 200) { rankName = '銀牌'; color = '#C0C0C0'; }
-
+    const { name: rankName, color } = getRankInfo(lp);
     rankEl.innerHTML = `${rankName} <span style="font-size:12px">(${lp} LP)</span>`;
     rankEl.style.color = color;
     rankEl.style.textShadow = `0 0 5px ${color}`;
@@ -4071,11 +5303,84 @@
   const blob = new Blob([workerCode], { type: 'application/javascript' });
   const engineWorker = new Worker(URL.createObjectURL(blob));
 
-  // 當收到背景 Worker 傳來的 tick 訊號時，執行遊戲迴圈
+  // --- 雙擎架構 (邏輯與畫面分離) ---
+  let isDrawing = false;
+  
   engineWorker.onmessage = function() {
-    // 使用 performance.now() 取得極高精度的時間戳，確保背景計時精準
-    gameLoop(performance.now()); 
+    const ts = performance.now();
+    if (!lastTime) lastTime = ts;
+    let delta = ts - lastTime;
+    lastTime = ts;
+
+    // 核心引擎：在背景強制計算遊戲物理與 AI
+    // 即使你切換分頁，Worker 依然會持續發送 tick，這裡會精準補上流失的時間
+    while (delta > 0) {
+      let step = Math.min(delta, 16); 
+      update(step); // 純算數學，極度輕量
+      delta -= step;
+    }
+
+    // 渲染引擎：交給顯示卡處理 (綁定螢幕更新率)
+    // 如果你在背景掛機，requestAnimationFrame 會自動休眠，isDrawing 卡在 true
+    if (!isDrawing) {
+      isDrawing = true;
+      requestAnimationFrame(() => {
+        draw();
+        drawOpponent();
+        isDrawing = false;
+      });
+    }
   };
+
+  // --- 更新日誌 (Changelog) UI 邏輯與動態渲染 ---
+  const versionTag = document.getElementById('version-tag');
+  const changelogModal = document.getElementById('changelog-modal');
+  const closeChangelogBtn = document.getElementById('close-changelog-btn');
+  const changelogContent = document.getElementById('changelog-content');
+
+  // 自動把 GAME_VERSION 寫到右下角的標籤上！你以後只要改變數，畫面就自動更新
+  const versionTextEl = document.getElementById('version-text');
+  if (versionTextEl) versionTextEl.textContent = GAME_VERSION;
+
+  // 自動渲染更新日誌
+  if (changelogContent && typeof CHANGELOG_DATA !== 'undefined') {
+    changelogContent.innerHTML = ''; // 先清空
+    
+    CHANGELOG_DATA.forEach((patch, index) => {
+      const isLatest = index === 0; // 陣列第一筆當作是最新版
+      
+      // 自動根據是否為最新版，給予不同的顏色與大小
+      const titleColor = isLatest ? 'var(--S)' : 'rgba(255,255,255,0.5)';
+      const titleSize = isLatest ? '16px' : '14px';
+      const ulColor = isLatest ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)';
+      const ulStyle = isLatest ? 'font-size: 14px; margin: 0 0 20px 0;' : 'font-size: 13px; margin: 0 0 15px 0;';
+      const latestTag = isLatest ? ' (Latest)' : '';
+
+      let html = `<h3 style="color: ${titleColor}; margin: 0 0 8px 0; font-size: ${titleSize};">${patch.version} - ${patch.title}${latestTag}</h3>`;
+      html += `<ul style="padding-left: 20px; color: ${ulColor}; ${ulStyle}">`;
+      
+      patch.changes.forEach(change => {
+        html += `<li style="margin-bottom: 4px;">${change}</li>`;
+      });
+      
+      html += `</ul>`;
+      changelogContent.innerHTML += html;
+    });
+  }
+
+  // 按鈕開關邏輯
+  if (versionTag && changelogModal && closeChangelogBtn) {
+    versionTag.addEventListener('click', () => {
+      changelogModal.classList.remove('hidden');
+      playSound('move');
+    });
+    versionTag.addEventListener('mouseenter', () => versionTag.style.color = 'var(--I)');
+    versionTag.addEventListener('mouseleave', () => versionTag.style.color = 'rgba(255,255,255,0.4)');
+    closeChangelogBtn.addEventListener('click', () => {
+      changelogModal.classList.add('hidden');
+      playSound('move');
+    });
+  }
 
   // 啟動背景引擎
   engineWorker.postMessage('start');
