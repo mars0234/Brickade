@@ -273,10 +273,10 @@
     border-radius: 6px;
   }
   .ai-setting-label {
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 900;
     letter-spacing: 1.5px;
-    color: rgba(255,255,255,0.55);
+    color: rgba(255,255,255,0.9);
     margin-bottom: 6px;
     text-transform: uppercase;
   }
@@ -289,11 +289,11 @@
     flex: 1;
     min-width: 0;
     padding: 5px 2px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 900;
     border: 2px solid rgba(255,255,255,0.2);
     background: rgba(0,0,0,0.3);
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.9);
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.15s ease;
@@ -335,7 +335,7 @@
     position: absolute;
     right: 20px;
     top: 20px;
-    width: 200px;
+    width: 220px;
     background: rgba(0,0,0,0.6);
     border: 2px solid var(--white);
     padding: 15px;
@@ -429,10 +429,10 @@
 <body>
 <div class="viewport" id="viewport">
 
-  <div id="version-tag" style="position: absolute; bottom: 15px; right: 20px; font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.4); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease;">
+  <div id="version-tag" style="position: absolute; bottom: 15px; right: 20px; font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.85); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease; background: rgba(6, 0, 79, 0.9); border: 2px solid var(--I); padding: 4px 10px; border-radius: 6px; box-shadow: 0 0 10px rgba(0,0,0,0.6);">
     Build <span id="version-text" style="color: var(--I);"></span>
   </div>
-
+  
   <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 90%; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px;">
     <h2 style="margin: 0; color: var(--I); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; font-size: 20px; letter-spacing: 2px;">PATCH NOTES</h2>
     
@@ -445,7 +445,7 @@
   <div id="system-toast"></div>
 
   <div id="online-panel" class="online-panel hidden">
-    <h2 style="text-align:center; color:var(--S); margin:0 0 10px 0; font-size:16px;">🟢 ONLINE (<span id="online-count">0</span>)</h2>
+    <h2 style="text-align:center; color:var(--S); margin:0 0 10px 0; font-size:24px; white-space: nowrap;">🟢 ONLINE (<span id="online-count">0</span>)</h2>
     <div id="online-users-list"></div>
   </div>
 
@@ -468,19 +468,23 @@
           <!-- 排行榜（預設顯示） -->
           <div id="leaderboard-container" style="display:flex; flex-direction:column; gap:12px;">
             <div class="info-panel" id="score-leaderboard-section">
-              <h2 style="text-align:center; color:var(--O); margin:0 0 10px 0; font-size:18px;">TOP 5 SCORE</h2>
+              <h2 style="text-align:center; color:var(--O); margin:0 0 10px 0; font-size:24px;">TOP 3 SCORE</h2>
               <div id="score-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
             </div>
             <div class="info-panel" id="wins-leaderboard-section">
-              <h2 style="text-align:center; color:var(--Z); margin:0 0 10px 0; font-size:18px;">TOP 5 RANK</h2>
+              <h2 style="text-align:center; color:var(--Z); margin:0 0 10px 0; font-size:24px;">TOP 3 RANK</h2>
               <div id="wins-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
+            <div class="info-panel" id="ai-leaderboard-section">
+              <h2 style="text-align:center; color:#00FFFF; margin:0 0 10px 0; font-size:24px;">TOP 3 AI KILLER</h2>
+              <div style="text-align:center; font-size:12px; color:rgba(255,255,255,0.6); margin-top:-6px; margin-bottom:8px;">限定高手模式 (不含AI自爆)</div>
+              <div id="ai-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
             </div>
           </div>
 
           <!-- AI 設定面板（進 AI 模式才顯示，取代排行榜） -->
           <div class="info-panel hidden" id="ai-config-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
-            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:15px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
-
+            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
             <div style="margin-bottom:14px;">
               <div class="ai-setting-label">⚡ 速度 / 難度</div>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="ai-speed-group">
@@ -501,18 +505,9 @@
                 <button class="ai-option-btn" data-wide="3">3-wide</button>
                 <button class="ai-option-btn" data-wide="4" style="grid-column:2/4;">4-wide Combo</button>
               </div>
-              <div id="ai-wide-hint" style="font-size:10px; color:rgba(255,255,255,0.4); margin-top:6px; line-height:1.5; min-height:30px;"></div>
+              <div id="ai-wide-hint" style="font-size:14px; color:rgba(255,255,255,0.85); margin-top:6px; line-height:1.5; min-height:30px;"></div>
             </div>
 
-            <div style="background:rgba(177,68,247,0.06); border:1px solid rgba(177,68,247,0.2); border-radius:5px; padding:8px;">
-              <div class="ai-setting-label" style="color:rgba(177,68,247,0.8); margin-bottom:4px;">🎭 擬人特性</div>
-              <div style="font-size:10px; color:rgba(255,255,255,0.4); line-height:1.7;">
-                ✦ 模擬你的落塊手速<br>
-                ✦ 偶爾假裝「想一下」<br>
-                ✦ 壓力大時反應變慢<br>
-                ✦ 偷看 Next 預判決策
-              </div>
-            </div>
           </div>
 
         </div>
@@ -527,7 +522,7 @@
               <p style="font-size: 11px; margin-top: 8px; margin-bottom: 0; color: rgba(255,255,255,0.6); text-align: center;">Play as Guest (No Save)</p>
             </div>
             <div id="logged-in-info" class="hidden" style="text-align: center;">
-              <div style="font-size: 12px; color: rgba(255,255,255,0.7);">Welcome back,</div>
+              <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Welcome back,</div>
               <div id="display-username" style="font-size: 20px; font-weight: 900; color: var(--T); margin: 5px 0 10px 0;">---</div>
 
               <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
@@ -574,13 +569,13 @@
               <button id="connect-btn" style="width:40%; background: var(--I); color: var(--bg); border: 2px solid var(--white); font-weight: 900; cursor: pointer;">CONNECT</button>
             </div>
 
-            <button id="ai-btn" style="width:100%; padding:8px; background:var(--T); color:var(--white); border:2px solid var(--white); font-weight:900; font-size:13px; cursor:pointer; margin-bottom:10px; letter-spacing:1px;">🤖 VS AI</button>
+            <button id="ai-btn" style="width:100%; padding:8px; background:var(--T); color:var(--white); border:2px solid var(--white); font-weight:900; font-size:13px; cursor:pointer; margin-bottom:10px; letter-spacing:1px;">🤖 AI 對戰</button>
             
             <div id="mp-ready-group" style="display:none; margin-bottom:10px;">
               <button id="ready-btn" style="width:100%; padding:8px; background:var(--S); color:var(--bg); font-weight:bold; border:2px solid var(--white); cursor:pointer;">READY</button>
             </div>
             <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top:10px;">
-              <p id="conn-status" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Offline</p>
+              <p id="conn-status" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Status: Standby</p>
               <div id="ping-display" style="font-size: 12px; font-weight: bold; display: none;"></div>
             </div>
             <div id="scoreboard" style="display: none; background: rgba(0,0,0,0.3); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
@@ -670,20 +665,21 @@
           <div id="action-msg" style="color:var(--T); font-size:16px; font-weight:900; text-align:center; min-height:22px; margin-top:12px; text-transform:uppercase;"></div>
         </div>
 
-        <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 ENTER PRACTICE MODE</button>
+        <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
 
-        <div class="info-panel" id="controls-section">
+        <div class="info-panel" id="controls-section" style="font-size: 14px;">
             <h2 style="text-align:center; color:var(--I); margin:0 0 10px 0;">CONTROLS</h2>
-            <p><b>← →</b> : Move</p>
-            <p><b>↓</b> : Soft Drop</p>
-            <p><b>Space</b> : Hard Drop</p>
-            <p><b>↑ / X</b> : Rotate CW</p>
-            <p><b>Z</b> : Rotate CCW</p>
-            <p><b>C / Shift</b> : Hold</p>
-            <p><b>R</b> : Restart</p>
-            <p><b>M</b> : Mute Music</p>
-            <p><b>N</b> : Mute SFX</p>
-            <p><b>+ / -</b> : Volume Up / Down</p>
+            <p style="margin: 5px 0;"><b>← →</b> : 左右移動</p>
+            <p style="margin: 5px 0;"><b>↓</b> : 軟降 (加速下落)</p>
+            <p style="margin: 5px 0;"><b>Space</b> : 硬降 (瞬間落下)</p>
+            <p style="margin: 5px 0;"><b>↑ / X</b> : 順時針旋轉</p>
+            <p style="margin: 5px 0;"><b>Z / Ctrl</b> : 逆時針旋轉</p>
+            <p style="margin: 5px 0;"><b>C / Shift</b> : 保留方塊 (Hold)</p>
+            <p style="margin: 5px 0;"><b>P / Esc</b> : 暫停 / 繼續遊戲</p>
+            <p style="margin: 5px 0;"><b>R</b> : 重新開始 / 離開房間</p>
+            <p style="margin: 5px 0;"><b>M / N</b> : 音樂 / 音效 靜音</p>
+            <p style="margin: 5px 0;"><b>+ / -</b> : 遊戲音量 大 / 小</p>
+            <p style="margin: 5px 0;"><b>1 ~ 4</b> : 發送表情符號 (對戰)</p>
         </div>
 
       </div>
@@ -722,7 +718,7 @@
 
 
 (() => {
-  const GAME_VERSION = 'v2.1.1'; // 目前遊戲版本號
+  const GAME_VERSION = 'v2.2.0'; // 目前遊戲版本號
   const COLS = 10;
   const ROWS = 40;           // 陣列總高度改為 40 (官方標準)
   const VISIBLE_ROWS = 20;   // 畫面只顯示下半部 20 行
@@ -1099,9 +1095,11 @@
   let aiLastGarbageHole = -1;
   let aiConsecutiveGarbageHoles = 0;
   let aiCombo = -1;  // 記錄 AI 的連擊數
+  let aiSelfDestructed = false; // 記錄 AI 是否自爆
   // --- AI 設定（使用者可調整）---
   let aiSpeedMode = 'adaptive'; // 'rookie'|'casual'|'adaptive'|'pro'|'god'
   let aiWideMode = 'auto';      // 'auto'|1|2|3|4 (right-side columns to keep empty)
+  
 
   // --- 背景 AI 大腦連線設定 ---
   const aiWorker = new Worker('ai_worker.js');
@@ -1143,7 +1141,14 @@
     mpLeaveBtn.addEventListener('click', () => {
       if (confirm("確定要離開對戰房間，回到單人模式嗎？")) {
         if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
-        exitMultiplayerMode();
+        
+        // 傳入 false，因為是手動離開，不需要彈出異常斷線警告
+        exitMultiplayerMode(false); 
+        
+        if (conn) {
+          conn.close();
+          conn = null;
+        }
       }
     });
   }
@@ -1615,6 +1620,10 @@
       bgm.currentTime = 0;
     }
     initMenu();
+
+    // --- 隱藏版本號 ---
+    const versionTag = document.getElementById('version-tag');
+    if (versionTag) versionTag.classList.add('hidden');
     
     // 顯示離開房間按鈕
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
@@ -1681,7 +1690,7 @@
     if (aiBtnEl) aiBtnEl.classList.add('hidden');
     
     const pingDisplay = document.getElementById('ping-display');
-    if (pingDisplay) pingDisplay.style.display = 'inline';
+    if (pingDisplay) pingDisplay.style.display = isAIMode ? 'none' : 'inline';
     if (pingInterval) clearInterval(pingInterval);
 
     lastHeartbeat = Date.now(); 
@@ -1701,16 +1710,30 @@
   }
 
   // 退出雙人模式的畫面切換邏輯 (抽離出來)
-  function exitMultiplayerMode() {
+  function exitMultiplayerMode(showDisconnectWarning = true) {
     if (typeof battleBgm !== 'undefined') battleBgm.pause(); // 退出對戰時切斷音樂
     if (timerInterval) clearInterval(timerInterval); // 退出時確保計時器徹底停止
-    if (gameStarted && !gameOver) {
-      gameOver = true;
-      showToast("⚠️ 對手已斷線或離開遊戲！本局不結算。");
+    
+    // 只要是異常斷線就給通知
+    if (showDisconnectWarning && isMultiplayer && !isAIMode) {
+      if (gameStarted && !gameOver) {
+        gameOver = true;
+        showToast("⚠️ 對手已斷線或離開遊戲！本局不結算。");
+      } else {
+        // 處理「在準備大廳被斷線」的情況
+        showToast("⚠️ 連線已中斷，返回單人模式。");
+      }
+    } else if (gameStarted && !gameOver) {
+      gameOver = true; // 即使不顯示警告，也要確保遊戲狀態被終止
     }
 
     isMultiplayer = false; isAIMode = false; iAmReady = false; oppIsReady = false;
-    // 退出AI模式時，恢復顯示 AI 按鈕
+
+    // --- 恢復顯示版本號 ---
+    const versionTag = document.getElementById('version-tag');
+    if (versionTag) versionTag.classList.remove('hidden');
+
+    // 恢復顯示 AI 按鈕
     const aiBtnEl = document.getElementById('ai-btn');
     if (aiBtnEl) aiBtnEl.classList.remove('hidden');
 
@@ -1724,7 +1747,7 @@
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
     if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
 
-    connStatus.textContent = 'Status: Offline';
+    connStatus.textContent = 'Status: Standby';
     connStatus.style.color = 'rgba(255,255,255,0.5)';
     conn = null; oppState = null;
 
@@ -1797,12 +1820,17 @@
       const sendInvite = () => {
         // 在邀請函中附上目前的系統版本號
         conn.send({ type: 'INVITE', from: currentPlayer || 'Guest', version: GAME_VERSION });
+
+        // 發送前先清理殘留的計時
+        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+
+        const currentConn = conn; // 鎖定當下這條連線
         // 15秒超時自動放棄
         conn.inviteTimeout = setTimeout(() => {
           if (conn) {
             connStatus.textContent = 'Status: No response';
             connStatus.style.color = 'var(--Z)';
-            conn.close();
+            currentConn.close(); // 只關閉發出邀請的這條線
           }
         }, 15000);
       };
@@ -1830,16 +1858,23 @@
           setTimeout(() => conn.close(), 500);
           return;
         }
-        // 接收方收到邀請：顯示 Toast (這時原本的單機遊戲依然可繼續玩)
+        
         const toast = document.getElementById('invite-toast');
         document.getElementById('invite-sender-name').textContent = data.from;
         toast.classList.remove('hidden');
         playSound('perfect');
 
-        // 如果太久沒理他，自動取消通知
+        // 清除前一個可能還在倒數的幽靈計時器
+        if (typeof inviteTimeoutTimer !== 'undefined' && inviteTimeoutTimer) {
+          clearTimeout(inviteTimeoutTimer);
+        }
+
+        // 使用區域變數鎖定當前的 connection，避免 15 秒後誤殺到其他成功的連線
+        const currentConnection = connection;
         inviteTimeoutTimer = setTimeout(() => {
           toast.classList.add('hidden');
-          if (conn) conn.close();
+          // 只關閉這個特定的邀請連線，絕對不碰全域的 conn
+          if (currentConnection && currentConnection.open) currentConnection.close();
         }, 15000);
       }
       else if (data.type === 'INVITE_ACCEPT') {
@@ -1888,7 +1923,7 @@
           const oppLinesEl = document.getElementById('opp-lines-sent-display');
           if (oppLinesEl) oppLinesEl.textContent = oppLinesSent;
           myFloatingTexts.push(new FloatingText(`+${data.lines}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, '#ff0d62', 50));
-          playSound('drop'); shakeMag = 15;
+          playSound('drop'); shakeMag = 6;
           setTimeout(() => {
             if (!gameOver) { nextGarbage += data.lines; sendState(); }
           }, 2000); 
@@ -1927,10 +1962,16 @@
         }
       }
       else if (data.type === 'OPPONENT_DISCONNECTED') {
-        // 移除遊戲狀態的限制。不管在準備中還是結算畫面，只要對方離開就一起退出
         showToast("🚪 對手已離開對戰房間，即將為您返回單人模式。");
-        gameOver = true; // 設為 true 避免觸發 exitMultiplayerMode 內建的重複警告
-        if (conn) conn.close(); // 關閉連線，這會自動在背景觸發 exitMultiplayerMode() 幫你切換回單機 UI
+        gameOver = true; 
+        
+        // 已經有專屬的離房 Toast 了，傳入 false 防止重複跳出警告
+        exitMultiplayerMode(false);
+        
+        if (conn) {
+          conn.close();
+          conn = null;
+        }
       }
       else if (data.type === 'PROFILE') {
         const oppTitleEl = document.getElementById('opp-name-display');
@@ -2195,6 +2236,12 @@
       onlinePanel.style.transform = `scale(${scale})`;
       onlinePanel.style.transformOrigin = 'top right'; // 將縮放錨點釘死在右上角
     }
+    // --- 右下角的版本號碼也跟隨同步縮放 ---
+    const versionTag = document.getElementById('version-tag');
+    if (versionTag) {
+      versionTag.style.transform = `scale(${scale})`;
+      versionTag.style.transformOrigin = 'bottom right'; // 將縮放錨點釘死在右下角
+    }
   }
 
   function clone(m) { return m.map(row => row.slice()); }
@@ -2293,6 +2340,7 @@
       if (!hasGarbage) {
         isKOed = true;
         current = null;
+        aiSelfDestructed = true;
         if (conn && conn.open) conn.send({ type: 'TOP_OUT_LOSE' });
         showMsg("TOP OUT!");
         myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
@@ -2410,6 +2458,15 @@
       // 根據勝負結果播放專屬音效
       if (matchResult === 'WIN') playSound('win');
       else if (matchResult === 'LOSE') playSound('lose');
+
+      // --- AI 高手模式挑戰紀錄寫入 ---
+      if (isAIMode && matchResult === 'WIN' && aiSpeedMode === 'pro' && !aiSelfDestructed) {
+        if (currentUserUID && currentPlayer !== 'Admin_Mars') {
+          db.collection('users').doc(currentUserUID).set({
+            aiProWins: firebase.firestore.FieldValue.increment(1) // 勝場 +1
+          }, { merge: true }).catch(err => console.error("AI戰績更新失敗:", err));
+        }
+      }
 
       // 更新房間內的累計大比分 (不影響資料庫)
       if (matchResult === 'WIN') myWins++;
@@ -3140,7 +3197,7 @@
       }
     }
     playSound('drop');
-    shakeMag = 8; 
+    shakeMag = 3; 
     lockPiece();
   }
 
@@ -3652,7 +3709,7 @@
          // AI 畫面上顯示炸彈爆炸，你的畫面上顯示被扣血
          oppFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
          myFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
-         playSound('drop'); shakeMag = 15;
+         playSound('drop'); shakeMag = 6;
       }
 
       if (attack > 0) {
@@ -3677,7 +3734,7 @@
           
           myFloatingTexts.push(new FloatingText(`+${remainingAttack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, '#ff0d62', 50));
           playSound('drop');
-          shakeMag = 15;
+          shakeMag = 6;
         }
       }
     } else {
@@ -3819,6 +3876,7 @@
     aiScore = 0; aiLines = 0; aiLevel = 1;
     aiCombo = -1;
     aiGameOver = false; aiGravityTimer = 0; aiThinkTimer = 0;
+    aiSelfDestructed = false;
 
     // 清空 AI 身上殘留的垃圾與破洞記憶
     aiActiveGarbage = 0;
@@ -3920,9 +3978,9 @@
 
     if (base > 0 || isPerfectClear) {
       if (isPerfectClear) playSound('perfect');
-      else if (tSpinType) { playSound('tspin'); shakeMag = 12; }
-      else if (linesCleared === 4) { playSound('tetris'); shakeMag = 16; }
-      else if (linesCleared > 0) { playSound('clear', combo > 0 ? combo : 0); shakeMag = 5 + linesCleared * 2; }
+      else if (tSpinType) { playSound('tspin'); shakeMag = 5; }
+      else if (linesCleared === 4) { playSound('tetris'); shakeMag = 8; }
+      else if (linesCleared > 0) { playSound('clear', combo > 0 ? combo : 0); shakeMag = 2 + linesCleared; }
       
       // B2B 判定
       if (difficult) {
@@ -3960,7 +4018,7 @@
       if (isPerfectClear) {
         attack += 10; 
         msg = 'PERFECT CLEAR!';
-        shakeMag = 20; 
+        shakeMag = 10; 
       }
       
       score += base * level;
@@ -4145,7 +4203,7 @@
     
     if (linesAdded > 0) {
       playSound('drop');
-      shakeMag = 10 + linesAdded * 2; 
+      shakeMag = 4 + linesAdded; 
     }
     
     activeGarbage -= linesAdded; 
@@ -4194,7 +4252,7 @@
          const myLinesEl = document.getElementById('my-lines-sent-display');
          if (myLinesEl) myLinesEl.textContent = myLinesSent;
          
-         playSound('drop'); shakeMag = 15;
+         playSound('drop'); shakeMag = 6;
          myFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
          oppFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
        } else if (conn && conn.open) {
@@ -4203,7 +4261,7 @@
          const myLinesEl = document.getElementById('my-lines-sent-display');
          if (myLinesEl) myLinesEl.textContent = myLinesSent;
          
-         playSound('drop'); shakeMag = 15;
+         playSound('drop'); shakeMag = 6;
          myFloatingTexts.push(new FloatingText(`BOMB +${bombsCleared}!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 50, '#ff1111', 40));
          oppFloatingTexts.push(new FloatingText(`-${bombsCleared}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
        }
@@ -4725,8 +4783,8 @@
     if (leaderboardsInitialized) return; // 如果已經啟動過，就不要重複執行
     leaderboardsInitialized = true;
 
-    // 全球 Top 5 即時排行榜 (監聽 Firestore 資料變化)
-    db.collection('users').orderBy('highScore', 'desc').limit(5).onSnapshot((snapshot) => {
+    // 全球 Top 3 即時排行榜 (監聽 Firestore 資料變化)
+    db.collection('users').orderBy('highScore', 'desc').limit(3).onSnapshot((snapshot) => {
       const listEl = document.getElementById('score-leaderboard-list');
       if (!listEl) return;
       listEl.innerHTML = ''; 
@@ -4748,16 +4806,16 @@
         
         listEl.innerHTML += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
-            <span style="color: ${color};"><span style="font-size:11px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
-            <span style="color: var(--S); font-weight: 900;">${data.highScore || 0}</span>
+            <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
+            <span style="color: var(--S); font-weight: 900; font-size: 16px;">${data.highScore || 0}</span>
           </div>
         `;
         rank++;
       });
     });
 
-    // 全球 TOP 5 積分排行榜 (依據 LP 排序)
-    db.collection('users').orderBy('lp', 'desc').orderBy('wins', 'desc').limit(5).onSnapshot((snapshot) => {
+    // 全球 TOP 3 積分排行榜 (依據 LP 排序)
+    db.collection('users').orderBy('lp', 'desc').orderBy('wins', 'desc').limit(3).onSnapshot((snapshot) => {
       const listEl = document.getElementById('wins-leaderboard-list');
       if (!listEl) return;
       listEl.innerHTML = ''; 
@@ -4790,10 +4848,10 @@
         listEl.innerHTML += `
           <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.3); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="color: ${rankColor}; font-weight: bold;"><span style="font-size:11px; margin-right:4px; opacity:0.7;">#${rank}</span>${data.username}${fireIcon}</span>
-              <span style="color: ${badgeColor}; font-weight: 900; text-shadow: 0 0 5px ${badgeColor};">${badgeName} <span style="font-size:10px">(${lp})</span></span>
+              <span style="color: ${rankColor}; font-weight: bold; font-size: 16px;"><span style="font-size:12px; margin-right:4px; opacity:0.7;">#${rank}</span>${data.username}${fireIcon}</span>
+              <span style="color: ${badgeColor}; font-weight: 900; text-shadow: 0 0 5px ${badgeColor}; font-size: 16px;">${badgeName} <span style="font-size:11px">(${lp})</span></span>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: rgba(255,255,255,0.6);">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: rgba(255,255,255,0.6);">
               <span>勝率: <span style="color:var(--S); font-weight:bold;">${winRate}%</span></span>
               <span><span style="color:var(--white);">${wins}</span> 勝 / ${matches} 場</span>
             </div>
@@ -4813,6 +4871,39 @@
         listEl.innerHTML = `<div style="color:var(--Z); font-size:11px; margin-top:10px; line-height:1.4;">
           讀取失敗。請按 F12 開啟開發者 Console，並點擊裡面的 Firebase 連結來建立複合索引。
         </div>`;
+      }
+    });
+
+    // 全球 TOP 3 AI 殺手排行榜 (專抓 aiProWins)
+    db.collection('users').orderBy('aiProWins', 'desc').limit(3).onSnapshot((snapshot) => {
+      const listEl = document.getElementById('ai-leaderboard-list');
+      if (!listEl) return;
+      listEl.innerHTML = ''; 
+      
+      let hasData = false;
+      let rank = 1;
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (!data.username || data.username === 'undefined' || data.username === 'Admin_Mars' || !data.aiProWins) return;
+
+        hasData = true;
+        let color = 'var(--white)';
+        if (rank === 1) color = 'var(--I)';       
+        else if (rank === 2) color = '#C0C0C0';   
+        else if (rank === 3) color = '#CD7F32';   
+        
+        listEl.innerHTML += `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+            <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
+            <span style="color: var(--I); font-weight: 900; text-shadow: 0 0 5px var(--I); font-size: 16px;">${data.aiProWins} 勝</span>
+          </div>
+        `;
+        rank++;
+      });
+
+      if (!hasData) {
+        listEl.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size: 12px; margin-top: 10px;">No challengers yet</div>';
       }
     });
   }
@@ -4882,14 +4973,14 @@
         }
 
         validUsersHTML += `
-          <div class="online-user-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; width: 100%;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <div class="online-dot"></div>
-              <span style="color: var(--white);">${username}</span>
+            <div class="online-user-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; width: 100%;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="online-dot"></div>
+                <span style="color: var(--white); font-size: 16px; font-weight: bold;">${username}</span>
+              </div>
+              ${inviteButtonHTML}
             </div>
-            ${inviteButtonHTML}
-          </div>
-        `;
+          `;
       });
 
       listEl.innerHTML = validUsersHTML;
@@ -5313,13 +5404,13 @@
       isPracticeMode = !isPracticeMode;
 
       if (isPracticeMode) {
-        practiceBtn.textContent = '🟩 EXIT PRACTICE MODE';
+        practiceBtn.textContent = '🟩 離開練習模式';
         practiceBtn.style.background = 'var(--S)';
         practiceBtn.style.color = 'var(--bg)';
         practiceBtn.style.borderColor = 'var(--S)';
         if (myNameDisplay) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
       } else {
-        practiceBtn.textContent = '🟨 ENTER PRACTICE MODE';
+        practiceBtn.textContent = '🟨 進入練習模式';
         practiceBtn.style.background = 'transparent';
         practiceBtn.style.color = 'var(--O)';
         practiceBtn.style.borderColor = 'var(--O)';
@@ -5403,8 +5494,14 @@
   if (changelogContent && typeof CHANGELOG_DATA !== 'undefined') {
     changelogContent.innerHTML = ''; // 先清空
     
+    // --- 抓取第一筆 (最新) 的日期 ---
+    const latestTitle = CHANGELOG_DATA[0].title;
+    const dateMatch = latestTitle.match(/\((.*?)\)/); // 抓取括號內的文字
+    const latestDate = dateMatch ? dateMatch[1] : 'UNKNOWN_DATE';
+    
     CHANGELOG_DATA.forEach((patch, index) => {
-      const isLatest = index === 0; // 陣列第一筆當作是最新版
+      // --- 標題包含最新日期，就判定為 isLatest ---
+      const isLatest = patch.title.includes(latestDate); 
       
       // 自動根據是否為最新版，給予不同的顏色與大小
       const titleColor = isLatest ? 'var(--S)' : 'rgba(255,255,255,0.5)';
@@ -5432,7 +5529,7 @@
       playSound('move');
     });
     versionTag.addEventListener('mouseenter', () => versionTag.style.color = 'var(--I)');
-    versionTag.addEventListener('mouseleave', () => versionTag.style.color = 'rgba(255,255,255,0.4)');
+    versionTag.addEventListener('mouseleave', () => versionTag.style.color = 'rgba(255,255,255,0.85)');
     closeChangelogBtn.addEventListener('click', () => {
       changelogModal.classList.add('hidden');
       playSound('move');
