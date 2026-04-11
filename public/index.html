@@ -680,6 +680,7 @@
             <p style="margin: 5px 0;"><b>M / N</b> : 音樂 / 音效 靜音</p>
             <p style="margin: 5px 0;"><b>+ / -</b> : 遊戲音量 大 / 小</p>
             <p style="margin: 5px 0;"><b>1 ~ 4</b> : 發送表情符號 (對戰)</p>
+            <p style="margin: 5px 0;"><b>A</b> : 反悔 (Undo 上一步)</p>
         </div>
 
       </div>
@@ -718,7 +719,7 @@
 
 
 (() => {
-  const GAME_VERSION = 'v2.2.0'; // 目前遊戲版本號
+  const GAME_VERSION = 'v2.3.0'; // 目前遊戲版本號
   const COLS = 10;
   const ROWS = 40;           // 陣列總高度改為 40 (官方標準)
   const VISIBLE_ROWS = 20;   // 畫面只顯示下半部 20 行
@@ -868,6 +869,9 @@
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   const audioCtx = new AudioContext();
   let shakeMag = 0; // 螢幕震動幅度
+  // --- 時光倒流 (Undo) 專用變數 ---
+  let previousGameState = null;
+  let canUndo = false; // 紀錄上一步是否為「安全操作」
 
   // --- 🎮 PS4 搖桿設定區 ---
   const GAMEPAD_BUTTON_MAPPING = {
@@ -1287,8 +1291,8 @@
         const toast = document.getElementById('invite-toast');
         const isToastShowing = toast && !toast.classList.contains('hidden');
 
-        // 如果我們「已經有建立成功的連線」，直接拒絕新來的連線，防止互相邀請衝突
-        if (conn && conn.open) {
+        // 防呆：只要我已經發起連線 (conn 存在)，不管它通了沒，一律拒絕外來的連線
+        if (conn) {
           connection.on('open', () => {
             connection.send({ type: 'INVITE_BUSY' });
             setTimeout(() => connection.close(), 500);
@@ -1308,11 +1312,18 @@
 
       if (currentConnectBtn) {
         currentConnectBtn.onclick = async () => {
+          // 防呆：如果畫面上已經有別人的邀請，不准同時發送新邀請
+          const toast = document.getElementById('invite-toast');
+          if (toast && !toast.classList.contains('hidden')) {
+            showToast("請先接受或拒絕畫面上的連線邀請！");
+            return;
+          }
+
           const targetName = currentOppInput.value.trim();
           if (!targetName) return;
           
           if (targetName === currentMyIdEl.textContent) {
-            alert("不能跟自己連線啦！"); return;
+            showToast("不能跟自己連線啦！"); return;
           }
 
           if (targetName.toUpperCase() === 'ADMIN_MARS') {
@@ -1365,7 +1376,7 @@
 
     // 顯示提示文字
     if (isOpponent) {
-      alert("🎉 對手已投降！你獲得了本局勝利！");
+      showToast("🎉 對手已投降！你獲得了本局勝利！");
     } else {
       showMsg("YOU SURRENDERED"); // 在畫面上顯示投降提示
     }
@@ -1474,6 +1485,11 @@
       aiSyncOppState();
     }
     score = 0; lines = 0; level = 1; activeGarbage = 0; nextGarbage = 0;
+
+    // 確保每一局都是全新的，不會Undo退回上一局
+    previousGameState = null;
+    canUndo = false;
+
     gameOver = false; isPaused = false; gravityTimer = 0; lastTime = 0;
     clearFx = null; lockTimer = 0; lockResets = 0; moveCooldown = 0;
     dasTimer = 0; arrTimer = 0; activeDir = 0; keysDown = new Set();
@@ -1498,6 +1514,11 @@
     ensureQueue();  // 預先抽好 5 顆預覽方塊
     renderPanels(); // 畫到畫面的 NEXT 與 QUEUE 面板上
     draw();         // 畫出乾淨的盤面
+
+    // --- 在倒數前，強制把乾淨的盤面狀態發送給對手，讓對手畫面立刻清空 ---
+    if (isMultiplayer && !isAIMode) {
+      sendState();
+    }
   }
 
   // --- 暫停恢復時的 3 秒緩衝倒數 ---
@@ -1826,11 +1847,15 @@
 
         const currentConn = conn; // 鎖定當下這條連線
         // 15秒超時自動放棄
-        conn.inviteTimeout = setTimeout(() => {
-          if (conn) {
-            connStatus.textContent = 'Status: No response';
-            connStatus.style.color = 'var(--Z)';
-            currentConn.close(); // 只關閉發出邀請的這條線
+        currentConn.inviteTimeout = setTimeout(() => {
+          if (currentConn && currentConn.open) {
+            // 防呆：如果這條線還是當前活躍的線，且還沒進遊戲，才顯示沒回應
+            if (conn === currentConn && !isMultiplayer) {
+              connStatus.textContent = 'Status: No response';
+              connStatus.style.color = 'var(--Z)';
+            }
+
+            currentConn.close(); // 關閉這條無效的邀請
           }
         }, 15000);
       };
@@ -1955,9 +1980,9 @@
           // 讓遊戲先執行結算，這時畫面上會同時印出大大的 YOU WIN
           endBattleMatch('WIN');
           
-          // 將 alert 延遲 1200 毫秒，讓瀏覽器「有時間」把剛剛的特效畫出來
+          // 將 showToast 延遲 1200 毫秒，讓瀏覽器「有時間」把剛剛的特效畫出來
           setTimeout(() => {
-            alert("🎉 對手疊到天花板自爆啦！你獲得了本局勝利！");
+            showToast("🎉 對手疊到天花板自爆啦！你獲得了本局勝利！");
           }, 1200); 
         }
       }
@@ -2010,12 +2035,24 @@
           else pingDisplay.style.color = 'var(--Z)'; 
         }
       }
+      // 接收對手的反悔訊號，只在對手框顯示特效，不跳通知打擾玩家
+      else if (data.type === 'UNDO_USED') {
+        if (!gameOver) {
+          playSound('undo'); // 播放專屬回溯音效
+          oppFloatingTexts.push(new FloatingText("⏪ UNDO!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#38bdee', 50));
+        }
+      }
     });
 
     conn.on('close', () => {
-      // 判斷：如果是已經進入雙人模式的斷線，才觸發 UI 退出
-      if (isMultiplayer) {
+      // 防呆：只有當「斷掉的連線」剛好是「你目前正在用的連線」，才觸發退出
+      if (isMultiplayer && conn === connection) {
         exitMultiplayerMode();
+      }
+      // 解除鎖定：不管有沒有進遊戲，只要這條線斷了，且它還霸佔著全域變數，就把它清空
+      // 確保「被拒絕」、「超時」或「碰撞」後，玩家能重新接收新的邀請
+      if (conn === connection) {
+        conn = null;
       }
     });
   }
@@ -2158,6 +2195,56 @@
       gain.gain.setValueAtTime(0.25 * masterVolume, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
       osc.start(now); osc.stop(now + 1.2);
+    }
+    // 時光倒流的專屬音效 (科幻感的高頻快速下墜)
+    else if (type === 'undo') {
+      // 製造「磁帶摩擦」的沙沙聲 (White Noise Buffer)
+      const bufferSize = audioCtx.sampleRate * 0.7; // 音效總長度 0.7 秒
+      const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      // 使用帶通濾波器，讓噪音集中在高頻，聽起來像尖銳的摩擦聲
+      const noiseFilter = audioCtx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.setValueAtTime(800, now);
+      noiseFilter.frequency.exponentialRampToValueAtTime(8000, now + 0.5); // 摩擦聲越來越尖銳
+
+      // 主音頻 (模擬馬達倒轉的咻咻聲)
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(100, now); 
+      osc.frequency.exponentialRampToValueAtTime(3000, now + 0.5); // 音調像踩油門一樣急速拉高
+
+      // 核心靈魂：黑膠轉盤的「抖動感」(LFO)
+      const lfo = audioCtx.createOscillator();
+      lfo.type = 'sine';
+      // 倒帶速度越來越快：從每秒 5 次震動加速到每秒 30 次
+      lfo.frequency.setValueAtTime(5, now);
+      lfo.frequency.linearRampToValueAtTime(30, now + 0.5); 
+      
+      const lfoGain = audioCtx.createGain();
+      lfoGain.gain.setValueAtTime(800, now); // 抖動的劇烈程度
+      
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency); // 將這個抖動感直接連接到主音頻上
+
+      // 音量控制 (Envelope)
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.3 * masterVolume, now + 0.1); // 開頭迅速變大聲
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6); // 結尾順滑地「咻」一聲消失
+
+      // 將噪音也接上這顆音量控制器
+      noise.connect(noiseFilter);
+      noiseFilter.connect(gain);
+      
+      // 啟動所有音源
+      noise.start(now); noise.stop(now + 0.6);
+      osc.start(now); osc.stop(now + 0.6);
+      lfo.start(now); lfo.stop(now + 0.6);
     }
   } 
 
@@ -3029,14 +3116,20 @@
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
     }
 
-    // --- 讓對手的畫面在暫停與倒數時，也跟著一起變暗 ---
+    // --- 讓對手的畫面在暫停與倒數時，也跟著一起變暗並顯示文字 ---
     if (isPaused && !gameOver) {
       oppCtx.fillStyle = 'rgba(6,0,79,0.7)'; 
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
-    } else if (countdownValue > 0 && current) {
-      // 正在 3-2-1 恢復倒數中，讓畫面保持半暗，讓玩家專心看中間的數字
-      oppCtx.fillStyle = 'rgba(6,0,79,0.5)';
+    } else if (countdownValue > 0) {
+      // 不管是開局倒數還是恢復倒數，對手畫面都同步變暗並印出數字
+      oppCtx.fillStyle = 'rgba(6,0,79,0.8)';
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+      
+      oppCtx.fillStyle = '#f2f2f2';
+      oppCtx.textAlign = 'center';
+      oppCtx.textBaseline = 'middle';
+      oppCtx.font = '900 80px Arial';
+      oppCtx.fillText(countdownValue, oppCanvas.width / 2, oppCanvas.height / 2);
     }
 
     oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
@@ -3090,6 +3183,63 @@
     if (!valid(current.matrix, current.row, current.col)) triggerGameOver(true);
     sendState(); 
     oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
+  }
+
+  function triggerUndo() {
+    // 防呆分流：如果是還沒開始、倒數中、已死掉、動畫中，直接「無聲忽略」
+    if (!gameStarted || gameOver || isPaused || countdownValue > 0 || isKOed || clearFx) {
+      return; 
+    }
+
+    // 如果遊戲正在進行中，但「沒有快照」或「剛消行被鎖定」，才跳出警告通知
+    if (!canUndo || !previousGameState) {
+      showToast("⚠️ 無法反悔 (已消行、炸彈，或已用過一次)！", 2000);
+      return;
+    }
+
+    // 精準拔除方塊：只清除剛剛記下來的那幾格，完全不碰垃圾和炸彈
+    previousGameState.pieceCells.forEach(cell => {
+      if (cell.r >= 0 && cell.r < ROWS) {
+        board[cell.r][cell.c] = null;
+      }
+    });
+
+    // 恢復數值 (注意：這裡已經沒有 activeGarbage/nextGarbage，所以垃圾條進度會完美保留)
+    score = previousGameState.score;
+    lines = previousGameState.lines;
+    combo = previousGameState.combo;
+    b2b = previousGameState.b2b;
+    holdType = previousGameState.holdType;
+    holdUsed = previousGameState.holdUsed;
+    myPieceIndex = previousGameState.myPieceIndex;
+    queue = [...previousGameState.queue];
+
+    // 把方塊拉回最頂端
+    current = makePiece(previousGameState.pieceType);
+
+    // 重置物理計時器
+    lockTimer = 0;
+    lockResets = 0;
+    gravityTimer = 0;
+
+    // 沒收本次快照
+    canUndo = false;
+    previousGameState = null;
+
+    // 視覺特效 (自己畫面顯示)
+    playSound('undo');
+    shakeMag = 8;
+    myFloatingTexts.push(new FloatingText("⏪ UNDO!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#38bdee', 40));
+
+    // 更新畫面
+    updateHUD();
+    renderPanels();
+    sendState(); // 這裡已經把拔掉方塊的畫面傳給對手了，對手看起來就像方塊自己飛回天上
+
+    // 告訴對手我反悔了
+    if (isMultiplayer && conn && conn.open) {
+      conn.send({ type: 'UNDO_USED' });
+    }
   }
 
   function applyGravityInterval() {
@@ -4076,6 +4226,30 @@
 
   // --- 鎖定函數 (判定引爆、T轉與天花板死亡) ---
   function lockPiece() {
+    // 只記錄這顆方塊佔據的「精準網格座標」
+    if (current && gameStarted && !gameOver) {
+      let cells = [];
+      for (let r = 0; r < current.matrix.length; r++) {
+        for (let c = 0; c < current.matrix[r].length; c++) {
+          if (current.matrix[r][c]) {
+            cells.push({ r: current.row + r, c: current.col + c });
+          }
+        }
+      }
+
+      previousGameState = {
+        pieceCells: cells, // 只記住這幾格！不碰其他盤面
+        score: score,
+        lines: lines,
+        combo: combo,
+        b2b: b2b,
+        pieceType: current.type,
+        myPieceIndex: myPieceIndex,
+        queue: [...queue],
+        holdType: holdType,
+        holdUsed: holdUsed
+      };
+    }
     // --- 適應性 AI：即時記錄玩家的落塊手速 ---
     if (isAIMode && gameStarted && aiSpeedMode === 'adaptive') {
       const now = performance.now();
@@ -4162,12 +4336,14 @@
     const allRowsToClear = [...new Set([...fullRows, ...detonatedRows])].sort((a,b) => a - b);
 
     if (allRowsToClear.length > 0) {
+      canUndo = false; // 有消行或炸彈，快照作廢，沒收反悔權限
       clearFx = { rows: allRowsToClear, elapsed: 0, duration: SETTINGS.clearDuration, tSpin: tSpin };
       sendState();
     } else {
+      canUndo = true;  // 沒消行，剛剛在最上面拍的快照正式生效
+
       applyScore(0, tSpin, false);
       applyGarbage(); 
-      
       activeGarbage += nextGarbage;
       nextGarbage = 0;
       spawn();
@@ -4202,15 +4378,24 @@
     }
     
     if (linesAdded > 0) {
+      // 如果垃圾把盤面往上頂，同步修正我們剛才記住的方塊座標
+      if (canUndo && previousGameState && previousGameState.pieceCells) {
+        previousGameState.pieceCells.forEach(cell => cell.r -= linesAdded);
+      }
+
       playSound('drop');
       shakeMag = 4 + linesAdded; 
     }
-    
+
     activeGarbage -= linesAdded; 
   }
 
   // --- 清除函數 (發送分數) ---
   function clearRows(rowsToClear) {
+    // --- 只要發生消行或引爆炸彈，因為會影響對手，立即沒收反悔權利 ---
+    canUndo = false;
+    previousGameState = null;
+
     const tSpin = clearFx ? clearFx.tSpin : null;
 
     // 計算炸彈數量
@@ -4484,7 +4669,7 @@
     const k = e.code; // 使用 e.code，抓取鍵盤「實體位置」，無視任何中文輸入法
 
     // 阻擋預設行為 (例如按空白鍵或上下鍵時，防止網頁跟著捲動)
-    if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyX','KeyZ','KeyC','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Escape','Enter','NumpadEnter'].includes(k)) {
+    if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyA','KeyX','KeyZ','KeyC','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Escape','Enter','NumpadEnter'].includes(k)) {
       e.preventDefault();
     }
 
@@ -4538,7 +4723,7 @@
     if (k === 'KeyN') {
       isSfxMuted = !isSfxMuted;
 
-      // 🔥 救援機制：如果解除靜音時，主音量是 0，自動拉回 50%
+      // 救援機制：如果解除靜音時，主音量是 0，自動拉回 50%
       if (!isSfxMuted && masterVolume === 0) {
         masterVolume = 0.5;
         localStorage.setItem('tetrisVolume', masterVolume);
@@ -4584,7 +4769,7 @@
     // KO / 消行 / 暫停 / 已結束時，不接受遊戲操作鍵
     const gameplayKeys = [
       'ArrowLeft','ArrowRight','ArrowDown','ArrowUp',
-      'Space','KeyX','KeyZ','KeyC',
+      'Space','KeyA','KeyX','KeyZ','KeyC',
       'ShiftLeft','ShiftRight','ControlLeft','ControlRight'
     ];
 
@@ -4599,6 +4784,7 @@
     else if (k === 'KeyZ' || k === 'ControlLeft' || k === 'ControlRight') tryRotate(-1);
     else if (k === 'Space') hardDrop();
     else if (k === 'KeyC' || k === 'ShiftLeft' || k === 'ShiftRight') hold();
+    else if (k === 'KeyA') triggerUndo();
     
     // 遊戲流程控制 (開始、重啟)
     if (k === 'Enter' || k === 'NumpadEnter' || k === 'KeyR') {
@@ -4997,6 +5183,13 @@
       // --- 防呆攔截！如果按鈕已經被 disabled，直接中斷，不執行後續連線 ---
       if (btn.disabled) return;
 
+      // 防呆：如果畫面上已經有別人的邀請，不准同時發送新邀請
+      const toast = document.getElementById('invite-toast');
+      if (toast && !toast.classList.contains('hidden')) {
+        showToast("請先接受或拒絕畫面上的連線邀請！");
+        return;
+      }
+
       const targetName = btn.getAttribute('data-username');
       const oppInput = document.getElementById('opp-id-input');
       const connectBtn = document.getElementById('connect-btn');
@@ -5070,7 +5263,7 @@
       .catch((error) => {
         auth.createUserWithEmailAndPassword(email, pass)
           .then((userCredential) => {
-            alert(`🎉 註冊成功！歡迎加入 JUST FUCKING TETRIS，${user}！`);
+            showToast(`🎉 註冊成功！歡迎加入 JUST FUCKING TETRIS，${user}！`);
             handleLoginSuccess(user, userCredential.user.uid);
           })
           .catch((regError) => {
