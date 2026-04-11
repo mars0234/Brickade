@@ -1252,7 +1252,11 @@
         if (uid && currentPlayer) {
           db.collection('users').doc(uid).set({
             currentPeerId: id
-          }, { merge: true }).catch(err => console.log("更新門牌失敗:", err));
+          }, { merge: true }).then(() => {
+            // 確保「門牌」確實寫入雲端後，才讓自己在名單上「亮綠燈」
+            // 這樣別人在名單上看到你時，你的連線絕對已經準備就緒了
+            setupPresence(uid, currentPlayer);
+          }).catch(err => console.log("更新門牌失敗:", err));
         }
       });
 
@@ -1316,6 +1320,12 @@
           const toast = document.getElementById('invite-toast');
           if (toast && !toast.classList.contains('hidden')) {
             showToast("請先接受或拒絕畫面上的連線邀請！");
+            return;
+          }
+
+          // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 CONNECT
+          if (conn && !isMultiplayer) {
+            showToast("⚠️ 已經發出邀請，請等待對方回應！");
             return;
           }
 
@@ -1846,7 +1856,7 @@
         if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
 
         const currentConn = conn; // 鎖定當下這條連線
-        // 15秒超時自動放棄
+        // 7秒超時自動放棄
         currentConn.inviteTimeout = setTimeout(() => {
           if (currentConn && currentConn.open) {
             // 防呆：如果這條線還是當前活躍的線，且還沒進遊戲，才顯示沒回應
@@ -1854,10 +1864,9 @@
               connStatus.textContent = 'Status: No response';
               connStatus.style.color = 'var(--Z)';
             }
-
             currentConn.close(); // 關閉這條無效的邀請
           }
-        }, 15000);
+        }, 7000);
       };
 
       // 如果連線已經是開啟狀態，直接發送；否則才等待 open 事件
@@ -1894,42 +1903,43 @@
           clearTimeout(inviteTimeoutTimer);
         }
 
-        // 使用區域變數鎖定當前的 connection，避免 15 秒後誤殺到其他成功的連線
+        // 使用區域變數鎖定當前的 connection，避免 7 秒後誤殺到其他成功的連線
         const currentConnection = connection;
         inviteTimeoutTimer = setTimeout(() => {
           toast.classList.add('hidden');
           // 只關閉這個特定的邀請連線，絕對不碰全域的 conn
           if (currentConnection && currentConnection.open) currentConnection.close();
-        }, 15000);
+        }, 7000);
       }
       else if (data.type === 'INVITE_ACCEPT') {
         // 發送方收到對方答應
-        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
+        conn = connection;
         enterMultiplayerMode();
       }
       else if (data.type === 'INVITE_REJECT') {
         // 發送方收到對方拒絕
-        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
         connStatus.textContent = 'Status: Request Rejected';
         connStatus.style.color = 'var(--Z)';
-        conn.close();
+        connection.close();
       }
       else if (data.type === 'INVITE_BUSY') {
         // 發送方收到對方忙碌中
-        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
         connStatus.textContent = 'Status: Player is busy';
         connStatus.style.color = 'var(--Z)';
-        conn.close();
+        connection.close();
       }
       else if (data.type === 'INVITE_VERSION_MISMATCH') {
         // 發送方收到版本不符的退貨通知
-        if (conn.inviteTimeout) clearTimeout(conn.inviteTimeout);
+        if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
         connStatus.textContent = 'Status: Version Mismatch!';
         connStatus.style.color = 'var(--Z)';
         
         // 跳出警告視窗，強制中斷
         alert(`❌ 連線失敗：版本不一致！\n\n你的版本：${data.clientVersion}\n對手版本：${data.serverVersion}\n\n請確認雙方都已經按下 F5 重新整理，更新到最新版！`);
-        conn.close();
+        connection.close();
       }
       
       // === 遊戲進行階段 ===
@@ -3917,6 +3927,7 @@
   function aiSpawnNext() {
     aiEnsureQueue();
     const type = aiQueue.shift();
+    aiEnsureQueue();
     aiCurrent = aiMakePiece(type);
     aiHoldUsed = false; // 每次出新方塊時，重置 Hold 狀態
     
@@ -5190,6 +5201,12 @@
         return;
       }
 
+      // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 INVITE
+      if (conn && !isMultiplayer) {
+        showToast("⚠️ 已經發出邀請，請等待對方回應！");
+        return;
+      }
+
       const targetName = btn.getAttribute('data-username');
       const oppInput = document.getElementById('opp-id-input');
       const connectBtn = document.getElementById('connect-btn');
@@ -5343,8 +5360,6 @@
       updateHUD();
       return; // 切斷管理員與 Firebase 戰績系統的連結
     }
-      // 只有一般玩家才會註冊到線上名單
-    setupPresence(uid, currentPlayer);
     
     // ===== 以下為一般玩家的正常邏輯 =====
     if (adminPanel) adminPanel.classList.add('hidden');
