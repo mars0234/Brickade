@@ -11,13 +11,13 @@ const int ROWS = 40;
 const int COLS = 10;
 
 const std::vector<std::vector<std::vector<int>>> PIECES = {
-    {{0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0}, {0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0}, {0,0,0,0, 0,0,0,0, 1,1,1,1, 0,0,0,0}, {0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0}},
-    {{1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}},
-    {{0,1,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0}, {0,1,0,0, 0,1,1,0, 0,1,0,0, 0,0,0,0}, {0,0,0,0, 1,1,1,0, 0,1,0,0, 0,0,0,0}, {0,1,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0}},
-    {{1,0,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0}, {0,1,1,0, 0,1,0,0, 0,1,0,0, 0,0,0,0}, {0,0,0,0, 1,1,1,0, 0,0,1,0, 0,0,0,0}, {0,1,0,0, 0,1,0,0, 1,1,0,0, 0,0,0,0}},
-    {{0,0,1,0, 1,1,1,0, 0,0,0,0, 0,0,0,0}, {0,1,0,0, 0,1,0,0, 0,1,1,0, 0,0,0,0}, {0,0,0,0, 1,1,1,0, 1,0,0,0, 0,0,0,0}, {1,1,0,0, 0,1,0,0, 0,1,0,0, 0,0,0,0}},
-    {{0,1,1,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {0,1,0,0, 0,1,1,0, 0,0,1,0, 0,0,0,0}, {0,0,0,0, 0,1,1,0, 1,1,0,0, 0,0,0,0}, {1,0,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0}},
-    {{1,1,0,0, 0,1,1,0, 0,0,0,0, 0,0,0,0}, {0,0,1,0, 0,1,1,0, 0,1,0,0, 0,0,0,0}, {0,0,0,0, 1,1,0,0, 0,1,1,0, 0,0,0,0}, {0,1,0,0, 1,1,0,0, 1,0,0,0, 0,0,0,0}}
+    {{0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0}, {0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0}, {0,0,0,0, 0,0,0,0, 1,1,1,1, 0,0,0,0}, {0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0}}, // 0: I
+    {{1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}}, // 1: O
+    {{0,1,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0}, {0,1,0,0, 0,1,1,0, 0,1,0,0, 0,0,0,0}, {0,0,0,0, 1,1,1,0, 0,1,0,0, 0,0,0,0}, {0,1,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0}}, // 2: T
+    {{1,0,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0}, {0,1,1,0, 0,1,0,0, 0,1,0,0, 0,0,0,0}, {0,0,0,0, 1,1,1,0, 0,0,1,0, 0,0,0,0}, {0,1,0,0, 0,1,0,0, 1,1,0,0, 0,0,0,0}}, // 3: J
+    {{0,0,1,0, 1,1,1,0, 0,0,0,0, 0,0,0,0}, {0,1,0,0, 0,1,0,0, 0,1,1,0, 0,0,0,0}, {0,0,0,0, 1,1,1,0, 1,0,0,0, 0,0,0,0}, {1,1,0,0, 0,1,0,0, 0,1,0,0, 0,0,0,0}}, // 4: L
+    {{0,1,1,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}, {0,1,0,0, 0,1,1,0, 0,0,1,0, 0,0,0,0}, {0,0,0,0, 0,1,1,0, 1,1,0,0, 0,0,0,0}, {1,0,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0}}, // 5: S
+    {{1,1,0,0, 0,1,1,0, 0,0,0,0, 0,0,0,0}, {0,0,1,0, 0,1,1,0, 0,1,0,0, 0,0,0,0}, {0,0,0,0, 1,1,0,0, 0,1,1,0, 0,0,0,0}, {0,1,0,0, 1,1,0,0, 1,0,0,0, 0,0,0,0}}  // 6: Z
 };
 
 int pieceCharToId(char type) {
@@ -28,21 +28,32 @@ int pieceCharToId(char type) {
     }
 }
 
+struct SearchNode {
+    int board[ROWS][COLS];
+    int holdId;
+    bool holdUsed;
+    int comboState;
+    double score;
+    int firstCol, firstRow, firstRot;
+    bool firstUseHold;
+    int queueConsumed;  // 追蹤已消耗的 queue 數量，修復 hold 時 queue 重複使用的 bug
+};
+
 class TetrisAI {
 private:
-    int board[ROWS][COLS];
+    int initialBoard[ROWS][COLS];
 
     void parseBoard(const std::string& boardStr) {
         int i = 0;
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
-                board[r][c] = (boardStr[i] == '.') ? 0 : 1;
+                initialBoard[r][c] = (boardStr[i] == '.') ? 0 : 1;
                 i++;
             }
         }
     }
 
-    bool isValid(const std::vector<int>& matrix, int row, int col, int testBoard[ROWS][COLS]) {
+    bool isValid(const std::vector<int>& matrix, int row, int col, const int testBoard[ROWS][COLS]) {
         for (int i = 0; i < 16; i++) {
             if (matrix[i] == 1) {
                 int r = row + (i / 4), c = col + (i % 4);
@@ -53,17 +64,14 @@ private:
         return true;
     }
 
-    // ★ 宗師級評分引擎：分離 Tetris 打法與 Combo 打法
+    // 核心評分引擎 (Shape Evaluator)
     double evaluate(int testBoard[ROWS][COLS], int linesCleared, int comboState, int keepEmpty) {
         int colHeights[COLS] = {0};
-        
-        // 決定建塔區的邊界 (1-wide 和 Auto 都是打 Tetris，只有 2, 3, 4 是打 Combo)
         int wellStart = COLS;
         if (keepEmpty == 1) wellStart = 9;
         else if (keepEmpty >= 2) wellStart = COLS - keepEmpty;
 
-        int buildHoles = 0;
-        int aggregateHeight = 0;
+        int buildHoles = 0, wellHoles = 0, aggregateHeight = 0;
 
         for (int c = 0; c < COLS; c++) {
             bool foundTop = false;
@@ -72,119 +80,162 @@ private:
                     foundTop = true;
                     if (colHeights[c] == 0) colHeights[c] = ROWS - r;
                 } else if (foundTop) {
-                    // ★ 核心修復：絕對不把 4-wide 坑洞裡的「殘留物下方空格」視為死洞！
                     if (c < wellStart) buildHoles++; 
+                    else wellHoles++; 
                 }
             }
             aggregateHeight += colHeights[c];
         }
 
         int maxHeight = *std::max_element(colHeights, colHeights + COLS);
-        if (maxHeight > 24) return -999999999.0; // 保命底線
+        if (maxHeight > 22) return -999999999.0; 
 
         double score = 0;
-        score -= buildHoles * 1000000.0; // 建塔區有死洞唯一死罪
 
-        // ============================================
-        // 模式 A：Auto 與 1-wide (Tetris 爆發流)
-        // ============================================
         if (keepEmpty == 0 || keepEmpty == 1) {
+            score -= buildHoles * 1000000.0; 
             int bumpiness = 0;
             for (int c = 1; c < wellStart; c++) bumpiness += std::abs(colHeights[c] - colHeights[c-1]);
-            
             score -= bumpiness * 5000.0;
             score -= aggregateHeight * 50.0;
-
-            if (keepEmpty == 1) {
-                // 1-wide 專屬：確保最右邊 (第 9 列) 永遠是最矮的
-                int mainMin = 999;
-                for (int c = 0; c < 9; c++) if (colHeights[c] < mainMin) mainMin = colHeights[c];
-                if (colHeights[9] > mainMin) score -= (colHeights[9] - mainMin) * 500000.0;
-            }
-
-            // 獎勵大爆發，扣除小碎步
-            if (linesCleared == 1) score -= 20000.0;
-            else if (linesCleared == 2) score -= 10000.0;
-            else if (linesCleared >= 4) score += 200000.0; // Tetris 狂喜！
-
-            // 壓力大時允許緊急消行
-            if (maxHeight > 14 && linesCleared > 0) score += linesCleared * 50000.0;
-        } 
-        // ============================================
-        // 模式 B：2, 3, 4-wide (Combo 連擊流)
-        // ============================================
-        else {
+            if (linesCleared == 4) score += 200000.0; 
+            else if (linesCleared > 0) score -= linesCleared * 20000.0;
+        } else {
+            // === 模式 B：4-wide 大進化版 ===
             int buildMin = 999, buildMax = 0;
             for (int c = 0; c < wellStart; c++) {
                 if (colHeights[c] < buildMin) buildMin = colHeights[c];
                 if (colHeights[c] > buildMax) buildMax = colHeights[c];
             }
 
-            int buildBumpiness = 0;
-            for(int c=1; c<wellStart; c++) buildBumpiness += std::abs(colHeights[c] - colHeights[c-1]);
-            score -= buildBumpiness * 8000.0;
+            int targetResidue = keepEmpty - 1; // 4-wide 時為 3
 
-            // 絕對禁止建塔區出現斷崖
-            for (int c = 1; c < wellStart; c++) {
-               if (std::abs(colHeights[c] - colHeights[c-1]) > 2) score -= 200000.0;
-            }
-
-            // ★ 殘留物 (Residue) 核心計算
-            int cloggedRows = 0;
+            int rightBottomBlocks = 0;
             int wellBlocks = 0;
             int wellMaxHeight = 0;
-            for (int c = wellStart; c < COLS; c++) if (colHeights[c] > wellMaxHeight) wellMaxHeight = colHeights[c];
 
-            for (int r = ROWS - buildMin; r < ROWS; r++) {
-                int blocksInThisRow = 0;
-                for (int c = wellStart; c < COLS; c++) {
-                    if (testBoard[r][c] != 0) blocksInThisRow++;
-                }
-                wellBlocks += blocksInThisRow;
-                
-                // 根據 four.lol 的理論設定殘留物標準
-                if (keepEmpty == 4 || keepEmpty == 3) {
-                    // 3/4-wide: 允許 1 顆殘留物，超過 1 顆視為阻塞
-                    if (blocksInThisRow > 1) cloggedRows += (blocksInThisRow - 1); 
-                } else if (keepEmpty == 2) {
-                    // 2-wide: 盡量不要有殘留物
-                    if (blocksInThisRow > 0) cloggedRows += blocksInThisRow; 
+            // 精準掃描右側深坑的方塊分佈
+            for (int c = wellStart; c < COLS; c++) {
+                if (colHeights[c] > wellMaxHeight) wellMaxHeight = colHeights[c];
+                for (int r = 0; r < ROWS; r++) {
+                    if (testBoard[r][c] != 0) {
+                        wellBlocks++;
+                        if (r == ROWS - 1) rightBottomBlocks++;
+                    }
                 }
             }
 
-            // 絕對禁止右邊的殘留物高過左邊的塔 (會擋住入口)
-            if (wellMaxHeight > buildMin && comboState < 0) {
-                score -= (wellMaxHeight - buildMin) * 800000.0;
-            }
+            int buildBumpiness = 0;
+            for (int c = 1; c < wellStart; c++) buildBumpiness += std::abs(colHeights[c] - colHeights[c-1]);
 
-            bool inDanger = (maxHeight > 16);
+            // 主塔洞永遠是大罪
+            score -= buildHoles * 5000000.0;
+            // 井裡的洞也是大罪
+            score -= wellHoles * 5000000.0;
 
+            // ★ 複合就緒度評估（取代死板的 buildMin < 12）
+            bool isOpeningPhase;
             if (comboState >= 0) {
-                // 【連擊中】
-                if (linesCleared > 0) {
-                    score += linesCleared * 50000.0;
-                    score += comboState * 200000.0; // Combo 越高分數獎勵越大
-                } else {
-                    score -= 2000000.0; // 斷 Combo 是死罪
-                }
+                isOpeningPhase = false; // 正在 combo 中，絕對不回到開場期
             } else {
-                // 【蓄力中】
-                if (!inDanger && buildMin < 15) {
-                    score += buildMin * 15000.0; // 乖乖疊高
-                    score -= cloggedRows * 500000.0; // 嚴格懲罰阻塞
-                    
-                    // 4-wide 需要稍微寬容一點點整體的殘留物總量，避免無謂扣分
-                    if (keepEmpty >= 3 && wellBlocks > (buildMin * 0.8)) score -= 100000.0;
+                int readiness = 0;
+                if (buildMin >= 8) readiness++;
+                if (buildMin >= 10) readiness++;
+                if (buildMax - buildMin <= 2) readiness++;     // 塔面平坦
+                int wellDepth = buildMin - wellMaxHeight;
+                if (wellDepth >= 6) readiness++;               // 足夠深的井
+                if (wellBlocks <= targetResidue + 1) readiness++; // 井底乾淨
+                isOpeningPhase = (readiness < 4); // 至少 4/5 才算就緒
+            }
 
-                    // 蓄力期如果不小心消行了，扣分 (但不如以前扣那麼重，給它一條活路)
-                    if (linesCleared > 0) score -= linesCleared * 400000.0; 
+            if (isOpeningPhase) {
+                // 【蓄力期】軟性引導，取代硬性懲罰
+
+                // 獎勵蓋高
+                score += buildMin * 15000.0;
+
+                // 平坦度（二次方懲罰，越不平越慘）
+                score -= (double)buildBumpiness * buildBumpiness * 2000.0;
+                score -= (double)(buildMax - buildMin) * (buildMax - buildMin) * 5000.0;
+
+                // 井的乾淨度：井裡超過 1 層方塊 = 大問題
+                if (wellMaxHeight > 1) {
+                    score -= (wellMaxHeight - 1) * 3000000.0;
+                }
+
+                // 殘留方塊管理（底部精確控制）
+                if (rightBottomBlocks > targetResidue) {
+                    score -= (rightBottomBlocks - targetResidue) * 5000000.0;
+                } else if (rightBottomBlocks == targetResidue) {
+                    score += 500000.0; // 完美殘留
                 } else {
-                    // 【爆發期】(塔蓋夠高了，或是有危險了)
-                    if (linesCleared > 0) {
-                        score += linesCleared * 50000.0; // 開始狂消
+                    score += rightBottomBlocks * 80000.0;
+                }
+
+                // 井深獎勵
+                int wellDepth = buildMin - wellMaxHeight;
+                score += std::min(wellDepth, 12) * 50000.0;
+                if (wellDepth < 6) score -= (6 - wellDepth) * 500000.0;
+
+                // 禁止開場期消行
+                if (linesCleared > 0) score -= linesCleared * 3000000.0;
+
+            } else {
+                // 【爆發期】加入 4n+3 規則和 combo 續航性
+
+                if (linesCleared > 0) {
+                    // Combo 基礎分（越高越好）
+                    score += comboState * 1500000.0;
+
+                    // 單行消除最適合延長 combo 長度
+                    if (linesCleared == 1) score += 500000.0;
+                    else score += linesCleared * 100000.0;
+
+                    // ★ 4n+3 規則：消行後 well 中的方塊數應為 3, 7, 11, 15...
+                    int remainder = wellBlocks % keepEmpty;
+                    int target = keepEmpty - 1;
+                    if (remainder == target) {
+                        score += 1000000.0; // 完美殘留
                     } else {
-                        score -= cloggedRows * 500000.0;
+                        score -= std::abs(remainder - target) * 400000.0;
+                    }
+
+                    // ★ Combo 續航性：檢查消行後的井口空格分佈
+                    int wellTopRow = ROWS;
+                    for (int c = wellStart; c < COLS; c++) {
+                        for (int r = 0; r < ROWS; r++) {
+                            if (testBoard[r][c] && r < wellTopRow) { wellTopRow = r; break; }
+                        }
+                    }
+                    if (wellTopRow > 0 && wellTopRow < ROWS) {
+                        int checkRow = wellTopRow; // 井頂那一行
+                        int topGaps = 0;
+                        int gapStart = -1, gapEnd = -1;
+                        for (int c = wellStart; c < COLS; c++) {
+                            if (testBoard[checkRow][c] == 0) {
+                                topGaps++;
+                                if (gapStart < 0) gapStart = c;
+                                gapEnd = c;
+                            }
+                        }
+                        // 1 個空格最好（任何方塊都能塞）
+                        if (topGaps == 1) score += 300000.0;
+                        // 2-3 個相鄰空格可接受
+                        else if (topGaps >= 2 && topGaps <= 3 && gapEnd - gapStart == topGaps - 1) {
+                            score += 150000.0;
+                        }
+                    }
+
+                } else {
+                    // 沒消行
+                    if (comboState >= 0) {
+                        score -= 50000000.0; // 斷 combo 依然是重罪
+                    } else {
+                        // 非 combo 狀態，回到蓄力模式
                         score += buildMin * 1000.0;
+                        if (wellBlocks > targetResidue) {
+                            score -= (wellBlocks - targetResidue) * 2000000.0;
+                        }
                     }
                 }
             }
@@ -192,30 +243,34 @@ private:
         return score;
     }
 
-    double getBestScoreFuture(int currentBoard[ROWS][COLS], int pId, int comboState, int keepEmpty) {
-        double bestScore = -999999999.0;
+    // ★ 展開節點：純粹靠 evaluate() 的軟性評分引導，不再使用硬性規則
+    void expandNode(const SearchNode& node, int pieceId, bool isHoldMove, std::vector<SearchNode>& nextBeam, int keepEmpty, bool isFirstDepth) {
+        if (pieceId < 0 || pieceId >= (int)PIECES.size()) return;
+        // 記憶體保護：避免 nextBeam 無限膨脹導致 OOM
+        if (nextBeam.size() > 8000) return;
+
         for (int rot = 0; rot < 4; rot++) {
-            const auto& matrix = PIECES[pId][rot];
+            const auto& matrix = PIECES[pieceId][rot];
             for (int c = -2; c <= COLS; c++) {
                 int r = 18;
-                if (!isValid(matrix, r, c, currentBoard)) continue;
-                while (isValid(matrix, r + 1, c, currentBoard)) r++;
+                if (!isValid(matrix, r, c, node.board)) continue;
+                while (isValid(matrix, r + 1, c, node.board)) r++;
 
-                int simBoard[ROWS][COLS];
-                std::copy(&currentBoard[0][0], &currentBoard[0][0] + ROWS * COLS, &simBoard[0][0]);
+                SearchNode nextNode = node;
+                
                 for (int i = 0; i < 16; i++) {
                     if (matrix[i] == 1) {
                         int br = r + (i / 4), bc = c + (i % 4);
-                        if (br >= 0 && br < ROWS && bc >= 0 && bc < COLS) simBoard[br][bc] = 1;
+                        if (br >= 0 && br < ROWS && bc >= 0 && bc < COLS) nextNode.board[br][bc] = 1;
                     }
                 }
 
                 int linesCleared = 0;
-                int nextBoard[ROWS][COLS] = {0};
+                int tempBoard[ROWS][COLS] = {0};
                 for (int br = 0; br < ROWS; br++) {
                     bool full = true;
                     for (int bc = 0; bc < COLS; bc++) {
-                        if (simBoard[br][bc] == 0) { full = false; break; }
+                        if (nextNode.board[br][bc] == 0) { full = false; break; }
                     }
                     if (full) linesCleared++;
                 }
@@ -225,22 +280,33 @@ private:
                     for (int src = ROWS - 1; src >= 0; src--) {
                         bool full = true;
                         for (int bc = 0; bc < COLS; bc++) {
-                            if (simBoard[src][bc] == 0) { full = false; break; }
+                            if (nextNode.board[src][bc] == 0) { full = false; break; }
                         }
                         if (!full) {
-                            for (int bc = 0; bc < COLS; bc++) nextBoard[dst][bc] = simBoard[src][bc];
+                            for (int bc = 0; bc < COLS; bc++) tempBoard[dst][bc] = nextNode.board[src][bc];
                             dst--;
                         }
                     }
-                } else {
-                    std::copy(&simBoard[0][0], &simBoard[0][0] + ROWS * COLS, &nextBoard[0][0]);
+                    std::copy(&tempBoard[0][0], &tempBoard[0][0] + ROWS * COLS, &nextNode.board[0][0]);
                 }
 
-                double score = evaluate(nextBoard, linesCleared, comboState, keepEmpty);
-                if (score > bestScore) bestScore = score;
+                if (linesCleared > 0) nextNode.comboState++;
+                else nextNode.comboState = -1;
+
+                if (isFirstDepth) {
+                    nextNode.firstCol = c;
+                    nextNode.firstRow = r;
+                    nextNode.firstRot = rot;
+                    nextNode.firstUseHold = isHoldMove;
+                }
+                
+                nextNode.holdUsed = isHoldMove;
+                
+                nextNode.score = evaluate(nextNode.board, linesCleared, nextNode.comboState, keepEmpty);
+                
+                nextBeam.push_back(nextNode);
             }
         }
-        return bestScore;
     }
 
 public:
@@ -251,86 +317,107 @@ public:
         parseBoard(boardStr);
 
         int currentId = pieceCharToId(currentPiece[0]);
+        if (currentId < 0 || currentId >= (int)PIECES.size()) return val::object();
         int holdId = (holdPiece == "NONE") ? -1 : pieceCharToId(holdPiece[0]);
-        int nextId = (queueStr.length() > 0) ? pieceCharToId(queueStr[0]) : -1;
+        if (holdId >= (int)PIECES.size()) holdId = -1;
 
-        double globalBestScore = -999999999.0;
-        int bestCol = 3, bestRow = 19, bestRot = 0;
-        bool useHold = false;
+        std::vector<int> queueIds;
+        for (char c : queueStr) {
+            int id = pieceCharToId(c);
+            if (id >= 0 && id < (int)PIECES.size()) queueIds.push_back(id);
+        }
 
-        auto evaluatePiece = [&](int pId, bool isHold) {
-            for (int rot = 0; rot < 4; rot++) {
-                const auto& matrix = PIECES[pId][rot];
-                for (int c = -2; c <= COLS; c++) {
-                    int r = 18;
-                    if (!isValid(matrix, r, c, board)) continue;
-                    while (isValid(matrix, r + 1, c, board)) r++;
+        SearchNode rootNode;
+        std::copy(&initialBoard[0][0], &initialBoard[0][0] + ROWS * COLS, &rootNode.board[0][0]);
+        rootNode.holdId = holdId;
+        rootNode.holdUsed = false;
+        rootNode.comboState = currentCombo;
+        rootNode.score = 0;
+        rootNode.queueConsumed = 0;
 
-                    int simBoard[ROWS][COLS];
-                    std::copy(&board[0][0], &board[0][0] + ROWS * COLS, &simBoard[0][0]);
-                    for (int i = 0; i < 16; i++) {
-                        if (matrix[i] == 1) {
-                            int br = r + (i / 4), bc = c + (i % 4);
-                            if (br >= 0 && br < ROWS && bc >= 0 && bc < COLS) simBoard[br][bc] = 1;
-                        }
-                    }
+        std::vector<SearchNode> currentBeam;
+        currentBeam.push_back(rootNode);
 
-                    int linesCleared = 0;
-                    int nextBoard[ROWS][COLS] = {0};
-                    for (int br = 0; br < ROWS; br++) {
-                        bool full = true;
-                        for (int bc = 0; bc < COLS; bc++) {
-                            if (simBoard[br][bc] == 0) { full = false; break; }
-                        }
-                        if (full) linesCleared++;
-                    }
+        // 自適應搜索參數：4-wide combo 需要更寬更深的搜索
+        // 效能考量：跑在 Web Worker 不會卡主畫面，但要控制思考時間
+        int DEPTH = std::min((int)queueIds.size() + 1, 5);
+        size_t BEAM_WIDTH = 30;
+        if (keepEmpty >= 2) {
+            BEAM_WIDTH = 40;       // 4-wide 蓄力期
+            if (currentCombo >= 0) {
+                BEAM_WIDTH = 60;   // combo 期間需要更寬搜索找到續 combo 的路
+            }
+        }
 
-                    if (linesCleared > 0) {
-                        int dst = ROWS - 1;
-                        for (int src = ROWS - 1; src >= 0; src--) {
-                            bool full = true;
-                            for (int bc = 0; bc < COLS; bc++) {
-                                if (simBoard[src][bc] == 0) { full = false; break; }
-                            }
-                            if (!full) {
-                                for (int bc = 0; bc < COLS; bc++) nextBoard[dst][bc] = simBoard[src][bc];
-                                dst--;
-                            }
+        for (int depth = 0; depth < DEPTH; depth++) {
+            std::vector<SearchNode> nextBeam;
+            // 預分配記憶體，避免頻繁重新分配導致 OOM
+            nextBeam.reserve(BEAM_WIDTH * 80);
+
+            for (const auto& node : currentBeam) {
+                // 決定當前深度要放的方塊
+                int pieceToDrop;
+                if (depth == 0) {
+                    pieceToDrop = currentId;
+                } else {
+                    int qIdx = node.queueConsumed;
+                    if (qIdx >= (int)queueIds.size()) continue;
+                    pieceToDrop = queueIds[qIdx];
+                }
+
+                // 正常放置
+                {
+                    SearchNode tmp = node;
+                    if (depth > 0) tmp.queueConsumed++;
+                    tmp.holdUsed = false;
+                    expandNode(tmp, pieceToDrop, false, nextBeam, keepEmpty, (depth == 0));
+                }
+
+                // Hold 放置（任何深度都可以！）
+                if (!node.holdUsed) {
+                    if (node.holdId == -1) {
+                        // 空 hold：當前方塊存入 hold，從 queue 拉下一個來用
+                        int nextQIdx = node.queueConsumed + (depth > 0 ? 1 : 0);
+                        if (nextQIdx < (int)queueIds.size()) {
+                            SearchNode tmp = node;
+                            tmp.holdId = pieceToDrop;
+                            tmp.holdUsed = true;
+                            tmp.queueConsumed = nextQIdx + 1;
+                            int hPiece = queueIds[nextQIdx];
+                            expandNode(tmp, hPiece, true, nextBeam, keepEmpty, (depth == 0));
                         }
                     } else {
-                        std::copy(&simBoard[0][0], &simBoard[0][0] + ROWS * COLS, &nextBoard[0][0]);
-                    }
-
-                    double score = evaluate(nextBoard, linesCleared, currentCombo, keepEmpty);
-
-                    int simulatedCombo = currentCombo;
-                    if (linesCleared > 0) simulatedCombo++;
-                    else simulatedCombo = -1;
-
-                    if (nextId != -1) {
-                        score += getBestScoreFuture(nextBoard, nextId, simulatedCombo, keepEmpty) * 0.8;
-                    }
-
-                    if (score > globalBestScore) {
-                        globalBestScore = score; bestCol = c; bestRow = r; bestRot = rot; useHold = isHold;
+                        // 有 hold：交換當前方塊和 hold
+                        SearchNode tmp = node;
+                        int hPiece = node.holdId;
+                        tmp.holdId = pieceToDrop;
+                        tmp.holdUsed = true;
+                        if (depth > 0) tmp.queueConsumed++;
+                        expandNode(tmp, hPiece, true, nextBeam, keepEmpty, (depth == 0));
                     }
                 }
             }
-        };
 
-        evaluatePiece(currentId, false);
+            std::sort(nextBeam.begin(), nextBeam.end(), [](const SearchNode& a, const SearchNode& b) {
+                return a.score > b.score;
+            });
 
-        int activeHoldId = holdId;
-        if (activeHoldId == -1 && nextId != -1) activeHoldId = nextId;
-        if (activeHoldId != -1 && activeHoldId != currentId) {
-            evaluatePiece(activeHoldId, true);
+            if (nextBeam.size() > BEAM_WIDTH) {
+                nextBeam.resize(BEAM_WIDTH);
+            }
+
+            currentBeam = nextBeam;
         }
 
         val result = val::object();
-        result.set("col", bestCol);
-        result.set("row", bestRow);
-        result.set("rot", bestRot);
-        result.set("useHold", useHold);
+        if (!currentBeam.empty()) {
+            result.set("col", currentBeam[0].firstCol);
+            result.set("row", currentBeam[0].firstRow);
+            result.set("rot", currentBeam[0].firstRot);
+            result.set("useHold", currentBeam[0].firstUseHold);
+        } else {
+            result.set("col", 3); result.set("row", 19); result.set("rot", 0); result.set("useHold", false);
+        }
         return result;
     }
 };

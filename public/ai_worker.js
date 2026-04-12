@@ -15,20 +15,29 @@ Module.onRuntimeInitialized = () => {
 // 2. 監聽主程式傳來的盤面資料
 self.onmessage = function(e) {
   if (e.data.type === 'THINK' && wasmAI) {
-    const { boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty } = e.data.payload;
-    
-    // 執行極度消耗 CPU 的思考運算 (這時主畫面依然能保持 60 FPS)
-    const bestMove = wasmAI.findBestMove(boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty);
-    
-    // 算完後，把結果丟回給主程式
-    postMessage({ 
-      type: 'RESULT', 
-      bestMove: {
-        col: bestMove.col,
-        row: bestMove.row,
-        rot: bestMove.rot,
-        useHold: bestMove.useHold
-      }
-    });
+    try {
+      const { boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty } = e.data.payload;
+
+      // 執行極度消耗 CPU 的思考運算 (這時主畫面依然能保持 60 FPS)
+      const bestMove = wasmAI.findBestMove(boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty);
+
+      // 算完後，把結果丟回給主程式
+      postMessage({
+        type: 'RESULT',
+        bestMove: {
+          col: bestMove.col,
+          row: bestMove.row,
+          rot: bestMove.rot,
+          useHold: bestMove.useHold
+        }
+      });
+    } catch (err) {
+      console.error("⚠️ WASM AI 思考時發生錯誤:", err);
+      // 回傳一個預設結果，讓 AI 不會卡死
+      postMessage({
+        type: 'RESULT',
+        bestMove: { col: 3, row: 19, rot: 0, useHold: false }
+      });
+    }
   }
 };
