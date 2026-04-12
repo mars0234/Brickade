@@ -1035,6 +1035,7 @@
   const oppFloatingTexts = []; // 儲存對手畫面上的特效
   let peer = null;
   let conn = null;
+  let isMyPeerReady = false; // 紀錄我自己的連線門牌是否已經準備好
   let oppState = null; // 儲存對手傳來的狀態
   let gameStarted = false; // 控制遊戲是否已經開始
   let isMultiplayer = false; // 是否處於連線模式
@@ -1240,10 +1241,23 @@
     }
 
     function startNewPeer(uid) {
+      isMyPeerReady = false;
       // 不再傳入 customId，讓伺服器永遠發放全新不重複的 ID
       peer = new Peer(); 
       
       peer.on('open', (id) => {
+        isMyPeerReady = true;
+
+        // 把線上名單裡灰色的 WAIT... 按鈕，全部啟動變成 INVITE
+        document.querySelectorAll('.quick-invite-btn').forEach(btn => {
+          if (btn.textContent === 'WAIT...') {
+            btn.textContent = 'INVITE';
+            btn.disabled = false;
+            btn.style.background = 'var(--I)';
+            btn.style.cursor = 'pointer';
+          }
+        });
+
         if (currentMyIdEl) {
           currentMyIdEl.textContent = currentPlayer ? currentPlayer : id;
         }
@@ -1253,8 +1267,6 @@
           db.collection('users').doc(uid).set({
             currentPeerId: id
           }, { merge: true }).then(() => {
-            // 確保「門牌」確實寫入雲端後，才讓自己在名單上「亮綠燈」
-            // 這樣別人在名單上看到你時，你的連線絕對已經準備就緒了
             setupPresence(uid, currentPlayer);
           }).catch(err => console.log("更新門牌失敗:", err));
         }
@@ -1291,27 +1303,77 @@
       }
 
       peer.on('connection', (connection) => {
-        // 我正在玩雙人模式，或是畫面上「已經有別人的邀請框」才算忙碌
-        const toast = document.getElementById('invite-toast');
-        const isToastShowing = toast && !toast.classList.contains('hidden');
+        // 防撞車邏輯：不要馬上拒絕，先看這邀請是誰寄來的
+        let isFirstPacket = true;
+        
+        connection.on('data', (data) => {
+          if (isFirstPacket && data.type === 'INVITE') {
+            isFirstPacket = false;
+            const toast = document.getElementById('invite-toast');
+            const isToastShowing = toast && !toast.classList.contains('hidden');
 
-        // 防呆：只要我已經發起連線 (conn 存在)，不管它通了沒，一律拒絕外來的連線
-        if (conn) {
-          connection.on('open', () => {
-            connection.send({ type: 'INVITE_BUSY' });
-            setTimeout(() => connection.close(), 500);
-          });
-          return;
-        }
+            // 如果我真的在遊戲中，絕對拒絕
+            if (isMultiplayer) {
+              connection.send({ type: 'INVITE_BUSY' });
+              setTimeout(() => connection.close(), 500);
+              return;
+            }
 
-        if (isMultiplayer || isToastShowing) {
-          connection.on('open', () => {
-            connection.send({ type: 'INVITE_BUSY' });
-            setTimeout(() => connection.close(), 500);
-          });
-          return;
-        }
-        setupConnection(connection, false); // false 代表我是接收方
+            // 佔線撞車判定 (Cross-Dialing)
+            // 如果我也正在撥號 (conn 存在)，而且打來的剛好是我正在撥的對象
+            if (conn) {
+              const targetName = document.getElementById('opp-id-input').value.trim();
+              if (data.from === targetName) {
+                // 自動接聽決策：利用名字字母排序當作勝負
+                if (currentPlayer.localeCompare(data.from) > 0) {
+                  // 我贏了，我當房間主人，掛掉我撥出去的線，接起他打來的線
+                  clearTimeout(conn.inviteTimeout);
+                  if (conn) conn.close();
+                  setupConnection(connection, false); // 扶正這條新連線
+                  conn.send({ type: 'INVITE_ACCEPT' }); // 直接發送同意
+                  enterMultiplayerMode();
+                } else {
+                  // 我輸了，我跟他說我佔線，讓他那邊的程式去自動接聽我的線
+                  connection.send({ type: 'INVITE_BUSY' });
+                  setTimeout(() => connection.close(), 500);
+                }
+                return;
+              } else {
+                // 我在邀 A，但 B 打來，拒絕 B
+                connection.send({ type: 'INVITE_BUSY' });
+                setTimeout(() => connection.close(), 500);
+                return;
+              }
+            }
+
+            // 如果畫面上已經有別人的邀請框了，拒絕新的
+            if (isToastShowing) {
+              connection.send({ type: 'INVITE_BUSY' });
+              setTimeout(() => connection.close(), 500);
+              return;
+            }
+
+            // 正常接收邀請 (執行原本的顯示邀請框邏輯)
+            setupConnection(connection, false);
+            
+            if (data.version !== GAME_VERSION) {
+              conn.send({ type: 'INVITE_VERSION_MISMATCH', serverVersion: GAME_VERSION, clientVersion: data.version });
+              setTimeout(() => conn.close(), 500);
+              return;
+            }
+            
+            document.getElementById('invite-sender-name').textContent = data.from;
+            toast.classList.remove('hidden');
+            playSound('perfect');
+
+            if (typeof inviteTimeoutTimer !== 'undefined' && inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
+            const currentConnection = connection;
+            inviteTimeoutTimer = setTimeout(() => {
+              toast.classList.add('hidden');
+              if (currentConnection && currentConnection.open) currentConnection.close();
+            }, 7000);
+          }
+        });
       });
 
       if (currentConnectBtn) {
@@ -2392,7 +2454,7 @@
     const width = matrix[0].length;
     // 將方塊出生在隱藏區的最底部 (畫面正上方)
     const startRow = type === 'I' ? 18 : 19;
-    return { type, matrix, rot: 0, row: startRow, col: Math.floor(COLS / 2) - Math.ceil(width / 2), lowestRow: startRow};
+    return { type, matrix, rot: 0, row: startRow, col: Math.floor(COLS / 2) - Math.ceil(width / 2), lowestRow: startRow, startScore: score};
   }
 
   // --- 更新畫面分數與存取最高分 ---
@@ -4250,7 +4312,7 @@
 
       previousGameState = {
         pieceCells: cells, // 只記住這幾格！不碰其他盤面
-        score: score,
+        score: current.startScore, // 無視你硬降賺了多少分，讀取方塊出生的乾淨分數
         lines: lines,
         combo: combo,
         b2b: b2b,
@@ -5134,14 +5196,24 @@
     if (!listEl || !countEl) return;
 
     rtdb.ref('/status/').orderByChild('state').equalTo('online').on('value', (snapshot) => {
-      let users = []; // 改用陣列來收集名單
+      let users = []; 
       let validCount = 0;
 
+      // 把「自己」無條件塞在陣列的第一個(解決延遲與排序問題)
+      if (currentPlayer) {
+        users.push(currentPlayer);
+        validCount++;
+      }
+
+      // 再把雲端上的其他人加進來
       snapshot.forEach((childSnapshot) => {
         const data = childSnapshot.val();
         if (data.username && data.username !== 'undefined' && data.username.trim() !== '' && data.username !== 'Admin_Mars') {
-          validCount++;
-          users.push(data.username);
+          // 避免把自己重複加進去
+          if (data.username !== currentPlayer) {
+            validCount++;
+            users.push(data.username);
+          }
         }
       });
 
@@ -5151,20 +5223,18 @@
         return;
       }
 
-      // --- 將自己的名字強制排序到陣列最前面 ---
-      users.sort((a, b) => {
-        if (a === currentPlayer) return -1; // 遇到自己，就排到前面
-        if (b === currentPlayer) return 1;  
-        return 0; 
-      });
-
       let validUsersHTML = '';
       
-      // 排序完成後，才產生 HTML
       users.forEach((username) => {
         let inviteButtonHTML = '';
         if (username !== currentPlayer) {
-           inviteButtonHTML = `<button class="quick-invite-btn" data-username="${username}" style="background:var(--I); color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:pointer; font-size:10px; padding:3px 8px;">INVITE</button>`;
+          // 根據我的門牌是否準備好，決定按鈕的狀態
+           const btnText = isMyPeerReady ? 'INVITE' : 'WAIT...';
+           const btnDisabled = isMyPeerReady ? '' : 'disabled';
+           const btnBg = isMyPeerReady ? 'var(--I)' : '#666666';
+           const btnCursor = isMyPeerReady ? 'pointer' : 'not-allowed';
+           
+           inviteButtonHTML = `<button class="quick-invite-btn" data-username="${username}" style="background:${btnBg}; color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:${btnCursor}; font-size:10px; padding:3px 8px;" ${btnDisabled}>${btnText}</button>`;
         } else {
            inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
         }
