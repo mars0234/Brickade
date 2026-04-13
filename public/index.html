@@ -254,17 +254,7 @@
     color: var(--white);
   }
 
-  /* 中間資訊面板與左側連線/控制面板 */
-  .info-panel {
-    background: rgba(6, 0, 79, 0.4);
-    backdrop-filter: blur(6px);
-    border: 2px solid var(--white);
-    padding: 15px;
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  /* 讓周圍的控制列、排行榜變成全透明毛玻璃，融入背景 */
+  /* 讓周圍的控制列、排行榜變成「偽玻璃質感」，拯救 GPU 效能！ */
   .game-section,
   #player-profile-section, 
   #network-section, 
@@ -273,11 +263,32 @@
   #score-leaderboard-section, 
   #wins-leaderboard-section, 
   #ai-leaderboard-section, 
-  #ai-config-panel {
-    background: rgba(255, 255, 255, 0.03) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  #ai-config-panel,
+  .online-panel,
+  .invite-toast,
+  #system-toast {
+  
+    /* 背景改用微微的對角線漸層，模擬玻璃表面反光 */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
+
+    /* 保留邊框，並讓上方邊框稍微亮一點，增加厚度感 */
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.2) !important;
+
+    /* 內光暈 (inset) + 外部深邃陰影，完美取代模糊感 */
+    box-shadow: 
+      inset 0 0 15px rgba(255, 255, 255, 0.03), /* 玻璃內部微光 */
+      0 8px 32px rgba(0, 0, 0, 0.4) !important; /* 讓面板浮起來的陰影 */
+  }
+
+  /* 針對某些特定面板需要蓋過背景顏色的微調 */
+  .info-panel {
+    background: linear-gradient(135deg, rgba(6, 0, 79, 0.6) 0%, rgba(6, 0, 79, 0.3) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    flex-shrink: 0;
   }
 
   .hidden { display: none !important; }
@@ -398,12 +409,17 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    animation: popIn 0.3s ease-out;
+
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 0;               /* 預設透明 */
+    transform: scale(0.8);    /* 預設縮小 */
   }
-  @keyframes popIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
+
+  .invite-toast.show-invite {
+    opacity: 1 !important;
+    transform: scale(1) !important;
   }
+
   .invite-btns { display: flex; gap: 10px; width: 100%; }
   
   .invite-btn {
@@ -818,7 +834,7 @@
   }
 
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d', { alpha:false });
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   const nextCanvas = document.getElementById('next-canvas');
   const nextCtx = nextCanvas.getContext('2d', { alpha:false });
   const holdCanvas = document.getElementById('hold-canvas');
@@ -1156,6 +1172,9 @@
   let peer = null;
   let conn = null;
   let pendingConn = null; // 專門收容「還沒按接受」的等待連線
+  let myInviteCD = false;   // 發送邀請的 3 秒冷卻鎖
+  let outgoingInvites = {}; // 存放所有發射出去的邀請名單
+  let inviteTimeouts = {}; // 獨立於連線之外的嚴格超時管理器
   let isMyPeerReady = false; // 紀錄我自己的連線門牌是否已經準備好
   let oppState = null; // 儲存對手傳來的狀態
   let gameStarted = false; // 控制遊戲是否已經開始
@@ -1349,7 +1368,7 @@
     });
   }
 
-  // ★ Bug 3 解決：動態門牌系統
+  // 動態門牌系統
   function initNetwork(uidToLink = null) {
     const currentMyIdEl = document.getElementById('my-id');
     const currentConnectBtn = document.getElementById('connect-btn');
@@ -1428,17 +1447,24 @@
       }
 
       peer.on('connection', (connection) => {
-        // 將所有連線事件直接交給 setupConnection 統一處理，避免攔截衝突！
-        setupConnection(connection, false);
+        // 如果是專門用來聊天的管線，交給聊天處理器
+        if (connection.metadata && connection.metadata.purpose === 'chat') {
+            setupChatConnection(connection);
+        } else {
+            // 原本的遊戲管線維持不變
+            setupConnection(connection, false);
+        }
       });
 
       if (currentConnectBtn) {
         currentConnectBtn.onclick = async () => {
-          // 防呆：如果畫面上已經有別人的邀請，不准同時發送新邀請
-          const toast = document.getElementById('invite-toast');
-          if (toast && !toast.classList.contains('hidden')) {
-            showToast("請先接受或拒絕畫面上的連線邀請！");
-            return;
+          // 如果畫面上已經有別人的邀請，但我選擇主動去邀請別人 -> 自動拒絕舊邀請
+          if (pendingConn && pendingConn.open) {
+            pendingConn.send({ type: 'INVITE_REJECT' });
+            pendingConn.close();
+            pendingConn = null;
+            const toast = document.getElementById('invite-toast');
+            if (toast) toast.classList.add('hidden');
           }
 
           // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 CONNECT
@@ -1463,51 +1489,55 @@
           connStatus.textContent = 'Status: Searching player...';
           
           try {
+            let targetPeerId = null;
             const snapshot = await db.collection('users').where('username', '==', targetName).get();
-            
             if (snapshot.empty) {
-              if (targetName.length > 15 || targetName.includes('-')) {
-                const connection = peer.connect(targetName);
-                setupConnection(connection, true);
-                
-                connection.on('open', () => {
-                  connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
-                  
-                  // 第一個超時清理機制
-                  connection.inviteTimeout = setTimeout(() => {
-                    if (!isMultiplayer && conn === connection) {
-                      showToast("⚠️ 邀請超時，對方未回應");
-                      connection.close();
-                      conn = null;
-                    }
-                  }, 10000);
-                });
-              } else {
-                connStatus.textContent = 'Status: Player not found';
-                connStatus.style.color = 'var(--Z)';
-              }
-              return; 
+               if (targetName.length > 15 || targetName.includes('-')) {
+                  targetPeerId = targetName;
+               } else {
+                  connStatus.textContent = 'Status: Player not found';
+                  connStatus.style.color = 'var(--Z)';
+                  return;
+               }
+            } else {
+               snapshot.forEach(doc => { targetPeerId = doc.data().currentPeerId || doc.id; });
             }
 
-            let targetPeerId = null;
-            snapshot.forEach(doc => {
-              const data = doc.data();
-              targetPeerId = data.currentPeerId || doc.id; 
-            });
-
             if (targetPeerId) {
+              let existingConn = outgoingInvites[targetPeerId];
+              
+              // 如果管線是通的，直接沿用（這樣封包才是 0.01 秒瞬間抵達）
+              if (existingConn && existingConn.open) {
+                existingConn.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
+                showToast(`已向 ${targetName} 再次發送邀請！`);
+                
+                // 🌟 2. 刷新 10 秒超時器：先把舊的殺掉，重新開始算 10 秒
+                if (inviteTimeouts[targetPeerId]) clearTimeout(inviteTimeouts[targetPeerId]);
+                inviteTimeouts[targetPeerId] = setTimeout(() => {
+                  if (!isMultiplayer && outgoingInvites[targetPeerId] === existingConn) {
+                    showToast(`⚠️ 對 ${targetName} 的邀請已超時`);
+                    existingConn.close();
+                    delete outgoingInvites[targetPeerId];
+                  }
+                }, 10000);
+                return; 
+              }
+
+              //  如果沒有連線，才建立一條新的
               const connection = peer.connect(targetPeerId);
               setupConnection(connection, true);
               
               connection.on('open', () => {
                 connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
-                
-                // 第二個超時清理機制
-                connection.inviteTimeout = setTimeout(() => {
-                  if (!isMultiplayer && conn === connection) {
-                    showToast("⚠️ 邀請超時，對方未回應");
+                outgoingInvites[targetPeerId] = connection;
+                showToast(`已向 ${targetName} 發送邀請！`);
+
+                if (inviteTimeouts[targetPeerId]) clearTimeout(inviteTimeouts[targetPeerId]);
+                inviteTimeouts[targetPeerId] = setTimeout(() => {
+                  if (!isMultiplayer && outgoingInvites[targetPeerId] === connection) {
+                    showToast(`⚠️ 對 ${targetName} 的邀請已超時`);
                     connection.close();
-                    conn = null;
+                    delete outgoingInvites[targetPeerId];
                   }
                 }, 10000);
               });
@@ -2055,7 +2085,6 @@
     connection.on('data', (data) => {
       lastHeartbeat = Date.now(); 
 
-      // === 連線邀請階段 (Handshake) ===
       if (data.type === 'INVITE') {
         if (data.version !== GAME_VERSION) {
           connection.send({ type: 'INVITE_VERSION_MISMATCH', serverVersion: GAME_VERSION, clientVersion: data.version || 'v1.0.0' });
@@ -2063,15 +2092,12 @@
           return;
         }
         
-        const toast = document.getElementById('invite-toast');
-        const isToastShowing = toast && !toast.classList.contains('hidden');
-
-        // 如果我正在大廳等別人回覆，發生了撞車 (Cross-Dialing)
+        // (保持原本的撞車邏輯不變)
         if (conn && !isMultiplayer && data.from === document.getElementById('opp-id-input').value.trim()) {
            if (currentPlayer.localeCompare(data.from) > 0) {
               clearTimeout(conn.inviteTimeout);
               if (conn) conn.close();
-              conn = connection; // 扶正
+              conn = connection; 
               conn.send({ type: 'INVITE_ACCEPT' });
               enterMultiplayerMode();
            } else {
@@ -2081,50 +2107,81 @@
            return;
         }
 
-        // 防呆：如果畫面上已經有另一個邀請框了，請他排隊或拒絕
-        if (isToastShowing || pendingConn) {
-          connection.send({ type: 'INVITE_BUSY' });
-          setTimeout(() => connection.close(), 500);
-          return;
-        }
-
-        // 將新來的挑戰者放入「等待區」，不要動到 conn
         pendingConn = connection;
-
         document.getElementById('invite-sender-name').textContent = data.from;
-        toast.classList.remove('hidden');
-        playSound('perfect');
 
-        if (typeof inviteTimeoutTimer !== 'undefined' && inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
-        
-        inviteTimeoutTimer = setTimeout(() => {
-          toast.classList.add('hidden');
-          if (pendingConn && pendingConn.open) pendingConn.close();
-          pendingConn = null; // 超時清理
-        }, 7000);
+        const toast = document.getElementById('invite-toast');
+        if (toast) {
+           // 1. 先強制把框框藏起來，並且拔掉顯示狀態
+           toast.classList.add('hidden');
+           toast.classList.remove('show-invite');
+           
+           // 2. 給瀏覽器 50 毫秒的喘息時間，讓它「徹底判定元素已消失」
+           setTimeout(() => {
+               toast.classList.remove('hidden');
+               void toast.offsetWidth; // 強制重繪
+               toast.classList.add('show-invite'); // 再次滑順彈出！
+               playSound('perfect'); // 🌟 把音效移到這裡，確保跟著動畫一起出來
+           }, 50);
+        } else {
+           playSound('perfect');
+        }
       }
       else if (data.type === 'INVITE_ACCEPT') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
+        
+        // 先搶先贏！如果我已經進遊戲了，告訴後按的人「太慢啦」
+        if (isMultiplayer) {
+           connection.send({ type: 'INVITE_LATE' });
+           setTimeout(() => connection.close(), 500);
+           return;
+        }
+
+        // 扶正第一名
         conn = connection;
+
+        // 清理落選者：關閉其他所有發出去的邀請
+        for (let peerId in outgoingInvites) {
+           if (peerId !== connection.peer && outgoingInvites[peerId].open) {
+              outgoingInvites[peerId].close();
+           }
+        }
+        outgoingInvites = {}; // 清空發射名單
+
         enterMultiplayerMode();
       }
-      else if (data.type === 'INVITE_REJECT') {
+      else if (data.type === 'INVITE_LATE') {
+        // 🌟 新增：我按了接受，但對方已經跟第一名開始遊戲了
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
-        connStatus.textContent = 'Status: Request Rejected';
+        showToast("😭 慢了一步！對方已經跟別人開始遊戲了！", 4000);
+        connStatus.textContent = 'Status: Too Slow';
         connStatus.style.color = 'var(--Z)';
-        connection.close();
+        setTimeout(() => connection.close(), 2000);
       }
       else if (data.type === 'INVITE_BUSY') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
+        showToast("⚠️ 對方正在遊戲中");
         connStatus.textContent = 'Status: Player is busy';
-        connStatus.style.color = 'var(--Z)';
-        connection.close();
+        connStatus.style.color = 'var(--O)';
+        setTimeout(() => connection.close(), 2000); // 延遲 2 秒關閉
       }
       else if (data.type === 'INVITE_VERSION_MISMATCH') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
         connStatus.textContent = 'Status: Version Mismatch!';
         connStatus.style.color = 'var(--Z)';
         alert(`❌ 連線失敗：版本不一致！\n\n請確認雙方都更新到最新版！`);
+        connection.close();
+      }
+      else if (data.type === 'INVITE_REJECT') {
+        if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
+        showToast("💔 對方拒絕了你的對戰邀請！", 3000);
+        connStatus.textContent = 'Status: Rejected';
+        connStatus.style.color = 'var(--Z)';
+
+        // 立刻銷毀這條已經沒用的連線，確保下次按 CONNECT 會建立全新連線
+        if (outgoingInvites[connection.peer] === connection) {
+           delete outgoingInvites[connection.peer];
+        }
         connection.close();
       }
       else {
@@ -2149,9 +2206,9 @@
            }
         } else if (data.type === 'I_AM_KO') {
            oppKOTimer = 1000;
-           oppKOs++;
-           const oppKoEl = document.getElementById('opp-ko-display');
-           if (oppKoEl) oppKoEl.textContent = oppKOs;
+           myKOs++; // 對手死掉，是我得分！
+           const myKoEl = document.getElementById('my-ko-display'); // 更新左邊「You」面板的紅圈數字
+           if (myKoEl) myKoEl.textContent = myKOs;
            oppFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
            playSound('perfect');
         } else if (data.type === 'TOP_OUT_LOSE') {
@@ -2164,6 +2221,13 @@
            // 收到後，系統會跳出警告並立刻讓他退出對戰模式，回到單人畫面
            if (isMultiplayer) {
                exitMultiplayerMode(true);
+           }
+        } else if (data.type === 'OPPONENT_LEFT_FOR_ANOTHER') {
+           // 專門處理「對手接受別人邀請」的超嗆 Toast
+           if (isMultiplayer) {
+               showToast("💔 對手無情地拋棄了你，跟別人跑了！", 5000);
+               // 傳入 false 阻止系統發送預設的斷線警告，改用上面這句專屬的
+               exitMultiplayerMode(false); 
            }
         } else if (data.type === 'PROFILE') {
            // 這裡負責接收雙方的名字與連勝火焰，解決 LOADING 卡住的問題
@@ -2207,16 +2271,37 @@
       // 無論如何，只要這條連線斷了，就釋放佔位
       if (conn === connection) {
         conn = null;
-        // 恢復 UI 提示
-        if (connStatus) {
+        
+        // 防呆：如果現在的狀態文字是錯誤訊息，就保留它，不要立刻洗成 Standby
+        if (connStatus && !['Request Rejected', 'Player is busy', 'No Response'].some(msg => connStatus.textContent.includes(msg))) {
            connStatus.textContent = 'Status: Standby';
            connStatus.style.color = 'rgba(255,255,255,0.5)';
         }
       }
-      if (pendingConn === connection) pendingConn = null;
+
+      // 只有當「正在等待的這個連線」斷掉，且沒有新的連線補上時，才收起框框
+      if (pendingConn === connection) {
+        pendingConn = null;
+        const toast = document.getElementById('invite-toast');
+        // 只有在真的沒有待處理連線時才隱藏，防止連點時的閃爍
+        if (toast && !toast.classList.contains('hidden')) {
+           toast.classList.add('hidden');
+           toast.classList.remove('show-invite');
+        }
+      }
+
+      // 把斷掉的線從發射清單裡刪除
+      if (outgoingInvites[connection.peer] === connection) {
+          delete outgoingInvites[connection.peer];
+      }
+      // 確保連線斷開時，專屬計時器也被殺死
+      if (inviteTimeouts[connection.peer]) {
+          clearTimeout(inviteTimeouts[connection.peer]);
+          delete inviteTimeouts[connection.peer];
+      }
     });
 
-    // 監聽錯誤事件，發生錯誤也要清空 conn
+    // 🌟 監聽錯誤事件，發生錯誤也要清空 conn
     connection.on('error', (err) => {
       console.log("連線發生錯誤:", err);
       if (conn === connection) conn = null;
@@ -2454,15 +2539,18 @@
     const color = COLORS[type]; 
     const MARGIN = 0; 
     const startX = MARGIN + (c + 0.5) * SIZE;
-    // --- 把 Y 座標扣除 20 行隱藏區的高度 ---
     const startY = (r - VISIBLE_ROWS + 1) * SIZE; 
 
     const count = 10 + Math.random() * 5;
     for (let i = 0; i < count; i++) {
       particles.push(new Particle(startX, startY, color));
     }
+    
+    // 畫面上的粒子如果超過 150 個，強制把最舊的刪掉，防止記憶體溢出卡頓
+    if (particles.length > 150) {
+      particles.splice(0, particles.length - 150);
+    }
   }
-
   function fitLayout() {
     const layout = document.getElementById('layout');
     if (!layout) return;
@@ -3324,9 +3412,29 @@
       }
     }
 
-    if ((typeof oppKOTimer !== 'undefined' && oppKOTimer > 0 && !gameOver) || (gameOver && matchResult === 'WIN')) {
+    // --- 讓我方輸或贏的時候，對手盤面同步變暗並顯示鏡像結果 ---
+    if ((typeof oppKOTimer !== 'undefined' && oppKOTimer > 0 && !gameOver) || (gameOver && matchResult)) {
       oppCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+    }
+
+    if (gameOver && matchResult && isMultiplayer) {
+      oppCtx.fillStyle = 'rgba(6,0,79,0.9)';
+      // 畫一個精緻的結算框在對手畫面上
+      oppCtx.fillRect(18, oppCanvas.height / 2 - 40, oppCanvas.width - 36, 80);
+      oppCtx.strokeStyle = '#f2f2f2';
+      oppCtx.lineWidth = 4;
+      oppCtx.strokeRect(18, oppCanvas.height / 2 - 40, oppCanvas.width - 36, 80);
+      
+      // 鏡像邏輯：我贏 = 對手輸，我輸 = 對手贏
+      let oppResText = matchResult === 'WIN' ? 'LOSE!' : (matchResult === 'LOSE' ? 'WIN!' : 'DRAW!');
+      let oppResColor = matchResult === 'WIN' ? '#ff0d62' : (matchResult === 'LOSE' ? '#48d62f' : '#f7dd16');
+      
+      oppCtx.fillStyle = oppResColor;
+      oppCtx.textAlign = 'center';
+      oppCtx.textBaseline = 'middle';
+      oppCtx.font = '900 36px Arial';
+      oppCtx.fillText(oppResText, oppCanvas.width / 2, oppCanvas.height / 2);
     }
 
     // --- 讓對手的畫面在各個特殊狀態下變暗並顯示文字 ---
@@ -4972,8 +5080,10 @@
     }
   }
 
-  // 只要滑鼠點擊畫面任何地方，解鎖音樂 (對付瀏覽器限制)
+  // 只要滑鼠點擊畫面任何地方，解鎖音樂與合成器 (對付瀏覽器限制)
   document.addEventListener('click', () => {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
     if (!bgmStarted && !isBgmMuted && !isMultiplayer) {
       bgm.play().catch(err => console.log("等待互動解鎖音樂"));
       bgmStarted = true;
@@ -4985,6 +5095,9 @@
     // 【重要防呆】如果玩家正在「輸入對手 ID」的文字框裡打字，絕對不要攔截按鍵！
     // (這也確保了在輸入框裡的 Ctrl+C/V 絕對有效)
     if (e.target.tagName === 'INPUT') return;
+
+    // 按下任何按鍵時，強制喚醒合成器
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
     // 只要按下任何鍵，解鎖音樂
     if (!bgmStarted && !isBgmMuted && !isMultiplayer) {
@@ -5452,11 +5565,53 @@
   }
 
   // --- 更新個人當前活動狀態的輔助函式 ---
+  let lastActiveState = 'IDLE'; // 記住玩家離開前的真正狀態
+  let idleTimer = null;
+  const IDLE_TIMEOUT = 3 * 60 * 1000; // 3分鐘沒動靜算作閒置
+
   function updateMyActivity(activityType) {
+    if (activityType !== 'AWAY') {
+      lastActiveState = activityType; // 只要不是離開，就記住現在到底在幹嘛
+    }
     if (typeof currentUserUID !== 'undefined' && currentUserUID && typeof rtdb !== 'undefined') {
       rtdb.ref('/status/' + currentUserUID).update({ activity: activityType }).catch(e => console.warn(e));
     }
   }
+
+  // 喚醒與重置閒置計時器
+  function resetIdleStatus() {
+    if (typeof currentUserUID !== 'undefined' && currentUserUID && typeof rtdb !== 'undefined') {
+      // 讀取當前狀態，如果是 AWAY，代表玩家剛回來，把狀態切回離開前的模樣
+      rtdb.ref('/status/' + currentUserUID + '/activity').once('value').then(snap => {
+        if (snap.val() === 'AWAY') {
+          updateMyActivity(lastActiveState); 
+        }
+      });
+    }
+
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      // 觸發閒置
+      if (typeof currentUserUID !== 'undefined' && currentUserUID) {
+         updateMyActivity('AWAY');
+      }
+    }, IDLE_TIMEOUT);
+  }
+
+  // 監聽玩家行為：切換分頁、動滑鼠、按鍵盤
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // 玩家切換到別的視窗，立刻標記為離開
+      if (typeof currentUserUID !== 'undefined' && currentUserUID) updateMyActivity('AWAY');
+    } else {
+      // 玩家切回來了
+      resetIdleStatus();
+    }
+  });
+  window.addEventListener('mousemove', resetIdleStatus);
+  window.addEventListener('keydown', resetIdleStatus);
+  // 初始化計時器
+  resetIdleStatus();
 
   // --- 用來管理連線狀態的監聽器 ---
   let presenceRef = null;
@@ -5550,6 +5705,8 @@
         else if (actStr === 'PRACTICE') { activityText = '深山修行中'; activityColor = 'var(--S)'; dotColor = 'var(--S)'; }
         else if (actStr === 'AI_BATTLE') { activityText = '與 AI 激戰中'; activityColor = 'var(--T)'; dotColor = 'var(--T)'; }
         else if (actStr === 'MULTIPLAYER') { activityText = '雙人對戰中'; activityColor = 'var(--Z)'; dotColor = 'var(--Z)'; }
+        // 離開與閒置狀態
+        else if (actStr === 'AWAY') { activityText = '離開 (閒置中)'; activityColor = '#888888'; dotColor = '#888888'; }
 
         let inviteButtonHTML = '';
         if (username !== currentPlayer) {
@@ -5575,7 +5732,7 @@
               <div style="display:flex; flex-direction:column; gap:4px;">
                  <div style="display:flex; align-items:center; gap:8px;">
                    <div class="online-dot" style="background-color:${dotColor}; box-shadow: 0 0 5px ${dotColor};"></div>
-                   <span style="color: var(--white); font-size: 15px; font-weight: bold;">${username}</span>
+                   <span class="chat-trigger" data-username="${username}" style="color: var(--white); font-size: 15px; font-weight: bold; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(255,255,255,0.3); transition: color 0.2s;">${username}</span>
                  </div>
                  <div style="font-size:11px; color:${activityColor}; margin-left: 18px; font-weight: 900; letter-spacing:1px;">${activityText}</div>
               </div>
@@ -5598,18 +5755,24 @@
       // --- 防呆攔截！如果按鈕已經被 disabled，直接中斷，不執行後續連線 ---
       if (btn.disabled) return;
 
-      // 防呆：如果畫面上已經有別人的邀請，不准同時發送新邀請
-      const toast = document.getElementById('invite-toast');
-      if (toast && !toast.classList.contains('hidden')) {
-        showToast("請先接受或拒絕畫面上的連線邀請！");
+      // 如果畫面上已經有別人的邀請，但我選擇主動去邀請別人 -> 自動拒絕舊邀請
+          if (pendingConn && pendingConn.open) {
+            pendingConn.send({ type: 'INVITE_REJECT' });
+            pendingConn.close();
+            pendingConn = null;
+            const toast = document.getElementById('invite-toast');
+            if (toast) {
+               toast.classList.add('hidden');
+               toast.classList.remove('show-invite');
+            }
+          }
+      // 3 秒內不能連續狂按，但可以一直發送給不同人，或重發給同一人
+      if (myInviteCD) {
+        showToast("⏳ 邀請發送太頻繁，請等 3 秒...");
         return;
       }
-
-      // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 INVITE
-      if (conn && conn.open && !isMultiplayer) {
-        showToast("⚠️ 已經發出邀請，請等待對方回應！");
-        return;
-      }
+      myInviteCD = true;
+      setTimeout(() => myInviteCD = false, 3000);
 
       const targetName = btn.getAttribute('data-username');
       const oppInput = document.getElementById('opp-id-input');
@@ -5989,13 +6152,14 @@
   if (acceptBtn) {
     acceptBtn.addEventListener('click', () => {
       document.getElementById('invite-toast').classList.add('hidden');
+      document.getElementById('invite-toast').classList.remove('show-invite');
       if (inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
       
       if (pendingConn && pendingConn.open) {
         // 處理現任：如果我正在跟別人對戰 (或是跟AI對戰)
         if (isMultiplayer) {
-          // 傳送無情中離訊息給前任
-          if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
+          // 傳送「被拋棄」專屬訊息給前任
+          if (conn && conn.open) conn.send({ type: 'OPPONENT_LEFT_FOR_ANOTHER' });
           
           // 默默退出，不跳警告，因為這是我自願的
           exitMultiplayerMode(false); 
@@ -6021,6 +6185,7 @@
   if (rejectBtn) {
     rejectBtn.addEventListener('click', () => {
       document.getElementById('invite-toast').classList.add('hidden');
+      document.getElementById('invite-toast').classList.remove('show-invite');
       if (inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
       
       // 殘忍拒絕，並把玄關的待處理連線清掉
