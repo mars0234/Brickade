@@ -22,7 +22,8 @@
   html,body{height:100%}
   body{
     margin:0;
-    background:var(--bg);
+    /* 🌟 垂直聚光燈 (溫和版)：最邊緣不再死黑，使用經典藍打底，向中央平滑過渡到明亮星雲紫 */
+    background: linear-gradient(to right, #06004f 0%, #0a0470 25%, #1a0f96 50%, #0a0470 75%, #06004f 100%);
     color:var(--white);
     font-family:Arial,Helvetica,sans-serif;
     overflow:hidden;
@@ -198,6 +199,7 @@
     align-items: flex-start;
     gap: 10px;
     background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(6px);
     padding: 15px;
     border-radius: 10px;
     border: 2px solid var(--white);
@@ -226,16 +228,19 @@
 
   /* 遊戲主畫布 */
   #game, #opp-game { 
-    border: 4px solid var(--white); 
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 4px;
     background: var(--cell-bg);
     display: block;
     flex-shrink: 0;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.6);
   }
 
   /* 小框框 (Hold/Next/Queue) */
   .mini-block-canvas {
-    border: 2px solid var(--white);
-    background: rgba(0,0,0,0.6); /* 稍微深一點的底色 */
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 4px;
     display: block;
     flex-shrink: 0;
   }
@@ -251,11 +256,28 @@
 
   /* 中間資訊面板與左側連線/控制面板 */
   .info-panel {
-    background: rgba(0,0,0,0.6);
+    background: rgba(6, 0, 79, 0.4);
+    backdrop-filter: blur(6px);
     border: 2px solid var(--white);
     padding: 15px;
     border-radius: 8px;
     flex-shrink: 0;
+  }
+
+  /* 讓周圍的控制列、排行榜變成全透明毛玻璃，融入背景 */
+  .game-section,
+  #player-profile-section, 
+  #network-section, 
+  #singleplayer-score,
+  #controls-section, 
+  #score-leaderboard-section, 
+  #wins-leaderboard-section, 
+  #ai-leaderboard-section, 
+  #ai-config-panel {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
   }
 
   .hidden { display: none !important; }
@@ -267,8 +289,9 @@
     gap: 12px;
   }
   .ai-setting-group {
-    background: rgba(0,0,0,0.3);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: transparent;
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 10px;
     border-radius: 6px;
   }
@@ -336,8 +359,10 @@
     right: 20px;
     top: 20px;
     width: 220px;
-    background: rgba(0,0,0,0.6);
-    border: 2px solid var(--white);
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     padding: 15px;
     border-radius: 8px;
     z-index: 100;
@@ -360,18 +385,19 @@
     box-shadow: 0 0 5px var(--S);
   }
 
-  /* 連線邀請通知 (Toast) */
+  /* 連線邀請通知 (Toast) - 強化玻璃版 */
   .invite-toast {
-    background: rgba(0,0,0,0.95);
-    border: 2px solid var(--I);
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
     padding: 15px;
-    border-radius: 8px;
-    margin-top: 15px; /* 與上方 Emoji 面板保持距離 */
+    border-radius: 12px;
+    margin-top: 15px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    box-shadow: 0 0 15px var(--I);
     animation: popIn 0.3s ease-out;
   }
   @keyframes popIn {
@@ -379,30 +405,38 @@
     to { opacity: 1; transform: scale(1); }
   }
   .invite-btns { display: flex; gap: 10px; width: 100%; }
+  
   .invite-btn {
     flex: 1;
-    padding: 6px 0;
+    padding: 8px 0;
     font-weight: 900;
-    border: 2px solid var(--white);
+    font-size: 13px;
+    letter-spacing: 1px;
+    border-radius: 20px;
     cursor: pointer;
     text-align: center;
+    transition: all 0.2s ease;
   }
-  .btn-accept { background: var(--S); color: var(--bg); }
-  .btn-reject { background: var(--Z); color: var(--white); }
-  /* === 系統通知 Toast === */
+  .btn-accept { background: rgba(72, 214, 47, 0.15); color: var(--S); border: 1px solid var(--S); }
+  .btn-accept:hover { background: var(--S); color: var(--bg); box-shadow: 0 0 12px rgba(72, 214, 47, 0.6); }
+  .btn-reject { background: rgba(255, 13, 98, 0.15); color: var(--Z); border: 1px solid var(--Z); }
+  .btn-reject:hover { background: var(--Z); color: var(--white); box-shadow: 0 0 12px rgba(255, 13, 98, 0.6); }
+
+  /* 上方系統通知 (System Toast) - 膠囊玻璃版 */
   #system-toast {
     position: fixed;
     top: 24px;
     left: 50%;
     transform: translateX(-50%) translateY(-80px);
-    background: rgba(6, 0, 79, 0.97);
-    border: 2px solid var(--white);
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
     color: var(--white);
     padding: 12px 28px;
     font-size: 15px;
     font-weight: 900;
     letter-spacing: 1px;
-    border-radius: 6px;
+    border-radius: 25px; 
     z-index: 9999;
     pointer-events: none;
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
@@ -536,7 +570,7 @@
               <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Welcome back,</div>
               <div id="display-username" style="font-size: 20px; font-weight: 900; color: var(--T); margin: 5px 0 10px 0;">---</div>
 
-              <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+              <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: transparent; backdrop-filter: blur(2px); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span>RANK:</span>
                   <span id="display-rank" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5);">銅牌 <span style="font-size:12px">(0 LP)</span></span>
@@ -589,7 +623,7 @@
               <p id="conn-status" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Status: Standby</p>
               <div id="ping-display" style="font-size: 12px; font-weight: bold; display: none;"></div>
             </div>
-            <div id="scoreboard" style="display: none; background: rgba(0,0,0,0.3); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
+            <div id="scoreboard" style="display: none; background: transparent; backdrop-filter: blur(2px); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
               <div style="font-size: 14px; color: var(--O); font-weight: bold; margin-bottom: 4px;">MATCH SCORE</div>
               <div style="font-size: 24px; font-weight: 900; display: flex; justify-content: center;gap: 16px;">
                 <div><span style="font-size: 11px; display:block; color:rgba(255,255,255,0.7);">YOU</span><span id="my-wins-el" style="color: var(--S);">0</span></div>
@@ -598,7 +632,7 @@
               </div>
             </div>
 
-            <div id="emoji-hint-panel" class="hidden" style="background: rgba(0,0,0,0.3); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px; border-radius: 4px;">
+            <div id="emoji-hint-panel" class="hidden" style="background: transparent; backdrop-filter: blur(2px); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px; border-radius: 4px;">
               <div style="font-size: 12px; color: var(--J); font-weight: bold; margin-bottom: 6px; letter-spacing: 1px;">EMOJI HOTKEYS</div>
               <div style="display: flex; justify-content: space-around; font-size: 18px;">
                 <span title="按 1">1️⃣😅</span>
@@ -3179,7 +3213,7 @@
 
       if (isMultiplayer && matchResult) {
         // 連線模式的勝負畫面
-        ctx.fillStyle = matchResult === 'WIN' ? 'var(--S)' : (matchResult === 'LOSE' ? 'var(--Z)' : 'var(--O)');
+        ctx.fillStyle = matchResult === 'WIN' ? '#48d62f' : (matchResult === 'LOSE' ? '#ff0d62' : '#f7dd16');
         ctx.font = '900 36px Arial';
         ctx.fillText(matchResult === 'WIN' ? 'YOU WIN!' : (matchResult === 'LOSE' ? 'YOU LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2 - 24);
         
@@ -3219,20 +3253,29 @@
       // 尚未開始遊戲時的提示
       ctx.fillStyle = 'rgba(6,0,79,0.8)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#f2f2f2';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
       if (!isMultiplayer) {
+        ctx.fillStyle = '#f2f2f2';
         ctx.font = '900 28px Arial';
         ctx.fillText('PRESS ENTER', canvas.width / 2, canvas.height / 2 - 16);
         ctx.font = '700 18px Arial';
         ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
       } else {
-        ctx.font = '900 28px Arial';
-        ctx.fillText('CLICK READY', canvas.width / 2, canvas.height / 2 - 16);
-        ctx.font = '700 18px Arial';
-        ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
+        // 雙向鏡像：當我按下準備時，我的畫面也要變成綠色的 READY
+        if (iAmReady) {
+          ctx.fillStyle = '#48d62f';
+          ctx.font = '900 36px Arial';
+          ctx.fillText('READY !', canvas.width / 2, canvas.height / 2);
+        } else {
+          ctx.fillStyle = '#f2f2f2';
+          ctx.font = '900 28px Arial';
+          ctx.fillText('CLICK READY', canvas.width / 2, canvas.height / 2 - 16);
+          ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          ctx.font = '700 16px Arial';
+          ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
+        }
       }
     }
 
@@ -3247,11 +3290,6 @@
     oppCtx.drawImage(gridCanvas, 0, 0);
 
     if (!oppState) {
-      oppCtx.fillStyle = 'rgba(255,255,255,0.3)';
-      oppCtx.font = '12px Arial';
-      oppCtx.textAlign = 'center';
-      oppCtx.fillText('WAITING FOR', oppCanvas.width/2, oppCanvas.height/2 - 10);
-      oppCtx.fillText('OPPONENT', oppCanvas.width/2, oppCanvas.height/2 + 10);
     } else {
       const isCountingDown = (countdownValue > 0 && !current);
       const oppSize = 34;
@@ -3315,7 +3353,7 @@
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
     }
 
-    // --- 讓對手的畫面在暫停與倒數時，也跟著一起變暗並顯示文字 ---
+    // --- 讓對手的畫面在各個特殊狀態下變暗並顯示文字 ---
     if (isPaused && !gameOver) {
       oppCtx.fillStyle = 'rgba(6,0,79,0.7)'; 
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
@@ -3329,6 +3367,25 @@
       oppCtx.textBaseline = 'middle';
       oppCtx.font = '900 80px Arial';
       oppCtx.fillText(countdownValue, oppCanvas.width / 2, oppCanvas.height / 2);
+    } else if (!gameStarted && isMultiplayer) {
+      // 雙向鏡像：對手還沒準備時顯示 WAITING，準備好後顯示 READY
+      oppCtx.fillStyle = 'rgba(6,0,79,0.8)';
+      oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
+      oppCtx.textAlign = 'center';
+      oppCtx.textBaseline = 'middle';
+
+      if (oppIsReady) {
+        oppCtx.fillStyle = '#48d62f';
+        oppCtx.font = '900 36px Arial';
+        oppCtx.fillText('READY !', oppCanvas.width / 2, oppCanvas.height / 2);
+      } else {
+        oppCtx.fillStyle = '#f2f2f2';
+        oppCtx.font = '900 24px Arial';
+        oppCtx.fillText('WAITING...', oppCanvas.width / 2, oppCanvas.height / 2 - 16);
+        oppCtx.fillStyle = 'rgba(255,255,255,0.6)';
+        oppCtx.font = '700 16px Arial';
+        oppCtx.fillText('等待對手準備', oppCanvas.width / 2, oppCanvas.height / 2 + 16);
+      }
     }
 
     oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
@@ -4303,7 +4360,11 @@
     aiGameOver = true;   // 強制休眠，直到倒數結束才喚醒
     aiCurrent = null;    // 清空手上拿著的方塊
     aiBoard = createBoard(); // 給它一個乾淨的空盤面
+    aiQueue = [];        // 清空 AI 預覽方塊
+    aiHoldType = null;   // 清空 AI 保留方塊
+    aiHoldUsed = false;
     aiSyncOppState();    // 立即把畫面上殘留的對手畫面清空
+    
   }
 
   // AI 正式開始（倒數結束後才呼叫）
@@ -4926,6 +4987,7 @@
   // --- 鍵盤按下事件 (改用 e.code 防呆) ---
   document.addEventListener('keydown', (e) => {
     // 【重要防呆】如果玩家正在「輸入對手 ID」的文字框裡打字，絕對不要攔截按鍵！
+    // (這也確保了在輸入框裡的 Ctrl+C/V 絕對有效)
     if (e.target.tagName === 'INPUT') return;
 
     // 只要按下任何鍵，解鎖音樂
@@ -4934,7 +4996,22 @@
       bgmStarted = true;
     }
 
-    const k = e.code; // 使用 e.code，抓取鍵盤「實體位置」，無視任何中文輸入法
+    const k = e.code; 
+
+    // 🌟 終極智慧修正：判斷玩家的 Ctrl+C 到底是「複製」還是「Hold」
+    if (e.ctrlKey || e.metaKey) {
+      const allowedWithCtrl = ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight'];
+      
+      if (k === 'KeyC') {
+        // 檢查玩家目前有沒有在網頁上反白選取任何文字
+        if (window.getSelection().toString().length > 0) {
+          return; // 有反白文字 -> 放行給系統執行「複製」
+        }
+        // 沒有反白任何文字 -> 玩家正在激烈對戰，判定為遊戲指令「Hold」，不攔截！
+      } else if (!allowedWithCtrl.includes(k)) {
+        return; // 遇到 Ctrl+V, Ctrl+R, Ctrl+A 等，直接放行給瀏覽器！
+      }
+    }
 
     // 阻擋預設行為 (例如按空白鍵或上下鍵時，防止網頁跟著捲動)
     if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyA','KeyX','KeyZ','KeyC','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Escape','Enter','NumpadEnter'].includes(k)) {
@@ -4955,7 +5032,7 @@
       if (k === 'Digit3' || k === 'Numpad3') emoji = '🥶';
       if (k === 'Digit4' || k === 'Numpad4') emoji = '🤣';
 
-      // 在對手的畫面上噴出 Emoji (稍微大一點，停留時間短一點)
+      // 在對手的畫面上噴出 Emoji
       oppFloatingTexts.push(new FloatingText(emoji, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ffffff', 55));
       playSound('move'); 
 
@@ -4972,16 +5049,12 @@
     // 音量與靜音控制
     if (k === 'KeyM') {
       isBgmMuted = !isBgmMuted;
-      // 如果解除靜音時，主音量是 0，自動拉回 50%
       if (!isBgmMuted && masterVolume === 0) {
         masterVolume = 0.5;
         localStorage.setItem('tetrisVolume', masterVolume);
       }
-
       localStorage.setItem('tetrisBgmMuted', isBgmMuted);
       updateSoundUI();
-      
-      // 如果解除靜音，檢查當下該播哪首並啟動
       if (!isBgmMuted && bgmStarted) {
         if (isMultiplayer && gameStarted) battleBgm.play().catch(e=>{});
         else if (!isMultiplayer && gameStarted) bgm.play().catch(e=>{});
@@ -4990,28 +5063,23 @@
     }
     if (k === 'KeyN') {
       isSfxMuted = !isSfxMuted;
-
-      // 救援機制：如果解除靜音時，主音量是 0，自動拉回 50%
       if (!isSfxMuted && masterVolume === 0) {
         masterVolume = 0.5;
         localStorage.setItem('tetrisVolume', masterVolume);
       }
-
       localStorage.setItem('tetrisSfxMuted', isSfxMuted);
       updateSoundUI();
-      playSound('move'); // 偷播一個音效測試
+      playSound('move');
       return;
     }
-    if (k === 'Minus' || k === 'NumpadSubtract' && !e.ctrlKey) {
-      // 利用 *10 轉整數再 /10，完美消除 JavaScript 小數點計算誤差
+    if ((k === 'Minus' || k === 'NumpadSubtract') && !e.ctrlKey) {
       masterVolume = Math.max(0, Math.round((masterVolume - 0.1) * 10) / 10);
       localStorage.setItem('tetrisVolume', masterVolume);
       updateSoundUI();
       playSound('move');
       return;
     }
-    if (k === 'Equal' || k === 'NumpadAdd' && !e.ctrlKey) {
-      // 一樣加入防小數點誤差機制
+    if ((k === 'Equal' || k === 'NumpadAdd') && !e.ctrlKey) {
       masterVolume = Math.min(1, Math.round((masterVolume + 0.1) * 10) / 10);
       localStorage.setItem('tetrisVolume', masterVolume);
       updateSoundUI();
@@ -5021,7 +5089,7 @@
 
     if (isPaused && !['KeyP', 'Escape', 'KeyR'].includes(k)) return;
     
-    // 全面封殺瀏覽器原生 repeat！防止空白鍵雙重硬降與任何意外連發
+    // 全面封殺瀏覽器原生 repeat
     if (e.repeat) return;
 
     if (k === 'ArrowLeft') {
@@ -5034,7 +5102,6 @@
       keysDown.add(k); moveCooldown = 0; softDrop(true); return;
     }
 
-    // KO / 消行 / 暫停 / 已結束時，不接受遊戲操作鍵
     const gameplayKeys = [
       'ArrowLeft','ArrowRight','ArrowDown','ArrowUp',
       'Space','KeyA','KeyX','KeyZ','KeyC',
@@ -5057,7 +5124,6 @@
     // 遊戲流程控制 (開始、重啟)
     if (k === 'Enter' || k === 'NumpadEnter' || k === 'KeyR') {
       if (!isMultiplayer) { 
-        // 如果是中途活著按 R 重新開始，也要先把可能破紀錄的分數結算上傳！
         if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
            db.collection('users').doc(currentUserUID).set({
              username: currentPlayer,
@@ -5065,7 +5131,6 @@
              lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
            }, { merge: true });
         }
-
         if (!gameStarted || gameOver || k === 'KeyR') startCountdown();
       } else {
         if (gameOver) {
@@ -5086,32 +5151,60 @@
     else if (k === 'KeyP' || k === 'Escape') {
       if (!gameOver && (!isMultiplayer || isAIMode)) {
         if (!isPaused) {
-          // 進入暫停
           isPaused = true; 
-          // 防呆：如果玩家在 3、2、1 倒數到一半時因為太緊張又按了暫停，直接把倒數凍結！
           if (countdownInterval) clearInterval(countdownInterval);
           countdownValue = 0; 
         } else {
-          // 解除暫停，進入 3 秒倒數緩衝
           resumeCountdown();
         }
       }
     }
   });
 
-  // --- 鍵盤放開事件 ---
+  // --- 鍵盤鬆開事件 ---
   document.addEventListener('keyup', (e) => {
-    if (e.target.tagName === 'INPUT') return;
     const k = e.code;
+    keysDown.delete(k); // 確保每次鬆開按鍵都一定會清除紀錄
 
-    // KO 期間直接忽略，真正的清空交給 KO 復活邏輯統一處理
-    if (isKOed) return;
-
-    keysDown.delete(k);
-
-    if (k === 'ArrowDown') {
-      moveCooldown = 0;
+    if (k === 'ArrowLeft' && lastDirKey === -1) {
+      lastDirKey = null;
+      if (keysDown.has('ArrowRight')) {
+        lastDirKey = 1;
+        activeDir = 1;
+        dasTimer = 0;
+        arrTimer = 0;
+      } else {
+        activeDir = 0;
+      }
     }
+    if (k === 'ArrowRight' && lastDirKey === 1) {
+      lastDirKey = null;
+      if (keysDown.has('ArrowLeft')) {
+        lastDirKey = -1;
+        activeDir = -1;
+        dasTimer = 0;
+        arrTimer = 0;
+      } else {
+        activeDir = 0;
+      }
+    }
+  });
+
+  // 當瀏覽器視窗失去焦點 (例如按 Alt+Tab 或點擊其他視窗)
+  // 強制清除所有按鍵紀錄，防止回來時方塊還在向左或向右暴走
+  window.addEventListener('blur', () => {
+    keysDown.clear();
+    lastDirKey = null;
+    activeDir = 0;
+  });
+
+  // 自動取消反白：當玩家成功複製文字後，自動清除畫面上的反白選取狀態
+  // 徹底解決忘記取消反白導致遊戲中 Ctrl+C (Hold) 失效的隱患
+  document.addEventListener('copy', () => {
+    // 必須給予 50 毫秒的緩衝，確保作業系統已經先成功把文字複製進剪貼簿，才把反白擦掉
+    setTimeout(() => {
+      window.getSelection().removeAllRanges();
+    }, 50);
   });
 
   window.addEventListener('resize', fitLayout);
@@ -5259,7 +5352,7 @@
         else if (rank === 3) color = '#CD7F32';   
         
         listEl.innerHTML += `
-          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.05); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
             <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
             <span style="color: var(--S); font-weight: 900; font-size: 16px;">${data.highScore || 0}</span>
           </div>
@@ -5300,7 +5393,7 @@
         const { name: badgeName, color: badgeColor } = getRankInfo(lp);
 
         listEl.innerHTML += `
-          <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.3); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(255, 255, 255, 0.05); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="color: ${rankColor}; font-weight: bold; font-size: 16px;"><span style="font-size:12px; margin-right:4px; opacity:0.7;">#${rank}</span>${data.username}${fireIcon}</span>
               <span style="color: ${badgeColor}; font-weight: 900; text-shadow: 0 0 5px ${badgeColor}; font-size: 16px;">${badgeName} <span style="font-size:11px">(${lp})</span></span>
@@ -5348,7 +5441,7 @@
         else if (rank === 3) color = '#CD7F32';   
         
         listEl.innerHTML += `
-          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.05); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
             <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
             <span style="color: var(--I); font-weight: 900; text-shadow: 0 0 5px var(--I); font-size: 16px;">${data.aiProWins} 勝</span>
           </div>
@@ -5973,27 +6066,30 @@
     // --- 高幀數運算區 ---
     if (isHighFpsMode) {
       if (current) {
-        // 以 120Hz (約 8.33 毫秒) 為基準，自動適應所有螢幕更新率
         const targetFrameTime = 8.333; 
         
-        //  0.75，拔除果凍感，保留電競級的精準手感
-        const lerpX = 1 - Math.pow(1 - 0.75, visualDelta / targetFrameTime);
-        const lerpY = 1 - Math.pow(1 - 0.4, visualDelta / targetFrameTime);
-        const lerpGhost = 1 - Math.pow(1 - 0.6, visualDelta / targetFrameTime);
-
-        visualCol += (current.col - visualCol) * lerpX; 
-        visualRow += (current.row - visualRow) * lerpY; 
+        // 垂直下落 (Y軸)：保留平滑過渡。大腦會根據這個重力下落的滑順度，產生「高幀率」的錯覺。
+        const lerpY = 1 - Math.pow(1 - 0.45, visualDelta / targetFrameTime); 
         
-        const targetGhost = ghostRow();
-        visualGhostRow += (targetGhost - visualGhostRow) * lerpGhost;
+        // 為了防止硬降 (Hard Drop) 時方塊在半空中慢慢滑下去，如果差距過大(大於2格)，直接瞬間貼地
+        if (current.row - visualRow > 2) {
+            visualRow = current.row;
+        } else {
+            visualRow += (current.row - visualRow) * lerpY; 
+        }
+
+        // 左右移動 (X軸)：不能有任何動畫！強制跟隨物理邏輯座標，確保 100% 精準。
+        visualCol = current.col; 
+        
+        // 幽靈方塊：也必須瞬間切換，這是你瞄準的準星，不能有延遲。
+        visualGhostRow = ghostRow();
       }
       
-      // 消行時間計時也改用 120Hz (或任意螢幕更新率) 推進
       if (typeof clearFx !== 'undefined' && clearFx) {
         clearFx.visualElapsed += visualDelta;
       }
     } else {
-      // 關閉模式下：強制同步座標，不產生任何中間值
+      // 關閉模式下：強制同步所有座標
       if (current) {
         visualCol = current.col;
         visualRow = current.row;
