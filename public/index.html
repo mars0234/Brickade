@@ -416,8 +416,8 @@
   }
 
   .invite-toast.show-invite {
-    opacity: 1 !important;
-    transform: scale(1) !important;
+    opacity: 1;
+    transform: scale(1);
   }
 
   .invite-btns { display: flex; gap: 10px; width: 100%; }
@@ -1467,12 +1467,6 @@
             if (toast) toast.classList.add('hidden');
           }
 
-          // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 CONNECT
-          if (conn && conn.open && !isMultiplayer) {
-            showToast("⚠️ 已經發出邀請，請等待對方回應！");
-            return;
-          }
-
           const targetName = currentOppInput.value.trim();
           if (!targetName) return;
           
@@ -2083,7 +2077,7 @@
     }
 
     connection.on('data', (data) => {
-      lastHeartbeat = Date.now(); 
+      lastHeartbeat = Date.now();
 
       if (data.type === 'INVITE') {
         if (data.version !== GAME_VERSION) {
@@ -2112,20 +2106,19 @@
 
         const toast = document.getElementById('invite-toast');
         if (toast) {
-           // 1. 先強制把框框藏起來，並且拔掉顯示狀態
-           toast.classList.add('hidden');
-           toast.classList.remove('show-invite');
-           
-           // 2. 給瀏覽器 50 毫秒的喘息時間，讓它「徹底判定元素已消失」
-           setTimeout(() => {
-               toast.classList.remove('hidden');
-               void toast.offsetWidth; // 強制重繪
-               toast.classList.add('show-invite'); // 再次滑順彈出！
-               playSound('perfect'); // 🌟 把音效移到這裡，確保跟著動畫一起出來
-           }, 50);
-        } else {
-           playSound('perfect');
+           toast.classList.remove('hidden');
+           toast.classList.add('show-invite');
+           toast.getAnimations().forEach(a => a.cancel());
+           toast.animate(
+             [
+               { opacity: 0, transform: 'scale(0.8)' },
+               { opacity: 1, transform: 'scale(1.05)', offset: 0.7 },
+               { opacity: 1, transform: 'scale(1)' }
+             ],
+             { duration: 300, easing: 'cubic-bezier(0.175,0.885,0.32,1.275)', fill: 'forwards' }
+           );
         }
+        playSound('perfect');
       }
       else if (data.type === 'INVITE_ACCEPT') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
