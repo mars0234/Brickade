@@ -1393,9 +1393,7 @@
         if (uid && currentPlayer) {
           db.collection('users').doc(uid).set({
             currentPeerId: id
-          }, { merge: true }).then(() => {
-            setupPresence(uid, currentPlayer);
-          }).catch(err => console.log("更新門牌失敗:", err));
+          }, { merge: true }).catch(err => console.log("更新門牌失敗:", err));
         }
       });
 
@@ -1444,7 +1442,7 @@
           }
 
           // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 CONNECT
-          if (conn && !isMultiplayer) {
+          if (conn && conn.open && !isMultiplayer) {
             showToast("⚠️ 已經發出邀請，請等待對方回應！");
             return;
           }
@@ -1472,9 +1470,17 @@
                 const connection = peer.connect(targetName);
                 setupConnection(connection, true);
                 
-                // 連線開啟後，主動發送邀請封包
                 connection.on('open', () => {
                   connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
+                  
+                  // 第一個超時清理機制
+                  connection.inviteTimeout = setTimeout(() => {
+                    if (!isMultiplayer && conn === connection) {
+                      showToast("⚠️ 邀請超時，對方未回應");
+                      connection.close();
+                      conn = null;
+                    }
+                  }, 10000);
                 });
               } else {
                 connStatus.textContent = 'Status: Player not found';
@@ -1493,9 +1499,17 @@
               const connection = peer.connect(targetPeerId);
               setupConnection(connection, true);
               
-              // 連線開啟後，主動發送邀請封包
               connection.on('open', () => {
                 connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
+                
+                // 第二個超時清理機制
+                connection.inviteTimeout = setTimeout(() => {
+                  if (!isMultiplayer && conn === connection) {
+                    showToast("⚠️ 邀請超時，對方未回應");
+                    connection.close();
+                    conn = null;
+                  }
+                }, 10000);
               });
             }
           } catch (error) {
@@ -2185,12 +2199,27 @@
     });
 
     connection.on('close', () => {
-      // 確保只有現任斷線才觸發退出，等待區的斷線默默清掉就好
+      // 確保連線關閉時，清空對應的狀態變數
       if (isMultiplayer && conn === connection) {
         exitMultiplayerMode();
       }
-      if (conn === connection) conn = null;
+      
+      // 無論如何，只要這條連線斷了，就釋放佔位
+      if (conn === connection) {
+        conn = null;
+        // 恢復 UI 提示
+        if (connStatus) {
+           connStatus.textContent = 'Status: Standby';
+           connStatus.style.color = 'rgba(255,255,255,0.5)';
+        }
+      }
       if (pendingConn === connection) pendingConn = null;
+    });
+
+    // 監聽錯誤事件，發生錯誤也要清空 conn
+    connection.on('error', (err) => {
+      console.log("連線發生錯誤:", err);
+      if (conn === connection) conn = null;
     });
   }
 
@@ -5429,8 +5458,17 @@
     }
   }
 
+  // --- 用來管理連線狀態的監聽器 ---
+  let presenceRef = null;
+  let presenceCallback = null;
+
   // 處理個別玩家上下線的機制
   function setupPresence(uid, username) {
+    // 如果之前有掛載過別的帳號的監聽器，先徹底解綁，防止「幽靈連線」卡死
+    if (presenceRef && presenceCallback) {
+       presenceRef.off('value', presenceCallback);
+    }
+
     const userStatusDatabaseRef = rtdb.ref('/status/' + uid);
     const isOfflineForDatabase = {
       state: 'offline',
@@ -5443,13 +5481,16 @@
       last_changed: firebase.database.ServerValue.TIMESTAMP,
     };
 
-    rtdb.ref('.info/connected').on('value', function(snapshot) {
+    // 重新綁定乾淨的監聽器
+    presenceRef = rtdb.ref('.info/connected');
+    presenceCallback = presenceRef.on('value', function(snapshot) {
       if (snapshot.val() === false) return;
       userStatusDatabaseRef.onDisconnect().set(isOfflineForDatabase).then(function() {
         userStatusDatabaseRef.set(isOnlineForDatabase);
       });
     });
   }
+
   // 監聽所有人狀態並更新畫面的機制
   function listenToOnlineUsers() {
     const listEl = document.getElementById('online-users-list');
@@ -5565,7 +5606,7 @@
       }
 
       // 防呆：如果「我已經發出邀請」還在等對方回應，不准再按 INVITE
-      if (conn && !isMultiplayer) {
+      if (conn && conn.open && !isMultiplayer) {
         showToast("⚠️ 已經發出邀請，請等待對方回應！");
         return;
       }
@@ -5773,6 +5814,9 @@
         }, { merge: true });
       }
       
+      // 只要登入資料一載入完成，立刻向全伺服器亮起綠燈，不被後續的網路延遲阻擋
+      setupPresence(uid, currentPlayer);
+
       isCloudDataLoaded = true; // 雲端資料抓取成功，解鎖上傳權限
       updateHUD(); 
       
