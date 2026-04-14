@@ -544,6 +544,19 @@
     <button id="close-changelog-btn" style="width: 100%; padding: 10px; background: var(--I); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
   </div>
 
+  <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 92%; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px;">
+    <h2 style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px;">📜 對戰紀錄</h2>
+    <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85);"></div>
+    <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center;">
+      <button class="history-tab" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
+      <button class="history-tab" data-filter="WIN" style="flex:1; padding:6px 0; background:transparent; color:var(--S); font-weight:900; border:2px solid var(--S); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">勝</button>
+      <button class="history-tab" data-filter="LOSE" style="flex:1; padding:6px 0; background:transparent; color:var(--Z); font-weight:900; border:2px solid var(--Z); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">負</button>
+    </div>
+    <div id="history-content" style="max-height: 440px; overflow-y: auto; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
+    </div>
+    <button id="close-history-btn" style="width: 100%; padding: 10px; background: var(--O); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
+  </div>
+
   <div id="system-toast"></div>
 
   <div id="settings-container" style="position: absolute; right: 20px; top: 20px; z-index: 101; display: flex; flex-direction: column; gap: 10px;">
@@ -642,17 +655,24 @@
               <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Welcome back,</div>
               <div id="display-username" style="font-size: 20px; font-weight: 900; color: var(--T); margin: 5px 0 10px 0;">---</div>
 
+              <button id="match-history-btn" style="width:100%; background: transparent; color: var(--O); border: 2px solid var(--O); font-weight: 900; padding: 6px; cursor: pointer; font-size: 12px; margin-bottom: 10px; letter-spacing: 1px; border-radius: 4px;">📜 對戰紀錄</button>
+
               <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.25); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span>RANK:</span>
                   <span id="display-rank" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5);">銅牌 <span style="font-size:12px">(0 LP)</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                  <span>MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
-                  <span>WIN RATE: <span id="display-winrate" style="color: var(--S); font-weight: bold;">0%</span></span>
+                  <span title="總對戰場次">MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
+                  <span title="勝率 = 勝場 ÷ 總場次">WIN RATE: <span id="display-winrate" style="color: var(--S); font-weight: bold;">0%</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                  <span>STREAK: <span id="display-streak" style="color: var(--T); font-weight: bold;">0 W</span></span>
+                  <span title="Attack Per Minute（平均每分鐘送出的攻擊行數）">AVG APM: <span id="display-avg-apm" style="color: var(--T); font-weight: bold;">0</span></span>
+                  <span title="Pieces Per Second（平均每秒放下的方塊數）">AVG PPS: <span id="display-avg-pps" style="color: var(--L); font-weight: bold;">0.00</span></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span title="生涯最高連擊（單局中連續消行的最大次數）">MAX COMBO: <span id="display-max-combo" style="color: var(--J); font-weight: bold;">0</span></span>
+                  <span title="累積擊倒對手次數（把對手 Top Out 一次算一次）">TOTAL KO: <span id="display-total-ko" style="color: var(--Z); font-weight: bold;">0</span></span>
                 </div>
               </div>
 
@@ -1003,6 +1023,10 @@
   let lastKickIndex = 0;   // 紀錄最後使用了第幾個踢牆測試 (0~4)
   let b2b = 0;
   let combo = -1;             // Back-to-Back 狀態
+  let maxCombo = 0;           // 對戰紀錄用：本局最高 combo
+  let piecesPlaced = 0;       // 對戰紀錄用：本局放下的方塊總數 (算 PPM/APM)
+  let matchStartTime = 0;     // 對戰紀錄用：本局開始時間戳 (ms)
+  let matchEndReason = null;  // 對戰紀錄用：'TIMEOUT' | 'KO' | 'SURRENDER' | 'HEIGHT'
   const actionMsgEl = document.getElementById('action-msg');
   let msgTimeout = null;
   // --- 聯覺 (Synesthesia) 視覺與聽覺系統 ---
@@ -1419,6 +1443,7 @@
       type: 'PROFILE',
       profile: {
         name: currentPlayer || 'Guest',
+        uid: currentUserUID || null,   // 對戰紀錄用：對手 UID
         lp: myLP || 0,
         matches: matchesEl ? matchesEl.textContent : '0',
         winRate: winRateEl ? winRateEl.textContent : '0%',
@@ -1652,7 +1677,8 @@
     }
 
     // LP 加減分、勝場數增加、播放音效、以及把按鈕變回 READY
-    endBattleMatch(isOpponent ? 'WIN' : 'LOSE'); 
+    matchEndReason = 'SURRENDER';
+    endBattleMatch(isOpponent ? 'WIN' : 'LOSE');
 
     // 更新連線狀態文字，確保 UI 完美重置
     const connStatus = document.getElementById('conn-status');
@@ -1838,6 +1864,8 @@
     // 重置對戰數據
     myKOs = 0; oppKOs = 0; myLinesSent = 0; oppLinesSent = 0;
     matchResult = null; // 重置上一局的勝負結果，防止復活卡死
+    maxCombo = 0; piecesPlaced = 0; matchEndReason = null;
+    matchStartTime = Date.now();
     const myKoEl = document.getElementById('my-ko-display');
     const oppKoEl = document.getElementById('opp-ko-display');
     const myLinesEl = document.getElementById('my-lines-sent-display');
@@ -1887,7 +1915,8 @@
               
               if (battleTime <= 0) {
                 clearInterval(timerInterval);
-                endBattleMatch(); 
+                matchEndReason = 'TIMEOUT';
+                endBattleMatch();
               }
             }
           }, 1000);
@@ -2320,7 +2349,10 @@
         } else if (data.type === 'SURRENDER') {
            if (!gameOver) handleSurrender(true);
         } else if (data.type === 'STATE') {
-           oppState = data.state; renderOpponentPanels();
+           // 把 STATE merge 進 oppState，而不是整個覆蓋，否則會把 PROFILE 帶來的 name/uid 蓋掉
+           if (!oppState) oppState = {};
+           Object.assign(oppState, data.state);
+           renderOpponentPanels();
         } else if (data.type === 'ATTACK') {
            if (!gameOver) {
              oppLinesSent += data.lines;
@@ -2341,7 +2373,7 @@
            if (!gameOver) {
              oppFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
              showToast("🎉 對手被方塊淹沒了！");
-             setTimeout(() => { if (!gameOver) endBattleMatch('WIN'); }, 1000);
+             setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('WIN'); } }, 1000);
            }
         } else if (data.type === 'OPPONENT_DISCONNECTED') {
            // 收到後，系統會跳出警告並立刻讓他退出對戰模式，回到單人畫面
@@ -2367,6 +2399,8 @@
            if (!oppState) oppState = {};
            oppState.lp = p.lp || 0;
            oppState.isGuest = p.name === 'Guest';
+           oppState.name = p.name || 'OPPONENT';
+           oppState.uid = p.uid || null;
         } else if (data.type === 'EMOJI') {
            // 恢復對戰中噴表情符號的功能
            myFloatingTexts.push(new FloatingText(data.emoji, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ffffff', 55));
@@ -2825,7 +2859,7 @@
         showMsg("TOP OUT!");
         myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
         playSound('lose'); 
-        setTimeout(() => { if (!gameOver) endBattleMatch('LOSE'); }, 1200);
+        setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('LOSE'); } }, 1200);
         return; 
       }
 
@@ -2972,6 +3006,7 @@
       if (isValidMatch) {
         let lpChange = 0;
         let lpDiff = oppLP - myLP;
+        const preMyLP = myLP; // 保留對戰前的 LP 給戰紀使用
 
         if (matchResult === 'WIN') {
           lpChange = 20; // 基礎獲勝分數
@@ -3000,11 +3035,92 @@
 
         myLP = Math.max(0, myLP + lpChange);
 
-        // 5. 將數據寫入 Firebase
+        // 寫入對戰紀錄 (match history) 子集合
+        try {
+          const oppName = (oppState && oppState.name) ? oppState.name : 'OPPONENT';
+          const oppUid = (oppState && oppState.uid) ? oppState.uid : null;
+          // 對戰時長 (秒)：扣掉 3 秒倒數時間
+          const rawSec = Math.round((Date.now() - (matchStartTime || Date.now())) / 1000) - 3;
+          const durationSec = Math.max(1, rawSec);
+          const durationMin = durationSec / 60;
+          const myAPM = Math.round(myLinesSent / durationMin);
+          const myPPS = +(piecesPlaced / durationSec).toFixed(2);
+          // 對手統計（從最後一次 STATE 封包讀取）
+          const oppLinesCleared = (oppState && typeof oppState.ln === 'number') ? oppState.ln : 0;
+          const oppMaxCombo = (oppState && typeof oppState.mc === 'number') ? oppState.mc : 0;
+          const oppPiecesPlaced = (oppState && typeof oppState.pp === 'number') ? oppState.pp : 0;
+          const oppAPM = Math.round(oppLinesSent / durationMin);
+          const oppPPS = +(oppPiecesPlaced / durationSec).toFixed(2);
+          // 結束原因：優先用顯式設定的，否則根據狀況推斷
+          let reason = matchEndReason;
+          if (!reason) {
+            if (forcedResult && battleTime > 0) reason = 'KO';
+            else reason = 'TIMEOUT';
+          }
+          const historyEntry = {
+            ts: firebase.firestore.FieldValue.serverTimestamp(),
+            result: matchResult,            // WIN / LOSE / DRAW
+            reason: reason,                 // TIMEOUT / KO / SURRENDER
+            opponent: oppName,
+            opponentUid: oppUid,
+            myLP: preMyLP,                  // 對戰前我方 LP
+            oppLP: oppLP,                   // 對戰前對方 LP
+            myRank: getRankInfo(preMyLP).name,
+            oppRank: getRankInfo(oppLP).name,
+            lpChange: lpChange,
+            myScore: score,
+            oppScore: oppScore,
+            myLines: lines,                 // 本局我方總消行數
+            oppLines: oppLinesCleared,      // 本局對方總消行數
+            myLinesSent: myLinesSent,       // 本局我方送出的攻擊行數
+            oppLinesSent: oppLinesSent,     // 本局對方送出的攻擊行數
+            myKOs: myKOs,
+            oppKOs: oppKOs,
+            myMaxCombo: maxCombo,
+            oppMaxCombo: oppMaxCombo,
+            myApm: myAPM,
+            oppApm: oppAPM,
+            myPps: myPPS,
+            oppPps: oppPPS,
+            // 舊欄位保留相容
+            maxCombo: maxCombo,
+            apm: myAPM,
+            pps: myPPS,
+            durationSec: durationSec
+          };
+          db.collection('users').doc(currentUserUID)
+            .collection('matchHistory').add(historyEntry)
+            .then(() => {
+              // 自動修剪：保留最新 50 筆，舊的刪掉 (Firestore JS SDK 沒有 offset，先拉 200 筆再切片)
+              db.collection('users').doc(currentUserUID)
+                .collection('matchHistory')
+                .orderBy('ts', 'desc')
+                .limit(200)
+                .get()
+                .then(snap => {
+                  if (snap.size <= 50) return;
+                  const extras = snap.docs.slice(50);
+                  const batch = db.batch();
+                  extras.forEach(d => batch.delete(d.ref));
+                  batch.commit().catch(err => console.error('修剪舊紀錄失敗:', err));
+                })
+                .catch(err => console.warn('查詢舊紀錄失敗:', err));
+            })
+            .catch(err => console.error('對戰紀錄寫入失敗:', err));
+        } catch (e) { console.error('對戰紀錄建立失敗:', e); }
+
+        // 5. 將數據寫入 Firebase (含生涯累計)
+        const durForCareer = Math.max(1, Math.round((Date.now() - (matchStartTime || Date.now())) / 1000) - 3);
         let updateData = {
           matches: firebase.firestore.FieldValue.increment(1),
           lp: myLP,
-          winStreak: myWinStreak
+          winStreak: myWinStreak,
+          // 生涯累計 (給 PLAYER 面板計算平均)
+          careerLinesSent: firebase.firestore.FieldValue.increment(myLinesSent),
+          careerLines: firebase.firestore.FieldValue.increment(lines),
+          careerKOs: firebase.firestore.FieldValue.increment(myKOs),
+          careerPieces: firebase.firestore.FieldValue.increment(piecesPlaced),
+          careerDurationSec: firebase.firestore.FieldValue.increment(durForCareer)
         };
         if (matchResult === 'WIN') {
           updateData.wins = firebase.firestore.FieldValue.increment(1);
@@ -3023,8 +3139,15 @@
               
               document.getElementById('display-matches').textContent = m;
               document.getElementById('display-winrate').textContent = wr + '%';
-              document.getElementById('display-streak').textContent = currentStreak + ' W';
               updateRankUI(data.lp || 0);
+              updateCareerStatsUI(data);
+
+              // 若本局 maxCombo 高於生涯最高，補一筆更新
+              if ((maxCombo || 0) > (data.careerMaxCombo || 0)) {
+                db.collection('users').doc(currentUserUID)
+                  .set({ careerMaxCombo: maxCombo }, { merge: true })
+                  .catch(err => console.error('更新 careerMaxCombo 失敗:', err));
+              }
 
               // 更新名字旁邊的連勝火焰
               const fireIcon = currentStreak >= 3 ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
@@ -3037,6 +3160,20 @@
         });
       } else {
         console.log("此對局未達有效對戰門檻，不計入排位積分。");
+        // 只在真正「有可能被誤會成排位對戰」的情境提示玩家，避免 AI / 訪客 / 管理員也跳提示
+        if (!isAIMode && currentPlayer !== 'Admin_Mars' && !oppIsGuest && isMultiplayer) {
+          // 組出具體原因，讓玩家知道為什麼沒列入
+          const reasons = [];
+          if (battleTime > 0 && !forcedResult) reasons.push('• 時間未耗盡 (需打滿或投降)');
+          if (score < 1000) reasons.push('• 你的分數未達 1000');
+          if ((oppState && oppState.s ? oppState.s : 0) < 1000) reasons.push('• 對手分數未達 1000');
+          if (!currentUserUID) reasons.push('• 你尚未登入');
+          const reasonText = reasons.length ? reasons.join('\n') : '• 雙方條件不足';
+          // 延遲一點點彈出，讓勝負動畫先播完不會被 alert 卡住
+          setTimeout(() => {
+            alert('⚠️ 本局未列入排位積分 (LP) 計算\n\n' + reasonText + '\n\n✨ 提示：雙方都需要達到 1000 分且時間耗盡 (或有一方投降)，才會計入段位與對戰紀錄。');
+          }, 1500);
+        }
       }
 
       // 停止所有方塊動作並同步最終狀態給對手
@@ -4516,6 +4653,7 @@
         showMsg("OPPONENT TOPPED OUT!");
         oppFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
         playSound('perfect');
+        matchEndReason = 'KO';
         endBattleMatch('WIN');
       } else {
         // 有垃圾，進入 KO 復活流程
@@ -4680,6 +4818,7 @@
 
     if (linesCleared > 0) combo++;
     else combo = -1;
+    if (combo > maxCombo) maxCombo = combo;
 
     if (linesCleared > 0) {
       lines += linesCleared;
@@ -4690,15 +4829,18 @@
     if (tSpinType) {
       difficult = true;
       if (tSpinType === 'Full') {
-        base = [100, 500, 800, 1200][linesCleared] || 0;
+        // 對齊 Tetris Battle 官方: T-Spin=400 / TSS=800 / TSD=1200 / TST=1600
+        base = [400, 800, 1200, 1600][linesCleared] || 0;
         attack = [0, 2, 4, 6][linesCleared] || 0;
         msg = linesCleared ? `T-Spin ${['','Single','Double','Triple'][linesCleared]}` : 'T-Spin';
       } else { // Mini
-        base = [100, 300, 400, 0][linesCleared] || 0;
+        // 對齊 Tetris Battle 官方: Mini=100 / Mini Single=200 / Mini Double=400
+        base = [100, 200, 400, 0][linesCleared] || 0;
         attack = [0, 1, 0, 0][linesCleared] || 0;
         msg = linesCleared ? `Mini T-Spin ${['','Single','Double'][linesCleared]}` : 'Mini T-Spin';
       }
     } else {
+      // Tetris Battle 官方: Single=100 / Double=300 / Triple=500 / Tetris=800
       base = [0, 100, 300, 500, 800][linesCleared] || 0;
       attack = [0, 0, 1, 2, 4][linesCleared] || 0;
       if (linesCleared === 4) {
@@ -4807,6 +4949,8 @@
 
   // --- 鎖定函數 (判定引爆、T轉與天花板死亡) ---
   function lockPiece() {
+    // 對戰紀錄：計算 PPS/APM 用
+    if (current && gameStarted && !gameOver) piecesPlaced++;
     // 只記錄這顆方塊佔據的「精準網格座標」
     if (current && gameStarted && !gameOver) {
       let cells = [];
@@ -5136,6 +5280,9 @@
           ng: nextGarbage,
           k: myKOs,
           ls: myLinesSent,
+          ln: lines,                // 對戰紀錄用：本局消的總行數
+          mc: maxCombo,             // 對戰紀錄用：本局最高 combo
+          pp: piecesPlaced,         // 對戰紀錄用：本局放下的方塊數
           lp: myLP || 0,
           isGuest: !currentUserUID,
           c: current ? { t: current.type, r: current.row, c: current.col, rot: current.rot } : null,
@@ -6329,8 +6476,8 @@
       // 更新側邊欄 UI
       document.getElementById('display-matches').textContent = matches;
       document.getElementById('display-winrate').textContent = winRate + '%';
-      document.getElementById('display-streak').textContent = myWinStreak + ' W';
       updateRankUI(myLP);
+      updateCareerStatsUI(data);
 
       // 判斷「剛註冊的新帳號」的標準改為「缺少核心戰績欄位」
       if (data.lp === undefined || data.highScore === undefined || !data.username) {
@@ -6367,6 +6514,25 @@
     if (lp >= 400)  return { name: '金牌', color: '#FFD700' };
     if (lp >= 200)  return { name: '銀牌', color: '#C0C0C0' };
     return { name: '銅牌', color: '#CD7F32' };
+  }
+
+  // 根據 user doc 更新生涯平均統計 UI (放在 PLAYER 面板)
+  function updateCareerStatsUI(data) {
+    if (!data) return;
+    const dur = data.careerDurationSec || 0;
+    const durMin = dur > 0 ? dur / 60 : 0;
+    const avgApm = durMin > 0 ? Math.round((data.careerLinesSent || 0) / durMin) : 0;
+    const avgPps = dur > 0 ? +((data.careerPieces || 0) / dur).toFixed(2) : 0;
+    const maxC = data.careerMaxCombo || 0;
+    const totalKO = data.careerKOs || 0;
+    const elApm = document.getElementById('display-avg-apm');
+    const elPps = document.getElementById('display-avg-pps');
+    const elMc = document.getElementById('display-max-combo');
+    const elKo = document.getElementById('display-total-ko');
+    if (elApm) elApm.textContent = avgApm;
+    if (elPps) elPps.textContent = avgPps.toFixed(2);
+    if (elMc) elMc.textContent = maxC;
+    if (elKo) elKo.textContent = totalKO;
   }
 
   // 根據 LP 更新段位 UI 與顏色的輔助函數
@@ -6810,6 +6976,236 @@
     closeChangelogBtn.addEventListener('click', () => {
       changelogModal.classList.add('hidden');
       playSound('move');
+    });
+  }
+
+  // --- 對戰紀錄 (Match History) Modal ---
+  const historyModal = document.getElementById('history-modal');
+  const historyBtn = document.getElementById('match-history-btn');
+  const closeHistoryBtn = document.getElementById('close-history-btn');
+  const historyContent = document.getElementById('history-content');
+  const historySummary = document.getElementById('history-summary');
+  const historyFilterTabs = document.getElementById('history-filter-tabs');
+
+  let historyDocsCache = [];      // 記住全部紀錄，切換 tab 時不用重新抓
+  let historyFilter = 'ALL';
+
+  function formatHistoryTime(ts) {
+    if (!ts) return '—';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // 結束原因 -> 顯示文字與顏色
+  function reasonBadge(reason, result) {
+    if (reason === 'SURRENDER') {
+      const isMySurrender = result === 'LOSE';
+      return `<span style="color:rgba(255,255,255,0.55); font-size:10px; margin-left:6px; border:1px solid rgba(255,255,255,0.25); padding:1px 5px; border-radius:3px;">${isMySurrender ? '投降' : '對手投降'}</span>`;
+    }
+    if (reason === 'KO') return '<span style="color:#ff6b6b; font-size:10px; margin-left:6px; border:1px solid #ff6b6b; padding:1px 5px; border-radius:3px;">KO</span>';
+    if (reason === 'TIMEOUT') return '<span style="color:rgba(255,255,255,0.55); font-size:10px; margin-left:6px; border:1px solid rgba(255,255,255,0.25); padding:1px 5px; border-radius:3px;">時間到</span>';
+    return '';
+  }
+
+  function renderHistoryList() {
+    const docs = historyDocsCache.filter(d => {
+      if (historyFilter === 'ALL') return true;
+      return d.data().result === historyFilter;
+    });
+
+    if (!docs || docs.length === 0) {
+      historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">這個分類裡還沒有任何紀錄。</div>';
+      historySummary.innerHTML = '';
+      return;
+    }
+
+    let winCount = 0, loseCount = 0, drawCount = 0, lpSum = 0;
+    historyDocsCache.forEach(d => {
+      const m = d.data();
+      if (m.result === 'WIN') winCount++;
+      else if (m.result === 'LOSE') loseCount++;
+      else drawCount++;
+      lpSum += (m.lpChange || 0);
+    });
+    const lpSumColor = lpSum > 0 ? 'var(--S)' : (lpSum < 0 ? 'var(--Z)' : 'var(--white)');
+    const lpSumText = (lpSum > 0 ? '+' : '') + lpSum;
+    historySummary.innerHTML = `
+      <span>近 <span style="color:var(--O);">${historyDocsCache.length}</span> 場</span>
+      <span style="color:var(--S);">勝 ${winCount}</span>
+      <span style="color:var(--Z);">負 ${loseCount}</span>
+      <span style="color:rgba(255,255,255,0.7);">平 ${drawCount}</span>
+      <span>LP: <span style="color:${lpSumColor}; font-weight:900;">${lpSumText}</span></span>
+    `;
+
+    historyContent.innerHTML = '';
+    docs.forEach(doc => {
+      const m = doc.data();
+      const isWin = m.result === 'WIN';
+      const isLose = m.result === 'LOSE';
+
+      const bgColor = isWin ? 'rgba(0,255,150,0.12)' : (isLose ? 'rgba(255,13,98,0.15)' : 'rgba(255,255,255,0.08)');
+      const borderColor = isWin ? 'var(--S)' : (isLose ? 'var(--Z)' : 'rgba(255,255,255,0.4)');
+      const tagColor = isWin ? 'var(--S)' : (isLose ? 'var(--Z)' : 'var(--white)');
+      const tagText = isWin ? 'WIN' : (isLose ? 'LOSE' : 'DRAW');
+
+      const lpChange = m.lpChange || 0;
+      const lpColor = lpChange > 0 ? 'var(--S)' : (lpChange < 0 ? 'var(--Z)' : 'var(--white)');
+      const lpText = (lpChange > 0 ? '+' : '') + lpChange + ' LP';
+
+      const myRankColor = getRankInfo(m.myLP || 0).color;
+      const oppRankColor = getRankInfo(m.oppLP || 0).color;
+      const badge = reasonBadge(m.reason || (m.surrender ? 'SURRENDER' : 'TIMEOUT'), m.result);
+
+      const dur = m.durationSec || 0;
+      const durText = dur > 0 ? `${Math.floor(dur/60)}:${String(dur%60).padStart(2,'0')}` : '—';
+
+      // 相容新舊欄位：舊紀錄只有 maxCombo/apm/pps (自己的)
+      const myMaxC = (m.myMaxCombo !== undefined) ? m.myMaxCombo : (m.maxCombo || 0);
+      const myApm = (m.myApm !== undefined) ? m.myApm : (m.apm || 0);
+      const myPps = (m.myPps !== undefined) ? m.myPps : (m.pps || 0);
+      const oppLinesCleared = m.oppLines || 0;
+      const oppLinesSent = m.oppLinesSent || 0;
+      const oppMaxC = m.oppMaxCombo || 0;
+      const oppApm = m.oppApm || 0;
+      const oppPps = m.oppPps || 0;
+
+      // 高亮優勢方
+      const hi = (a, b) => a > b ? 'color:var(--S);' : (a < b ? 'color:var(--Z);' : 'color:var(--white);');
+
+      const statTable = `
+        <div style="margin-top:8px; font-size:10px; background:rgba(0,0,0,0.3); padding:6px 8px; border-radius:4px;">
+          <div style="display:grid; grid-template-columns: 32px repeat(6, 1fr) 44px; gap:4px; align-items:center;">
+            <div style="color:rgba(255,255,255,0.5); font-weight:bold; text-align:left;"></div>
+            <div title="本局自己盤面消掉的總行數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">消行</div>
+            <div title="本局送給對手的垃圾行數（攻擊表計算，例如 Tetris=4 行、T-Spin Double=4 行）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">攻擊</div>
+            <div title="本局擊倒對手次數（把對手 Top Out 一次算一次）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">KO</div>
+            <div title="Max Combo：本局最高連擊數（連續消行的最大次數）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">MAX C</div>
+            <div title="Attack Per Minute：平均每分鐘送出的攻擊行數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">APM</div>
+            <div title="Pieces Per Second：平均每秒放下的方塊數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">PPS</div>
+            <div title="本局持續時間（不含開場 3-2-1 倒數）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">⏱</div>
+
+            <div style="color:var(--T); font-weight:900;">我</div>
+            <div style="text-align:center; font-weight:bold; ${hi(m.myLines||0, oppLinesCleared)}">${m.myLines || 0}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(m.myLinesSent||0, oppLinesSent)}">${m.myLinesSent || 0}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(m.myKOs||0, m.oppKOs||0)}">${m.myKOs || 0}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(myMaxC, oppMaxC)}">${myMaxC}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(myApm, oppApm)}">${myApm}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(myPps, oppPps)}">${myPps}</div>
+            <div style="text-align:center; color:rgba(255,255,255,0.75);" rowspan="2">${durText}</div>
+
+            <div style="color:var(--Z); font-weight:900;">對手</div>
+            <div style="text-align:center; font-weight:bold; ${hi(oppLinesCleared, m.myLines||0)}">${oppLinesCleared}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(oppLinesSent, m.myLinesSent||0)}">${oppLinesSent}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(m.oppKOs||0, m.myKOs||0)}">${m.oppKOs || 0}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(oppMaxC, myMaxC)}">${oppMaxC}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(oppApm, myApm)}">${oppApm}</div>
+            <div style="text-align:center; font-weight:bold; ${hi(oppPps, myPps)}">${oppPps}</div>
+            <div></div>
+          </div>
+        </div>
+      `;
+
+      const oppName = m.opponent || 'Unknown';
+
+      const html = `
+        <div style="background:${bgColor}; border-left:5px solid ${borderColor}; border-radius:6px; padding:10px 12px; font-size:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div>
+              <span style="color:${tagColor}; font-weight:900; font-size:15px; letter-spacing:1px;">${tagText}</span>
+              ${badge}
+              <span style="color:${lpColor}; font-weight:900; margin-left:10px;">${lpText}</span>
+            </div>
+            <div style="color:rgba(255,255,255,0.6); font-size:11px;">${formatHistoryTime(m.ts)}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; gap:10px;">
+            <div style="flex:1; text-align:center; background:rgba(0,0,0,0.25); padding:6px; border-radius:4px;">
+              <div style="color:var(--T); font-weight:900; font-size:13px;">${currentPlayer || '我'}</div>
+              <div style="color:${myRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${m.myRank || '—'} (${m.myLP || 0} LP)</div>
+              <div style="color:var(--white); font-weight:900; font-size:14px; margin-top:3px;">${(m.myScore || 0).toLocaleString()}</div>
+            </div>
+            <div style="align-self:center; color:rgba(255,255,255,0.5); font-weight:900;">VS</div>
+            <div style="flex:1; text-align:center; background:rgba(0,0,0,0.25); padding:6px; border-radius:4px;">
+              <div style="color:var(--Z); font-weight:900; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${oppName}</div>
+              <div style="color:${oppRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${m.oppRank || '—'} (${m.oppLP || 0} LP)</div>
+              <div style="color:var(--white); font-weight:900; font-size:14px; margin-top:3px;">${(m.oppScore || 0).toLocaleString()}</div>
+            </div>
+          </div>
+          ${statTable}
+        </div>
+      `;
+      historyContent.innerHTML += html;
+    });
+  }
+
+  function setHistoryFilter(f) {
+    historyFilter = f;
+    if (!historyFilterTabs) return;
+    historyFilterTabs.querySelectorAll('.history-tab').forEach(btn => {
+      const isActive = btn.dataset.filter === f;
+      if (isActive) {
+        if (f === 'WIN') { btn.style.background = 'var(--S)'; btn.style.color = 'var(--bg)'; }
+        else if (f === 'LOSE') { btn.style.background = 'var(--Z)'; btn.style.color = 'var(--white)'; }
+        else { btn.style.background = 'var(--O)'; btn.style.color = 'var(--bg)'; }
+      } else {
+        btn.style.background = 'transparent';
+        if (btn.dataset.filter === 'WIN') btn.style.color = 'var(--S)';
+        else if (btn.dataset.filter === 'LOSE') btn.style.color = 'var(--Z)';
+        else btn.style.color = 'var(--O)';
+      }
+    });
+    renderHistoryList();
+  }
+
+  if (historyFilterTabs) {
+    historyFilterTabs.querySelectorAll('.history-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        playSound('move');
+        setHistoryFilter(btn.dataset.filter);
+      });
+    });
+  }
+
+  function openHistoryModal() {
+    if (!currentUserUID) {
+      showToast('請先登入才能查看對戰紀錄！', 2500);
+      return;
+    }
+    historyModal.classList.remove('hidden');
+    historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">讀取中...</div>';
+    historySummary.innerHTML = '';
+    playSound('move');
+
+    db.collection('users').doc(currentUserUID)
+      .collection('matchHistory')
+      .orderBy('ts', 'desc')
+      .limit(50)
+      .get()
+      .then(snap => {
+        historyDocsCache = snap.docs;
+        setHistoryFilter('ALL');
+      })
+      .catch(err => {
+        console.error('讀取對戰紀錄失敗:', err);
+        const msg = (err && err.message) ? err.message : String(err);
+        const code = (err && err.code) ? err.code : '';
+        historyContent.innerHTML = `<div style="text-align:left; color:var(--Z); padding:20px; font-size:12px; line-height:1.6;"><div style="font-weight:900; margin-bottom:8px;">讀取失敗</div><div style="color:rgba(255,255,255,0.8); word-break:break-all;">${code ? '[' + code + '] ' : ''}${msg}</div><div style="color:rgba(255,255,255,0.55); margin-top:8px; font-size:11px;">如果是 permission-denied，請到 Firebase Console 更新 Firestore 規則，允許讀寫 users/{uid}/matchHistory 子集合。</div></div>`;
+      });
+  }
+
+  if (historyBtn && historyModal && closeHistoryBtn) {
+    historyBtn.addEventListener('click', openHistoryModal);
+    closeHistoryBtn.addEventListener('click', () => {
+      historyModal.classList.add('hidden');
+      playSound('move');
+    });
+    historyBtn.addEventListener('mouseenter', () => {
+      historyBtn.style.background = 'var(--O)';
+      historyBtn.style.color = 'var(--bg)';
+    });
+    historyBtn.addEventListener('mouseleave', () => {
+      historyBtn.style.background = 'transparent';
+      historyBtn.style.color = 'var(--O)';
     });
   }
 
