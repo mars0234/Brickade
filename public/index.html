@@ -228,13 +228,12 @@
   }
 
   /* 遊戲主畫布 */
-  #game, #opp-game { 
+  #game, #opp-game {
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     border-radius: 4px;
     background: var(--cell-bg);
     display: block;
     flex-shrink: 0;
-    box-shadow: inset 0 0 30px rgba(0,0,0,0.6);
   }
 
   /* 小框框 (Hold/Next/Queue) */
@@ -370,8 +369,7 @@
     right: 20px;
     top: 20px;
     width: 220px;
-    background: rgba(20, 25, 55, 0.75) !important;
-    backdrop-filter: blur(4px) !important;
+    background: rgba(20, 25, 55, 0.92) !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     padding: 15px;
@@ -398,8 +396,7 @@
 
   /* 連線邀請通知 (Toast) - 強化玻璃版 */
   .invite-toast {
-    background: rgba(20, 25, 55, 0.78) !important;
-    backdrop-filter: blur(5px) !important;
+    background: rgba(20, 25, 55, 0.94) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
     padding: 15px;
@@ -463,8 +460,7 @@
     top: 24px;
     left: 50%;
     transform: translateX(-50%) translateY(-80px);
-    background: rgba(20, 25, 55, 0.82) !important;
-    backdrop-filter: blur(5px) !important;
+    background: rgba(20, 25, 55, 0.95) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     color: var(--white);
     padding: 12px 28px;
@@ -555,6 +551,12 @@
     <div id="history-content" style="max-height: 440px; overflow-y: auto; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
     </div>
     <button id="close-history-btn" style="width: 100%; padding: 10px; background: var(--O); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
+  </div>
+
+  <div id="rank-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 580px; max-width: 92%; background: rgba(6,0,79,0.96); border: 2px solid var(--T); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(177,68,247,0.4); color: var(--white); display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0; color: var(--T); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px;">🏆 段位規則</h2>
+    <div id="rank-modal-content" style="max-height: 500px; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.6;"></div>
+    <button id="close-rank-btn" style="width: 100%; padding: 10px; background: var(--T); color: var(--white); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
   </div>
 
   <div id="system-toast"></div>
@@ -660,7 +662,7 @@
               <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.25); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span>RANK:</span>
-                  <span id="display-rank" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5);">銅牌 <span style="font-size:12px">(0 LP)</span></span>
+                  <span id="display-rank" title="點擊查看段位規則" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5); cursor: pointer;">銅牌 <span style="font-size:12px">(0 LP)</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                   <span title="總對戰場次">MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
@@ -858,7 +860,7 @@
       </div>
     </div>
 
-    <div id="chat-panel" class="hidden" style="position: absolute; bottom: 75px; right: 20px; width: 300px; height: 400px; background: rgba(6, 0, 79, 0.9); backdrop-filter: blur(12px); border: 2px solid var(--I); border-radius: 12px; display: flex; flex-direction: column; z-index: 2000; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); overflow: hidden;">
+    <div id="chat-panel" class="hidden" style="position: absolute; bottom: 75px; right: 20px; width: 300px; height: 400px; background: rgba(6, 0, 79, 0.97); border: 2px solid var(--I); border-radius: 12px; display: flex; flex-direction: column; z-index: 2000; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); overflow: hidden;">
       <div style="background: rgba(255, 255, 255, 0.1); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
         <div style="font-weight: bold; font-size: 14px; color: var(--white); position: relative;">
           To: <span id="chat-title-name" style="color: var(--I); cursor: pointer; text-decoration: underline;" title="點擊選擇聊天對象">Player ▼</span>
@@ -1297,8 +1299,11 @@
   let isKOed = false; // 用來記錄玩家是否處於 1 秒的死亡懲罰中
   let oppKOTimer = 0; // 記錄對手處於 KO 狀態的倒數計時
   // --- 段位積分 (LP) 與連勝次數 ---
-  let myLP = 0; 
+  let myLP = 0;
   let myWinStreak = 0;
+  let myLoseStreak = 0;        // 連敗次數，用於方案 C 的保底機制
+  let myDailyBullyWins = 0;    // 今日虐菜勝場數（對 lpDiff <= -200 對手）
+  let myDailyBullyDate = null; // 上次計算虐菜場次的日期 (YYYY-MM-DD)
   // --- AI對戰 ---
   let isAIMode = false; // 是否處於AI對戰模式
   let aiBoard = null;        // AI 的盤面
@@ -2679,20 +2684,13 @@
       this.life -= this.decay * (delta / 16);
     }
     draw(ctx) {
-      ctx.save();
-      // 內核 (實心)
-      ctx.globalAlpha = Math.max(0, this.life); 
+      // 只畫內核，外暈拔掉（假發光對比不明顯但成本翻倍）
+      ctx.globalAlpha = Math.max(0, this.life);
       ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
       ctx.fill();
-
-      // 外暈 (半透明假發光，拔除了超卡的 shadowBlur)
-      ctx.globalAlpha = Math.max(0, this.life * 0.3); 
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size * 2.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -2707,9 +2705,9 @@
       particles.push(new Particle(startX, startY, color));
     }
     
-    // 畫面上的粒子如果超過 150 個，強制把最舊的刪掉，防止記憶體溢出卡頓
-    if (particles.length > 150) {
-      particles.splice(0, particles.length - 150);
+    // 畫面上的粒子如果超過 80 個，強制把最舊的刪掉，防止記憶體溢出卡頓
+    if (particles.length > 80) {
+      particles.splice(0, particles.length - 80);
     }
   }
   function fitLayout() {
@@ -3008,27 +3006,65 @@
         let lpDiff = oppLP - myLP;
         const preMyLP = myLP; // 保留對戰前的 LP 給戰紀使用
 
-        if (matchResult === 'WIN') {
-          lpChange = 20; // 基礎獲勝分數
-          if (lpDiff >= 200) lpChange += 15;      // 越大級打怪
-          else if (lpDiff >= 100) lpChange += 10; // 越小級打怪
-          else if (lpDiff <= -200) lpChange -= 10;// 虐菜局獎勵減半
+        // 每日虐菜場次重置 (以本地日期為準)
+        const today = new Date().toISOString().slice(0, 10);
+        if (myDailyBullyDate !== today) {
+          myDailyBullyDate = today;
+          myDailyBullyWins = 0;
+        }
 
-          if (myWinStreak >= 5) lpChange += 10;   // 高連勝獎勵
-          else if (myWinStreak >= 2) lpChange += 5;
-          if (score >= 10000) lpChange += 5;      // 表現優異獎勵
-          
-          myWinStreak++; 
-        } 
+        if (matchResult === 'WIN') {
+          const tierGap = -lpDiff; // 我比對手高多少 LP，正數代表對手比我弱
+
+          if (tierGap < 200) {
+            // 正常局 (同段位或對手比我強)
+            lpChange = 20;
+            if (lpDiff >= 200) lpChange += 15;      // 越大級打怪
+            else if (lpDiff >= 100) lpChange += 10;
+            if (myWinStreak >= 5) lpChange += 10;   // 高連勝獎勵
+            else if (myWinStreak >= 2) lpChange += 5;
+            if (score >= 10000) lpChange += 5;      // 表現優異獎勵
+            myWinStreak++;
+          } else if (tierGap < 300) {
+            // 輕度虐菜：基礎 +5，無任何獎勵
+            myDailyBullyWins++;
+            lpChange = (myDailyBullyWins > 2) ? 0 : 5;
+            if (lpChange > 0) myWinStreak++;
+            // lpChange = 0 時「算勝場但不算連勝」
+          } else if (tierGap < 400) {
+            // 中度虐菜：象徵性 +1
+            myDailyBullyWins++;
+            lpChange = (myDailyBullyWins > 2) ? 0 : 1;
+            if (lpChange > 0) myWinStreak++;
+          } else {
+            // 重度虐菜 (差 2 段位以上)：一律 0 LP，不計連勝
+            myDailyBullyWins++;
+            lpChange = 0;
+          }
+
+          myLoseStreak = 0; // 任何勝場都重置連敗
+        }
         else if (matchResult === 'LOSE') {
           lpChange = -15; // 基礎落敗扣分
           if (myLP >= 800) lpChange = -20;        // 鑽石以上懲罰增加
           if (myLP >= 1200) lpChange = -25;       // 菁英懲罰最高
-          if (lpDiff >= 200) lpChange += 10;      // 雖敗猶榮
-          else if (lpDiff <= -200) lpChange -= 15; // 爆冷門慘輸
-          
-          myWinStreak = 0; 
-        } 
+
+          // 方案 C：輸給強者扣分減半 (雖敗猶榮強化版)
+          if (lpDiff >= 200) {
+            lpChange = Math.ceil(lpChange / 2);   // -15→-7, -20→-10, -25→-12
+          } else if (lpDiff <= -200) {
+            lpChange -= 15;                       // 爆冷門慘輸加重
+          }
+
+          // 方案 C：連輸 3 場觸發一場保底 (這場不扣分，然後重置連敗計數器)
+          myLoseStreak++;
+          if (myLoseStreak >= 3) {
+            lpChange = 0;
+            myLoseStreak = 0;
+          }
+
+          myWinStreak = 0;
+        }
         else {
           myWinStreak = 0; // 平手中斷連勝
         }
@@ -3115,6 +3151,9 @@
           matches: firebase.firestore.FieldValue.increment(1),
           lp: myLP,
           winStreak: myWinStreak,
+          loseStreak: myLoseStreak,
+          dailyBullyWins: myDailyBullyWins,
+          dailyBullyDate: myDailyBullyDate,
           // 生涯累計 (給 PLAYER 面板計算平均)
           careerLinesSent: firebase.firestore.FieldValue.increment(myLinesSent),
           careerLines: firebase.firestore.FieldValue.increment(lines),
@@ -3216,11 +3255,11 @@
 
   function drawCell(target, x, y, size, color, scale=1, alpha=1, ghost=false) {
     const inset = (size * (1 - scale)) / 2;
-    target.save();
-    target.globalAlpha = alpha;
 
     // --- 純程式碼繪製的高質感炸彈 ---
     if (color === '#ff1111' && !ghost) { // 假設傳入亮紅色代表炸彈
+      target.save();
+      target.globalAlpha = alpha;
       const cx = x + inset + (size * scale) / 2;
       const cy = y + inset + (size * scale) / 2;
       const r = (size * scale) / 2 - 2;
@@ -3256,7 +3295,9 @@
       return; // 炸彈畫完就結束，不畫方形邊框
     }
 
-    // --- 原本的普通方塊繪製邏輯 ---
+    // --- 原本的普通方塊繪製邏輯（熱路徑：避免 save/restore）---
+    const needAlpha = alpha !== 1;
+    if (needAlpha) target.globalAlpha = alpha;
     if (ghost) {
       target.strokeStyle = color;
       target.lineWidth = 2;
@@ -3268,7 +3309,7 @@
       target.lineWidth = 4;
       target.strokeRect(x + inset, y + inset, size * scale, size * scale);
     }
-    target.restore();
+    if (needAlpha) target.globalAlpha = 1;
   }
 
   function drawGrid() {
@@ -3368,12 +3409,19 @@
   }
 
   // --- 繪製對手(或AI)的 HOLD / NEXT / QUEUE 面板 ---
+  let _oppPanelHash = '';
   function renderOpponentPanels() {
     const oppHoldCanvas = document.getElementById('opp-hold-canvas');
     const oppNextCanvas = document.getElementById('opp-next-canvas');
     const oppQueueCanvas = document.getElementById('opp-queue-canvas');
-    
+
     if (!oppHoldCanvas || !oppNextCanvas || !oppQueueCanvas) return;
+
+    // 只有 hold / queue / countdown 這些真實影響畫面的東西變了才重畫
+    const panelHash = (oppState ? (oppState.h || '') + '|' + (oppState.hu ? 1 : 0) + '|' + ((oppState.q || []).join(',')) : '0')
+      + '|' + countdownValue + '|' + (current ? 1 : 0);
+    if (panelHash === _oppPanelHash) return;
+    _oppPanelHash = panelHash;
 
     const oHoldCtx = oppHoldCanvas.getContext('2d', { alpha: false });
     const oNextCtx = oppNextCanvas.getContext('2d', { alpha: false });
@@ -3611,9 +3659,16 @@
   }
 
   // --- 繪製對手盤面 ---
+  let _oppDrawHash = '';
   function drawOpponent() {
     if (!oppCtx) return;
-    
+
+    // 用 oppState 字串 + 所有會影響畫面的狀態組成 hash，不變就 skip
+    const hashKey = (oppState ? (oppState.b || '') + '|' + JSON.stringify(oppState.c || 0) + '|' + (oppState.h || '') + '|' + (oppState.hu ? 1 : 0) + '|' + (oppState.g || 0) + '|' + (oppState.ng || 0) : '0')
+      + '|' + countdownValue + '|' + (isPaused ? 1 : 0) + '|' + (gameOver ? 1 : 0) + '|' + (matchResult || '') + '|' + (oppKOTimer > 0 ? 1 : 0) + '|' + (gameStarted ? 1 : 0) + '|' + (oppIsReady ? 1 : 0) + '|' + (isMultiplayer ? 1 : 0) + '|' + oppFloatingTexts.length;
+    if (hashKey === _oppDrawHash && oppFloatingTexts.length === 0) return;
+    _oppDrawHash = hashKey;
+
     // 一次性畫好完整的漂亮網格背景！
     oppCtx.drawImage(gridCanvas, 0, 0);
 
@@ -6470,6 +6525,9 @@
 
       myLP = data.lp || 0;
       myWinStreak = data.winStreak || 0;
+      myLoseStreak = data.loseStreak || 0;
+      myDailyBullyWins = data.dailyBullyWins || 0;
+      myDailyBullyDate = data.dailyBullyDate || null;
 
       const winRate = matches > 0 ? Math.round((wins / matches) * 100) : 0;
       
@@ -6505,15 +6563,26 @@
     });
   }
 
+  // === 段位規則單一資料源 (getRankInfo 與段位說明 Modal 都讀這個) ===
+  const RANK_RULES = {
+    tiers: [
+      { name: '銅牌', min: 0,    color: '#CD7F32' },
+      { name: '銀牌', min: 200,  color: '#C0C0C0' },
+      { name: '金牌', min: 400,  color: '#FFD700' },
+      { name: '白金', min: 600,  color: '#00FF7F' },
+      { name: '鑽石', min: 800,  color: '#b9f2ff' },
+      { name: '大師', min: 1000, color: '#FF00FF' },
+      { name: '菁英', min: 1200, color: '#00FFFF' },
+    ]
+  };
+
   // === 共用段位計算函數 (傳入 LP，回傳 { name, color }) ===
   function getRankInfo(lp) {
-    if (lp >= 1200) return { name: '菁英', color: '#00FFFF' };
-    if (lp >= 1000) return { name: '大師', color: '#FF00FF' };
-    if (lp >= 800)  return { name: '鑽石', color: '#b9f2ff' };
-    if (lp >= 600)  return { name: '白金', color: '#00FF7F' };
-    if (lp >= 400)  return { name: '金牌', color: '#FFD700' };
-    if (lp >= 200)  return { name: '銀牌', color: '#C0C0C0' };
-    return { name: '銅牌', color: '#CD7F32' };
+    const tiers = RANK_RULES.tiers;
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (lp >= tiers[i].min) return { name: tiers[i].name, color: tiers[i].color };
+    }
+    return tiers[0];
   }
 
   // 根據 user doc 更新生涯平均統計 UI (放在 PLAYER 面板)
@@ -6544,6 +6613,103 @@
     rankEl.style.color = color;
     rankEl.style.textShadow = `0 0 5px ${color}`;
   }
+
+  // === 段位說明 Modal ===
+  function renderRankModal() {
+    const contentEl = document.getElementById('rank-modal-content');
+    if (!contentEl) return;
+
+    const tiers = RANK_RULES.tiers;
+    const currentRank = getRankInfo(myLP);
+
+    // 1) 段位階梯表 (由高到低)
+    let tierRows = '';
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      const t = tiers[i];
+      const next = tiers[i + 1];
+      const range = next ? `${t.min} ~ ${next.min - 1} LP` : `${t.min}+ LP`;
+      const isCurrent = currentRank.name === t.name;
+      const bg = isCurrent ? `background: rgba(177,68,247,0.15);` : '';
+      const mark = isCurrent ? `<span style="color:var(--T); font-weight:900; margin-left:6px;">◀ 你在這</span>` : '';
+      tierRows += `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:4px; ${bg}">
+          <span style="color:${t.color}; font-weight:900; font-size:15px; text-shadow:0 0 6px ${t.color}80;">${t.name}</span>
+          <span style="color:rgba(255,255,255,0.8); font-weight:bold;">${range}${mark}</span>
+        </div>
+      `;
+    }
+
+    // 2) 勝場加分規則
+    const winRulesHTML = `
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="color:rgba(255,255,255,0.9);">▸ 基礎 <b style="color:var(--S);">+20</b>，對手比你高 100+ LP <b style="color:var(--S);">+10</b>、高 200+ LP <b style="color:var(--S);">+15</b></div>
+        <div style="color:rgba(255,255,255,0.9);">▸ 連勝 2+ 場 <b style="color:var(--O);">+5</b>、連勝 5+ 場 <b style="color:var(--O);">+10</b>（僅正常對戰生效）</div>
+        <div style="color:rgba(255,255,255,0.9);">▸ 單局破 10,000 分 <b style="color:var(--O);">+5</b>（僅正常對戰生效）</div>
+      </div>
+    `;
+
+    // 3) 敗場扣分 & 保底
+    const loseRulesHTML = `
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="color:rgba(255,255,255,0.9);">▸ 基礎 <b style="color:var(--Z);">-15</b>；鑽石以上 <b style="color:var(--Z);">-20</b>；菁英 <b style="color:var(--Z);">-25</b></div>
+        <div style="color:rgba(255,255,255,0.9);">▸ 輸給高你 200+ LP 的強者，扣分 <b style="color:var(--I);">減半</b></div>
+        <div style="color:rgba(255,255,255,0.9);">▸ <b style="color:var(--I);">連輸 3 場</b>自動觸發一場保底（本場不扣分）</div>
+      </div>
+    `;
+
+    // 3) 虐菜保護 (防堵強者虐弱)
+    const bullyHTML = `
+      <div style="color:rgba(255,255,255,0.85); margin-bottom:6px;">當你比對手高出一個以上段位時，LP 收益會<b style="color:var(--Z);">大幅遞減</b>：</div>
+      <div style="display:grid; grid-template-columns: auto 1fr; gap:4px 12px; padding:8px 12px; background:rgba(0,0,0,0.3); border-radius:6px; border:1px solid rgba(255,255,255,0.1);">
+        <span style="color:rgba(255,255,255,0.7);">對手低 200~299 LP</span><span style="color:var(--O); font-weight:900;">+5 LP（無獎勵）</span>
+        <span style="color:rgba(255,255,255,0.7);">對手低 300~399 LP</span><span style="color:var(--O); font-weight:900;">+1 LP（象徵性）</span>
+        <span style="color:rgba(255,255,255,0.7);">對手低 400+ LP</span><span style="color:var(--Z); font-weight:900;">0 LP（算勝場但不計連勝）</span>
+      </div>
+      <div style="color:rgba(255,255,255,0.85); margin-top:8px;">
+        ▸ 每日虐菜勝場<b style="color:var(--Z);"> 上限 2 場</b>，第 3 場起 LP 收益全部歸零，凌晨重置。
+      </div>
+      <div style="color:rgba(255,255,255,0.6); font-size:12px; margin-top:4px;">
+        想持續上分？請挑戰同段位或更強的對手 💪
+      </div>
+    `;
+
+    // 4) 有效對戰門檻
+    const validHTML = `
+      <div style="color:rgba(255,255,255,0.85);">以下情況<b style="color:var(--Z);">不會</b>列入排位：</div>
+      <ul style="margin:6px 0 0 0; padding-left:20px; color:rgba(255,255,255,0.8); display:flex; flex-direction:column; gap:4px;">
+        <li>任一方未登入、為訪客或管理員模式</li>
+        <li>時間到時，任一方分數未達 1,000 分</li>
+        <li>AI 對戰（練習模式）</li>
+      </ul>
+    `;
+
+    const section = (title, color, body) => `
+      <div>
+        <div style="font-weight:900; color:${color}; font-size:14px; letter-spacing:2px; margin-bottom:8px; border-left:4px solid ${color}; padding-left:8px;">${title}</div>
+        ${body}
+      </div>
+    `;
+
+    contentEl.innerHTML =
+      section('段位階梯', 'var(--I)', `<div style="display:flex; flex-direction:column; gap:4px;">${tierRows}</div>`) +
+      section('勝場加分', 'var(--S)', winRulesHTML) +
+      section('敗場扣分 & 保護', 'var(--O)', loseRulesHTML) +
+      section('虐菜保護機制', 'var(--Z)', bullyHTML) +
+      section('有效對戰條件', 'var(--T)', validHTML);
+  }
+
+  // 點擊段位 → 開 Modal
+  document.addEventListener('click', function(e) {
+    if (e.target && (e.target.id === 'display-rank' || (e.target.parentElement && e.target.parentElement.id === 'display-rank'))) {
+      renderRankModal();
+      const modal = document.getElementById('rank-modal');
+      if (modal) modal.classList.remove('hidden');
+    }
+    if (e.target && e.target.id === 'close-rank-btn') {
+      const modal = document.getElementById('rank-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+  });
 
   logoutBtn.addEventListener('click', () => {
     if (isMultiplayer && conn && conn.open) {
@@ -6780,8 +6946,8 @@
     let timer = null;
     self.onmessage = function(e) {
       if (e.data === 'start') {
-        // 每 16 毫秒發送一次訊號 (相當於 60 FPS)
-        timer = setInterval(() => self.postMessage('tick'), 16); 
+        // 每 1000/60 毫秒發送一次訊號 (精準對齊 60Hz vsync，避免跟畫面不同步的微抖)
+        timer = setInterval(() => self.postMessage('tick'), 1000/60);
       }
     };
   `;
@@ -6902,6 +7068,15 @@
     // 選單狀態：節流到 ~15 FPS（PRESS ENTER 是靜態的，不需要 120Hz 重繪）
     if (!gameStarted) {
       if (now - menuDrawTime < 66) {
+        requestAnimationFrame(renderLoop);
+        return;
+      }
+      menuDrawTime = now;
+    }
+
+    // 遊戲結束 / 暫停 / 倒數 畫面幾乎靜態，節流到 ~20 FPS
+    else if (gameOver || isPaused || countdownValue > 0) {
+      if (now - menuDrawTime < 50) {
         requestAnimationFrame(renderLoop);
         return;
       }
