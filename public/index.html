@@ -3006,8 +3006,8 @@
         let lpDiff = oppLP - myLP;
         const preMyLP = myLP; // 保留對戰前的 LP 給戰紀使用
 
-        // 每日虐菜場次重置 (以本地日期為準)
-        const today = new Date().toISOString().slice(0, 10);
+        // 每日虐菜場次重置 (以台灣時間 UTC+8 為準)
+        const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
         if (myDailyBullyDate !== today) {
           myDailyBullyDate = today;
           myDailyBullyWins = 0;
@@ -3023,7 +3023,7 @@
             else if (lpDiff >= 100) lpChange += 10;
             if (myWinStreak >= 5) lpChange += 10;   // 高連勝獎勵
             else if (myWinStreak >= 2) lpChange += 5;
-            if (score >= 10000) lpChange += 5;      // 表現優異獎勵
+            if (score >= 15000) lpChange += 5;      // 表現優異獎勵
             myWinStreak++;
           } else if (tierGap < 300) {
             // 輕度虐菜：基礎 +5，無任何獎勵
@@ -6644,7 +6644,7 @@
       <div style="display:flex; flex-direction:column; gap:6px;">
         <div style="color:rgba(255,255,255,0.9);">▸ 基礎 <b style="color:var(--S);">+20</b>，對手比你高 100+ LP <b style="color:var(--S);">+10</b>、高 200+ LP <b style="color:var(--S);">+15</b></div>
         <div style="color:rgba(255,255,255,0.9);">▸ 連勝 2+ 場 <b style="color:var(--O);">+5</b>、連勝 5+ 場 <b style="color:var(--O);">+10</b>（僅正常對戰生效）</div>
-        <div style="color:rgba(255,255,255,0.9);">▸ 單局破 10,000 分 <b style="color:var(--O);">+5</b>（僅正常對戰生效）</div>
+        <div style="color:rgba(255,255,255,0.9);">▸ 單局破 15,000 分 <b style="color:var(--O);">+5</b>（僅正常對戰生效）</div>
       </div>
     `;
 
@@ -6666,7 +6666,7 @@
         <span style="color:rgba(255,255,255,0.7);">對手低 400+ LP</span><span style="color:var(--Z); font-weight:900;">0 LP（算勝場但不計連勝）</span>
       </div>
       <div style="color:rgba(255,255,255,0.85); margin-top:8px;">
-        ▸ 每日虐菜勝場<b style="color:var(--Z);"> 上限 2 場</b>，第 3 場起 LP 收益全部歸零，凌晨重置。
+        ▸ 每日虐菜勝場<b style="color:var(--Z);"> 上限 2 場</b>，第 3 場起 LP 收益全部歸零，台灣時間每日凌晨 00:00 重置。
       </div>
       <div style="color:rgba(255,255,255,0.6); font-size:12px; margin-top:4px;">
         想持續上分？請挑戰同段位或更強的對手 💪
