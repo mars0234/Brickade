@@ -119,7 +119,7 @@
 
   /* 全場主標題 (TETRIS) */
   .match-title-container {
-    position: static; 
+    position: relative; 
     text-align: center;
     width: 100%;
     margin-bottom: 25px;
@@ -506,6 +506,17 @@
     white-space: nowrap;
   }
 
+  /* 聊天室專用提示動畫 */
+  @keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 15px rgba(56,189,238,0.3); }
+    50% { transform: scale(1.1); box-shadow: 0 0 25px rgba(255,13,98,0.8); }
+    100% { transform: scale(1); box-shadow: 0 0 15px rgba(56,189,238,0.3); }
+  }
+
   </style>
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -522,10 +533,6 @@
 
   <div id="fps-counter" style="position: absolute; top: 15px; left: 20px; font-size: 13px; font-weight: 900; color: var(--S); z-index: 1000; letter-spacing: 1px;">
     FPS <span id="fps-value">0</span>
-  </div>
-
-  <div id="version-tag" style="position: absolute; bottom: 15px; right: 20px; font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.85); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease; background: rgba(6, 0, 79, 0.9); border: 2px solid var(--I); padding: 4px 10px; border-radius: 6px; box-shadow: 0 0 10px rgba(0,0,0,0.6);">
-    Build <span id="version-text" style="color: var(--I);"></span>
   </div>
   
   <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 90%; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px;">
@@ -561,8 +568,16 @@
     </div>
 
     <div class="wing left-wing" id="left-wing">
-      <div class="match-title-container">
-        <div class="logo-word match-title">TETRIS</div>
+      <div class="match-title-container" style="text-align: center; margin-bottom: 25px;">
+        <div style="position: relative; display: inline-block;">
+          
+          <div class="logo-word match-title" style="margin-bottom: 0; line-height: 0.85;">TETRIS</div>
+          
+          <div id="version-tag" style="position: absolute; bottom: 2px; left: 100%; margin-left: 8px; font-size: 13px; font-weight: 900; color: var(--I); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease; text-shadow: 0 0 10px rgba(56,189,238,0.8); white-space: nowrap;">
+            Build <span id="version-text" style="color: var(--white);"></span>
+          </div>
+
+        </div>
       </div>
       <div style="display: flex; gap: 20px; width: 100%;">
         <div style="width: 260px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0;">
@@ -815,6 +830,29 @@
     </div>
 
   </div>
+
+  <div id="chat-icon-wrapper" style="position: absolute; bottom: 15px; right: 20px; z-index: 1000; cursor: pointer; transition: all 0.3s ease;">
+      <div id="chat-toggle-btn" style="width: 50px; height: 50px; background: rgba(6, 0, 79, 0.9); border: 2px solid var(--I); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 0 15px rgba(56,189,238,0.3); position: relative;">
+        💬
+        <div id="chat-badge" class="hidden" style="position: absolute; top: -2px; right: -2px; width: 18px; height: 18px; background: var(--Z); border-radius: 50%; border: 2px solid white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; color: white;">!</div>
+      </div>
+    </div>
+
+    <div id="chat-panel" class="hidden" style="position: absolute; bottom: 75px; right: 20px; width: 300px; height: 400px; background: rgba(6, 0, 79, 0.9); backdrop-filter: blur(12px); border: 2px solid var(--I); border-radius: 12px; display: flex; flex-direction: column; z-index: 2000; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); overflow: hidden;">
+      <div style="background: rgba(255, 255, 255, 0.1); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="font-weight: bold; font-size: 14px; color: var(--white); position: relative;">
+          To: <span id="chat-title-name" style="color: var(--I); cursor: pointer; text-decoration: underline;" title="點擊選擇聊天對象">Player ▼</span>
+          <div id="chat-user-dropdown" class="hidden" style="position: absolute; top: 25px; left: 0; background: rgba(20, 25, 55, 0.98); border: 1px solid var(--I); border-radius: 6px; width: 160px; max-height: 200px; overflow-y: auto; z-index: 2100; box-shadow: 0 4px 15px rgba(0,0,0,0.8);"></div>
+        </div>
+        <button id="close-chat-btn" style="background: transparent; border: none; color: var(--white); cursor: pointer; font-weight: bold; font-size: 16px;">×</button>
+      </div>
+      <div id="chat-messages" style="flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+      <div style="padding: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; gap: 8px;">
+        <input type="text" id="chat-input" placeholder="Type a message..." style="flex: 1; background: rgba(0, 0, 0, 0.5); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 8px 12px; outline: none; font-size: 13px;">
+        <button id="chat-send-btn" style="background: var(--I); color: var(--bg); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold;">➤</button>
+      </div>
+    </div>
+
 </div>
 <script>
 
@@ -853,7 +891,7 @@
   }
 
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  const ctx = canvas.getContext('2d', { alpha: false });
   const nextCanvas = document.getElementById('next-canvas');
   const nextCtx = nextCanvas.getContext('2d', { alpha:false });
   const holdCanvas = document.getElementById('hold-canvas');
@@ -1876,11 +1914,29 @@
     }
     initMenu();
 
+    // --- 進入對戰：將聊天室搬進 layout 並對齊計時器左邊 ---
+    const chatIcon = document.getElementById('chat-icon-wrapper');
+    const chatPanel = document.getElementById('chat-panel');
     const layout = document.getElementById('layout');
+    
+    if (chatIcon && layout) {
+      chatIcon.classList.remove('hidden');
+      layout.appendChild(chatIcon); // 搬進競技場容器
+      chatIcon.style.bottom = 'auto';
+      chatIcon.style.right = 'auto';
+      chatIcon.style.top = '-65px'; // 跟高幀率按鈕、計時器同高度
+      chatIcon.style.left = 'calc(50% - 210px)'; // 放在計時器左邊
+    }
+    if (chatPanel && layout) {
+      layout.appendChild(chatPanel); // 搬進競技場容器
+      chatPanel.style.bottom = 'auto';
+      chatPanel.style.right = 'auto';
+      chatPanel.style.top = '0px';  // 往下彈出，對齊畫面上緣
+      chatPanel.style.left = 'calc(50% - 410px)'; // 往左邊展開，避免擋住計時器
+    }
 
     // --- 隱藏版本號 ---
     const versionTag = document.getElementById('version-tag');
-    if (versionTag) versionTag.classList.add('hidden');
     
     // 顯示離開房間按鈕
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
@@ -2016,9 +2072,29 @@
 
     isMultiplayer = false; isAIMode = false; iAmReady = false; oppIsReady = false;
 
+    // --- 退出對戰：將聊天室搬回原本的右下角 ---
+    const chatIcon = document.getElementById('chat-icon-wrapper');
+    const chatPanel = document.getElementById('chat-panel');
+    const viewport = document.getElementById('viewport');
+
+    if (chatIcon && viewport) {
+      chatIcon.classList.remove('hidden');
+      viewport.appendChild(chatIcon); // 搬回最外層
+      chatIcon.style.top = 'auto';
+      chatIcon.style.bottom = '15px';
+      chatIcon.style.right = '20px';
+      chatIcon.style.left = 'auto';
+    }
+    if (chatPanel && viewport) {
+      viewport.appendChild(chatPanel); // 搬回最外層
+      chatPanel.style.top = 'auto';
+      chatPanel.style.bottom = '75px';
+      chatPanel.style.right = '20px';
+      chatPanel.style.left = 'auto';
+    }
+
     // --- 恢復顯示版本號 ---
     const versionTag = document.getElementById('version-tag');
-    if (versionTag) versionTag.classList.remove('hidden');
 
     // 恢復顯示 AI 按鈕
     const aiBtnEl = document.getElementById('ai-btn');
@@ -2065,7 +2141,6 @@
 
     // --- 恢復按鈕位置：搬回右側面板區域 ---
     const settingsContainer = document.getElementById('settings-container');
-    const viewport = document.getElementById('viewport');
     const fpsBtn = document.getElementById('fps-mode-btn');
 
     if (settingsContainer && viewport) {
@@ -5722,6 +5797,11 @@
         }
       });
 
+      // 將過濾好的其他玩家名字，存到全域變數給聊天選單用
+      if (typeof globalOnlineUsersList !== 'undefined') {
+        globalOnlineUsersList = others.map(u => u.username);
+      }
+
       // 確保自己永遠排在陣列第一個
       if (myData) {
         users.push(myData);
@@ -5761,6 +5841,8 @@
         else if (actStr === 'AWAY') { activityText = '離開 (閒置中)'; activityColor = '#888888'; dotColor = '#888888'; }
 
         let inviteButtonHTML = '';
+        let chatButtonHTML = ''; // 聊天專屬按鈕
+
         if (username !== currentPlayer) {
            let btnText = 'INVITE';
            let btnDisabled = '';
@@ -5775,20 +5857,33 @@
            }
 
            inviteButtonHTML = `<button class="quick-invite-btn" data-username="${username}" style="background:${btnBg}; color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:${btnCursor}; font-size:10px; padding:3px 8px;" ${btnDisabled}>${btnText}</button>`;
+           // 產生專屬的對話氣泡按鈕
+           chatButtonHTML = `<button class="chat-trigger" data-username="${username}" style="background:transparent; border:none; color:var(--I); font-size:14px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;" title="傳送訊息">💬</button>`;
         } else {
-           inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
+          inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
+          chatButtonHTML = `<button style="visibility:hidden; padding:0; border:none; font-size:14px; display:flex; align-items:center; justify-content:center;">💬</button>`;
         }
+
+        const unreadBadge = (typeof unreadUsers !== 'undefined' && unreadUsers.has(username)) ? '<span style="color:var(--Z); margin-left:5px; font-size:10px; animation: flash 1s infinite;">● NEW</span>' : '';
 
         validUsersHTML += `
             <div class="online-user-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; width: 100%;">
-              <div style="display:flex; flex-direction:column; gap:4px;">
-                 <div style="display:flex; align-items:center; gap:8px;">
-                   <div class="online-dot" style="background-color:${dotColor}; box-shadow: 0 0 5px ${dotColor};"></div>
-                   <span class="chat-trigger" data-username="${username}" style="color: var(--white); font-size: 15px; font-weight: bold; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(255,255,255,0.3); transition: color 0.2s;">${username}</span>
+              <div style="display:flex; align-items:flex-start; gap:8px;">
+                 <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                   <div class="online-dot" style="background-color:${dotColor}; box-shadow: 0 0 5px ${dotColor}; flex-shrink: 0;"></div>
+                   ${chatButtonHTML}
                  </div>
-                 <div style="font-size:11px; color:${activityColor}; margin-left: 18px; font-weight: 900; letter-spacing:1px;">${activityText}</div>
+                 <div style="display:flex; flex-direction:column; gap:4px;">
+                   <div style="display:flex; align-items:center;">
+                     <span class="chat-trigger" data-username="${username}" style="color: var(--white); font-size: 15px; font-weight: bold; cursor: pointer; transition: color 0.2s;">${username}</span>
+                     ${unreadBadge}
+                   </div>
+                   <span style="font-size:11px; color:${activityColor}; margin-top:-2px;">${activityText}</span>
+                 </div>
               </div>
-              ${inviteButtonHTML}
+              <div style="display:flex; align-items:center;">
+                 ${inviteButtonHTML}
+              </div>
             </div>
           `;
       });
@@ -5796,6 +5891,225 @@
       listEl.innerHTML = validUsersHTML;
     });
   }
+
+  // ==========================================
+  // 💬 獨立 P2P 私訊系統核心邏輯
+  // ==========================================
+  let chatHistory = {};       
+  let chatConnections = {};   
+  let activeChatUser = null;  
+  let activeChatPeerId = null;
+  let globalOnlineUsersList = []; // 隨時記住全服在線玩家名單
+  let unreadUsers = new Set(); // 儲存有未讀訊息的玩家名稱
+
+  // --- 聊天室下拉選單邏輯 ---
+  const chatTitleName = document.getElementById('chat-title-name');
+  const chatDropdown = document.getElementById('chat-user-dropdown');
+
+  chatTitleName.addEventListener('click', (e) => {
+      e.stopPropagation(); // 防止點擊事件往上傳遞直接被關掉
+      if (chatDropdown.classList.contains('hidden')) {
+          chatDropdown.innerHTML = '';
+          
+          if (typeof globalOnlineUsersList === 'undefined' || globalOnlineUsersList.length === 0) {
+              chatDropdown.innerHTML = '<div style="padding: 10px; font-size: 12px; color: gray; text-align: center;">無其他玩家在線</div>';
+          } else {
+              globalOnlineUsersList.forEach(username => {
+                  const div = document.createElement('div');
+                  div.textContent = username;
+                  div.style.padding = '8px 12px';
+                  div.style.cursor = 'pointer';
+                  div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+                  div.style.color = 'var(--white)';
+                  div.style.transition = 'background 0.2s';
+                  
+                  // 如果這個人有傳訊息給你（未讀），名字旁邊加個小紅點
+                  if (unreadUsers.has(username)) {
+                      div.innerHTML += ' <span style="color:var(--Z); font-size:10px; margin-left:4px;">●</span>';
+                  }
+                  
+                  div.onmouseenter = () => div.style.background = 'rgba(56,189,238,0.2)';
+                  div.onmouseleave = () => div.style.background = 'transparent';
+                  div.onclick = () => {
+                      chatDropdown.classList.add('hidden');
+                      openChat(username); // 點擊後直接切換聊天頻道
+                  };
+                  chatDropdown.appendChild(div);
+              });
+          }
+          chatDropdown.classList.remove('hidden');
+      } else {
+          chatDropdown.classList.add('hidden');
+      }
+  });
+
+  // 點擊畫面其他地方時，自動收起下拉選單
+  document.addEventListener('click', (e) => {
+      if (chatDropdown && !chatDropdown.contains(e.target) && e.target !== chatTitleName) {
+          chatDropdown.classList.add('hidden');
+      }
+  });
+
+  // 更新右下角聊天圖示的紅點
+  function updateChatBadge() {
+      const badge = document.getElementById('chat-badge');
+      const toggleBtn = document.getElementById('chat-toggle-btn');
+      if (unreadUsers.size > 0) {
+          badge.classList.remove('hidden');
+          toggleBtn.style.animation = 'pulse 1.5s infinite';
+      } else {
+          badge.classList.add('hidden');
+          toggleBtn.style.animation = 'none';
+      }
+      // 強制刷新名單以顯示/隱藏 ● NEW
+      listenToOnlineUsers();
+  }
+
+  function openChat(username) {
+     if (username === currentPlayer || !username) return; 
+     activeChatUser = username;
+     
+     // 保留下拉選單的箭頭，讓玩家知道隨時可以再換人
+     document.getElementById('chat-title-name').textContent = username + ' ▼';
+     document.getElementById('chat-panel').classList.remove('hidden');
+     
+     unreadUsers.delete(username);
+     updateChatBadge();
+     
+     renderChatHistory(username);
+     
+     db.collection('users').where('username', '==', username).get().then(snap => {
+         if (!snap.empty) {
+             activeChatPeerId = snap.docs[0].data().currentPeerId || snap.docs[0].id;
+         }
+     });
+
+     // 打開聊天室後，自動把鍵盤游標對焦到輸入框
+     const inputEl = document.getElementById('chat-input');
+     if (inputEl) inputEl.focus();
+  }
+
+  document.getElementById('close-chat-btn').addEventListener('click', () => {
+     document.getElementById('chat-panel').classList.add('hidden');
+     activeChatUser = null;
+  });
+
+  // 點擊右下角圖示：如果已經開著就關掉，如果關著就打開(預設找第一個密你的人，或保持空畫面)
+  document.getElementById('chat-icon-wrapper').addEventListener('click', () => {
+      const panel = document.getElementById('chat-panel');
+      if (panel.classList.contains('hidden')) {
+          let target = activeChatUser;
+          if (!target && unreadUsers.size > 0) target = Array.from(unreadUsers)[0];
+          if (target) openChat(target);
+          else panel.classList.remove('hidden'); // 空開
+      } else {
+          panel.classList.add('hidden');
+          activeChatUser = null;
+      }
+  });
+
+  function renderChatHistory(username) {
+      const box = document.getElementById('chat-messages');
+      box.innerHTML = '';
+      const history = chatHistory[username] || [];
+      
+      // 在對話最上方加上今天的日期
+      const todayStr = new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' });
+      box.innerHTML += `<div style="text-align:center; font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:12px; font-weight:bold;">----- ${todayStr} -----</div>`;
+
+      history.forEach(msg => {
+          const isMe = msg.from === currentPlayer;
+          const align = isMe ? 'flex-end' : 'flex-start';
+          const bg = isMe ? 'var(--I)' : 'rgba(255,255,255,0.1)';
+          const color = isMe ? 'var(--bg)' : 'var(--white)';
+          const radius = isMe ? '12px 12px 0 12px' : '12px 12px 12px 0';
+          
+          // 解析時間戳記為 hh:mm 格式
+          const timeStr = msg.time ? new Date(msg.time).toLocaleTimeString('zh-TW', { hour: '2-digit', minute:'2-digit', hour12: false }) : '';
+          
+          box.innerHTML += `
+            <div style="display:flex; flex-direction:column; align-items:${align}; margin-bottom: 10px;">
+              <div style="background:${bg}; color:${color}; padding:8px 12px; border-radius:${radius}; font-size:13px; max-width:85%; word-break:break-all; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                  ${msg.text}
+              </div>
+              <div style="font-size:10px; color:rgba(255,255,255,0.4); margin-top:4px;">${timeStr}</div>
+            </div>`;
+      });
+      box.scrollTop = box.scrollHeight;
+  }
+
+  function setupChatConnection(connection) {
+      connection.on('data', (data) => {
+          if (data.type === 'CHAT_MSG') {
+              const sender = data.from;
+              if (!chatHistory[sender]) chatHistory[sender] = [];
+              // 接收並存入對方發送的時間
+              chatHistory[sender].push({ from: sender, text: data.text, time: data.time || Date.now() });
+              
+              if (activeChatUser !== sender || document.getElementById('chat-panel').classList.contains('hidden')) {
+                  unreadUsers.add(sender); 
+                  updateChatBadge();        
+                  playSound('move');
+                  showToast(`💬 ${sender} 傳送了一則新訊息`, 3000);
+              }
+              
+              if (activeChatUser === sender && !document.getElementById('chat-panel').classList.contains('hidden')) {
+                  renderChatHistory(sender);
+              }
+          }
+      });
+      chatConnections[connection.peer] = connection;
+  }
+
+  async function sendChatMessage() {
+      const inputEl = document.getElementById('chat-input');
+      const text = inputEl.value.trim();
+      
+      // 沒打字就按送出：直接忽略
+      if (!text) return; 
+      
+      // 沒選擇對象就按送出：跳出明確的警告提示，而不是默默沒反應
+      if (!activeChatUser) {
+          showToast('⚠️ 請先點擊對話框左上角「Player ▼」選擇聊天對象！');
+          return;
+      }
+      
+      if (!activeChatPeerId) {
+          showToast('⚠️ 正在取得玩家連線資訊，請稍後重試');
+          return;
+      }
+
+      const now = Date.now(); 
+
+      if (!chatHistory[activeChatUser]) chatHistory[activeChatUser] = [];
+      chatHistory[activeChatUser].push({ from: currentPlayer, text: text, time: now });
+      renderChatHistory(activeChatUser);
+      inputEl.value = '';
+
+      let conn = chatConnections[activeChatPeerId];
+      if (conn && conn.open) {
+          conn.send({ type: 'CHAT_MSG', text: text, from: currentPlayer, time: now });
+      } else {
+          conn = peer.connect(activeChatPeerId, { metadata: { purpose: 'chat' } });
+          setupChatConnection(conn);
+          conn.on('open', () => {
+              conn.send({ type: 'CHAT_MSG', text: text, from: currentPlayer, time: now });
+          });
+      }
+  }
+
+  document.getElementById('chat-send-btn').addEventListener('click', sendChatMessage);
+  document.getElementById('chat-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendChatMessage();
+  });
+
+  // 綁定點擊名字打開聊天 (利用事件委派)
+  document.getElementById('online-users-list').addEventListener('click', (e) => {
+      if (e.target.classList.contains('chat-trigger')) {
+          const username = e.target.getAttribute('data-username');
+          openChat(username);
+      }
+  });
 
   // 網頁載入時直接啟動監聽器
   listenToOnlineUsers();
