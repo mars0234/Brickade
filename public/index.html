@@ -174,6 +174,7 @@
   .battle-layout.is-multiplayer .left-wing {
     width: 540px !important; /* 拔除幽靈寬度，恢復原本大小 */
     align-items: flex-end; /* 讓左邊的選單靠右貼緊，畫面更集中 */
+    margin-top: -65px; /* 往上推 65px，對齊計時器的頂部，同時收縮整體高度 */
   }
   .battle-layout.is-multiplayer .right-wing {
     width: max-content !important; /* 讓右邊自然包覆對手 */
@@ -1989,6 +1990,18 @@
       oppTitleEl.style.color = 'rgba(255,255,255,0.5)';
     }
 
+    // 處理自己 (You) 的連勝火焰
+    const myTitleEl = document.getElementById('my-name-display');
+    if (myTitleEl) {
+      if (!isAIMode && myWinStreak >= 3) {
+        // 真人對戰且連勝 >= 3，顯示火焰
+        myTitleEl.innerHTML = `<div style="position: relative; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;">You<span style="position: absolute; left: 100%; top: 50%; transform: translateY(-50%); color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span></div>`;
+      } else {
+        // AI 模式或未達連勝，維持普通狀態
+        myTitleEl.innerHTML = 'You';
+      }
+    }
+
     // 這行現在絕對安全了
     if (layout) layout.classList.add('is-multiplayer');
 
@@ -2154,6 +2167,10 @@
        oppTitleEl.style.color = 'var(--Z)';
        oppTitleEl.style.textShadow = '0 0 10px var(--Z)';
     }
+
+    // 退出對戰時，確保火焰被清空，恢復預設的 You
+    const myTitleEl = document.getElementById('my-name-display');
+    if (myTitleEl) myTitleEl.innerHTML = 'You';
 
     const layout = document.getElementById('layout');
     if (layout) layout.classList.remove('is-multiplayer'); 
@@ -2397,9 +2414,21 @@
            const p = data.profile;
            const oppTitleEl = document.getElementById('opp-name-display');
            if (oppTitleEl) {
-               const fireIcon = (p.streak && p.streak >= 3) ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
-               oppTitleEl.innerHTML = (p.name || 'OPPONENT') + fireIcon;
-               oppTitleEl.style.color = 'var(--Z)';
+               const fireIcon = (p.streak && p.streak >= 3) ? '<span style="position: absolute; left: 100%; top: 50%; transform: translateY(-50%); color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
+               
+               // 用 div 包裝名字與火焰，確保它們在同一排
+               const nameHtml = `<div style="position: relative; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; color: var(--Z);">${p.name || 'OPPONENT'}${fireIcon}</div>`;
+               
+               // 讀取傳過來的對戰資訊，呼叫你寫好的段位系統上色
+               const oppLp = p.lp || 0;
+               const rankInfo = getRankInfo(oppLp); // 抓取對應的段位顏色與名稱
+               const winRateText = p.winRate ? ` | 勝率: ${p.winRate}` : '';
+               
+               // 組合出第二行的戰績文字，字體調小並取消外發光避免太刺眼
+               const statsHtml = `<div style="font-size: 13px; color: ${rankInfo.color}; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">${rankInfo.name} (${oppLp} LP)${winRateText}</div>`;
+               
+               // 把兩行合併塞進標題區塊
+               oppTitleEl.innerHTML = nameHtml + statsHtml;
            }
            if (!oppState) oppState = {};
            oppState.lp = p.lp || 0;
@@ -2717,42 +2746,48 @@
     layout.style.transform = 'none';
     const rect = layout.getBoundingClientRect();
 
+    // 統一基礎安全邊界，不再硬塞超大 padding 導致小螢幕嚴重縮水
     const paddingW = 20; 
-    // 把上下邊界縮小，讓畫面強制放大，不再過度退縮
-    const paddingH = isMultiplayer ? 90 : 40; 
+    const paddingH = 40; 
 
+    // 取得視窗可用空間
     const availW = window.innerWidth - paddingW;
     const availH = window.innerHeight - paddingH;
     
-    const scale = Math.min(availW / rect.width, availH / rect.height, 1);
+    // 連線模式下，上方有一個飛出界外 (-75px) 的計時器和離房按鈕
+    // 把它需要的 85px 真實空間，加進「總需求高度」來計算縮放
+    const extraTopSpace = isMultiplayer ? 85 : 0; 
+    const requiredH = rect.height + extraTopSpace;
     
-    // 微調下移量，只給頂部的 02:00 預留剛剛好的空間
-    const offsetY = isMultiplayer ? 'calc(-50% + 25px)' : '-50%';
+    // 計算出最完美的縮放比例
+    const scale = Math.min(availW / rect.width, availH / requiredH, 1);
     
-    layout.style.transform = `translate(-50%, ${offsetY}) scale(${scale})`;
-    // --- 包含按鈕與線上名單 一起同步縮放，保證寬度一致 ---
+    // 計算 Y 軸偏移：因為 transform 是基於中心點 (-50%) 縮放
+    // 為了把上方的 extraTopSpace 空間讓出來，把中心點「往下推」這段空間的一半
+    const offsetY = isMultiplayer ? (extraTopSpace * scale) / 2 : 0;
+    
+    layout.style.transform = `translate(-50%, calc(-50% + ${offsetY}px)) scale(${scale})`;
+
+    // --- 同步縮放設定按鈕 (高幀率按鈕、線上名單) ---
     const settingsContainer = document.getElementById('settings-container');
     if (settingsContainer) {
-      // 只有在單人模式 (在 viewport 內) 才需要手動縮放
       if (settingsContainer.parentElement.id === 'viewport') {
         settingsContainer.style.transform = `scale(${scale})`;
         settingsContainer.style.transformOrigin = 'top right';
       } else {
-        // 進對戰模式時清除縮放 (因為外層的 layout 已經縮放過了，避免雙重縮小)
+        // 進對戰模式時清除縮放 (因為外層的 layout 已經縮放過，避免雙重縮小)
         settingsContainer.style.transform = 'none';
       }
     }
     
-    // 由 settingsContainer 統一管理
     const onlinePanel = document.getElementById('online-panel');
-    if (onlinePanel) {
-      onlinePanel.style.transform = 'none';
-    }
+    if (onlinePanel) onlinePanel.style.transform = 'none';
+
     // --- 右下角的版本號碼也跟隨同步縮放 ---
     const versionTag = document.getElementById('version-tag');
     if (versionTag) {
       versionTag.style.transform = `scale(${scale})`;
-      versionTag.style.transformOrigin = 'bottom right'; // 將縮放錨點釘死在右下角
+      versionTag.style.transformOrigin = 'bottom right';
     }
   }
 
