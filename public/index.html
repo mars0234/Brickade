@@ -1281,6 +1281,7 @@
   let lastActionTime = Date.now(); // 記錄玩家最後一次按鍵的時間
   let lastHeartbeat = Date.now(); // 紀錄最後一次收到對手訊息的時間
   let lastOpponentId = null; // 用來記憶上一個對手的 ID
+  let lastFPressTime = 0; // 快速投降 (F鍵) 的雙擊計時器
   let piecePool = [];
   let myPieceIndex = 0;
   let aiPieceIndex = 0;
@@ -5487,7 +5488,7 @@
     }
 
     // 阻擋預設行為 (例如按空白鍵或上下鍵時，防止網頁跟著捲動)
-    if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyA','KeyX','KeyZ','KeyC','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Escape','Enter','NumpadEnter'].includes(k)) {
+    if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyA','KeyX','KeyZ','KeyC','KeyF','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Escape','Enter','NumpadEnter'].includes(k)) {
       e.preventDefault();
     }
 
@@ -5517,6 +5518,28 @@
     // 只要有按鍵操作，就更新最後活動時間
     if (isMultiplayer && gameStarted) {
       lastActionTime = Date.now();
+    }
+
+    // === 快速投降 (雙擊 F 鍵) ===
+    if (k === 'KeyF') {
+      // 只允許在連線對戰中，且遊戲已經開始、還沒結束的情況下使用
+      if (isMultiplayer && gameStarted && !gameOver && countdownValue <= 0) {
+        const now = Date.now();
+        // 判定為雙擊：兩次按鍵間隔小於 400 毫秒
+        if (now - lastFPressTime < 400) {
+          lastFPressTime = 0; // 成功觸發後歸零，避免連按三下觸發兩次
+          
+          // 繞過 confirm 視窗，直接執行投降！
+          if (conn && conn.open) conn.send({ type: 'SURRENDER' });
+          handleSurrender(false); // false 代表是我自己投降
+          
+        } else {
+          // 單點或按太慢，記錄時間並跳出提示
+          lastFPressTime = now;
+          showToast("⚠️ 確定要投降？請快速連按兩下 F 鍵！", 2000);
+        }
+      }
+      return; // 執行完就跳出，不再往下判定
     }
 
     // 音量與靜音控制
