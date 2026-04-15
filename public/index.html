@@ -768,8 +768,12 @@
         </div>
       </div>
       
-      <div class="board-col">
+      <div class="board-col" style="position: relative;">
         <div class="game-title" id="my-name-display">You</div> <canvas id="game" width="340" height="680"></canvas>
+        <div id="spectator-badge" class="hidden" style="position:absolute; top:38px; left:6px; z-index:40; background:rgba(0,0,0,0.6); color:var(--I); border:1px solid var(--I); border-radius:14px; padding:3px 9px; font-weight:900; font-size:12px; cursor:pointer; box-shadow:0 0 8px rgba(56,189,238,0.4);" title="點擊查看觀戰名單">
+          👀 <span id="spectator-badge-count">0</span>
+        </div>
+        <div id="spectator-list-popup" class="hidden" style="position:absolute; top:62px; left:6px; z-index:41; background:rgba(6,0,79,0.97); border:2px solid var(--I); border-radius:6px; min-width:140px; max-height:220px; overflow-y:auto; box-shadow:0 4px 15px rgba(0,0,0,0.7);"></div>
       </div>
       
       <div class="side-col">
@@ -2363,6 +2367,22 @@
         }
         connection.close();
       }
+      // === 👀 觀戰模式訊息 (走獨立連線，不經過 conn 防護罩) ===
+      else if (data.type === 'SPECTATE_REQUEST') {
+        handleSpectateRequest(connection, data.from);
+      }
+      else if (data.type === 'SPECTATE_LEAVE') {
+        if (spectatorConns.has(connection.peer)) {
+          const info = spectatorConns.get(connection.peer);
+          spectatorConns.delete(connection.peer);
+          broadcastSpectatorListToAll();
+          if (info && info.username) showToast('👀 ' + info.username + ' 結束了觀戰', 2000);
+        }
+        setTimeout(() => { try { connection.close(); } catch(e) {} }, 200);
+      }
+      else if (data.type === 'SPECTATE_PING') {
+        try { connection.send({ type: 'SPECTATE_PONG' }); } catch(e) {}
+      }
       else {
         // === 🎮 遊戲進行階段 ===
         // 🌟 防護罩：如果傳來資料的這條線不是「現任 (conn)」，直接無視它！
@@ -2437,6 +2457,10 @@
            oppState.isGuest = p.name === 'Guest';
            oppState.name = p.name || 'OPPONENT';
            oppState.uid = p.uid || null;
+           // Phase 2：廣播對手 profile 給所有觀戰者
+           if (spectatorConns && spectatorConns.size > 0) {
+             try { broadcastEffectToSpectators('OPP_PROFILE', { profile: p }); } catch(e) {}
+           }
         } else if (data.type === 'EMOJI') {
            // 恢復對戰中噴表情符號的功能
            myFloatingTexts.push(new FloatingText(data.emoji, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ffffff', 55));
@@ -2459,6 +2483,13 @@
     });
 
     connection.on('close', () => {
+      // 觀戰連線關閉：從 spectator 名單移除
+      if (spectatorConns && spectatorConns.has(connection.peer)) {
+        const info = spectatorConns.get(connection.peer);
+        spectatorConns.delete(connection.peer);
+        broadcastSpectatorListToAll();
+        if (info && info.username) showToast('👀 ' + info.username + ' 結束了觀戰', 2000);
+      }
       // 確保連線關閉時，清空對應的狀態變數
       if (isMultiplayer && conn === connection) {
         exitMultiplayerMode();
@@ -2543,8 +2574,12 @@
   
   // 迷你合成器：根據不同動作發出不同頻率與波形的聲音
   function playSound(type, param = 0) {
+    // 👀 觀戰廣播：把每個音效事件即時送給所有觀戰者，讓他們聽到並觸發震動
+    if (typeof spectatorConns !== 'undefined' && spectatorConns && spectatorConns.size > 0 && !_suppressSpectateBroadcast) {
+      try { broadcastEffectToSpectators(type, { param: param }); } catch(e) {}
+    }
     if (isSfxMuted || !audioCtx) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -5353,8 +5388,872 @@
     }
   }
 
+  // ============================================================
+  //  👀 觀戰模式 (SPECTATE MODE) - Phase 1: 單人模式觀戰
+  // ============================================================
+  const MAX_SPECTATORS = 10;
+
+  // 我作為「被觀戰方 (Host)」維護的資料
+  let spectatorConns = new Map();        // peerId -> { conn, username, joinedAt, pingMs }
+
+  // 我作為「觀戰方 (Viewer)」維護的資料
+  let isSpectating = false;
+  let spectateConn = null;               // 我連到被觀戰方的 PeerJS connection
+  let spectateTarget = null;             // { username, peerId }
+  let spectateLastFrameAt = 0;
+  let spectatePingMs = 0;
+  let spectatePingTimer = null;
+  let spectateLastPingSent = 0;
+  let _spectateHostMode = null;          // 'SINGLE' | 'MULTIPLAYER' | 'AI_BATTLE'
+  let _spectateHostUsername = null;
+  let _spectateLocalPlayingBackup = null; // 保留進入觀戰前是否正在遊戲，退出後可選擇恢復
+  let isSpectatingBattle = false;        // Phase 2: 當前是否在觀戰對戰模式 (會切換成對戰佈局)
+
+  // 防止 spectator 接收 effect 後又把自己 playSound 廣播出去（雖然 observer 不會被觀戰，但保險）
+  let _suppressSpectateBroadcast = false;
+
+  // 把我目前的遊戲狀態壓成 frame 物件
+  function buildSpectateFrame() {
+    let compressedBoard = '';
+    if (board) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          compressedBoard += board[r][c] ? board[r][c] : '.';
+        }
+      }
+    } else {
+      compressedBoard = '.'.repeat(ROWS * COLS);
+    }
+    const frame = {
+      b: compressedBoard,
+      s: score || 0,
+      ln: lines || 0,
+      lv: level || 1,
+      cb: (typeof combo === 'number') ? combo : -1,
+      bb: b2b || 0,
+      g: activeGarbage || 0,
+      ng: nextGarbage || 0,
+      mc: maxCombo || 0,
+      pp: piecesPlaced || 0,
+      gs: gameStarted ? 1 : 0,
+      go: gameOver ? 1 : 0,
+      ip: isPaused ? 1 : 0,
+      cd: countdownValue || 0,
+      c: current ? { t: current.type, r: current.row, c: current.col, rot: current.rot } : null,
+      h: holdType || null,
+      hu: holdUsed ? 1 : 0,
+      q: queue ? queue.slice(0, 6) : [],
+      mode: isAIMode ? 'AI_BATTLE' : (isMultiplayer ? 'MULTIPLAYER' : 'SINGLE'),
+      hi: highScore || 0,
+      vR: (typeof visualRow === 'number') ? visualRow : 0,
+      vC: (typeof visualCol === 'number') ? visualCol : 0,
+      gR: (typeof visualGhostRow === 'number') ? visualGhostRow : 0,
+      mk: (typeof myKOs === 'number') ? myKOs : 0,
+      mls: (typeof myLinesSent === 'number') ? myLinesSent : 0
+    };
+    // Phase 2：對戰模式附加對手資料與分數 / 計時器
+    if (isMultiplayer || isAIMode) {
+      if (oppState) {
+        // 淺拷貝 oppState (含 b / s / g / ng / k / ls / ln / name / lp / uid 等)
+        frame.opp = Object.assign({}, oppState);
+      }
+      frame.mw = myWins || 0;
+      frame.ow = oppWins || 0;
+      frame.mr = iAmReady ? 1 : 0;
+      frame.oR = oppIsReady ? 1 : 0;
+      frame.am = isAIMode ? 1 : 0;
+      const tmEl = document.getElementById('battle-timer');
+      frame.tm = tmEl ? tmEl.textContent : '02:00';
+      // Phase 3：AI 模式附帶 AI 設定（給觀戰者唯讀顯示）
+      if (isAIMode) {
+        frame.aiSp = (typeof aiSpeedMode === 'string') ? aiSpeedMode : 'adaptive';
+        frame.aiW = (typeof aiWideMode !== 'undefined') ? String(aiWideMode) : 'auto';
+      }
+    }
+    return frame;
+  }
+
+  // Phase 3：frame 廣播節流，避免高頻事件期間壓垮本機主遊戲網路
+  let _lastFrameBroadcastAt = 0;
+  const SPECTATE_FRAME_MIN_INTERVAL_MS = 30; // 最高約 33 FPS
+  function broadcastFrameToSpectators() {
+    if (!spectatorConns || spectatorConns.size === 0) return;
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    if (now - _lastFrameBroadcastAt < SPECTATE_FRAME_MIN_INTERVAL_MS) return;
+    _lastFrameBroadcastAt = now;
+    let payload;
+    try {
+      payload = { type: 'SPECTATE_FRAME', frame: buildSpectateFrame() };
+    } catch (e) { return; }
+    spectatorConns.forEach((info) => {
+      try { if (info.conn && info.conn.open) info.conn.send(payload); }
+      catch (e) { /* ignore */ }
+    });
+  }
+
+  function broadcastEffectToSpectators(effect, params) {
+    if (_suppressSpectateBroadcast) return;
+    if (!spectatorConns || spectatorConns.size === 0) return;
+    const payload = { type: 'SPECTATE_EFFECT', effect: effect, params: params || {} };
+    spectatorConns.forEach((info) => {
+      try { if (info.conn && info.conn.open) info.conn.send(payload); }
+      catch (e) { /* ignore */ }
+    });
+  }
+
+  // Host 端：攔截 myFloatingTexts.push 與 shake，自動把浮動文字/震動廣播給觀戰者
+  (function installFloatingTextBroadcastHook() {
+    if (!Array.isArray(myFloatingTexts)) return;
+    const origPush = Array.prototype.push;
+    myFloatingTexts.push = function(...items) {
+      const r = origPush.apply(this, items);
+      try {
+        if (!_suppressSpectateBroadcast && spectatorConns && spectatorConns.size > 0) {
+          for (const ft of items) {
+            if (ft && typeof ft.text === 'string') {
+              broadcastEffectToSpectators('FLOAT', {
+                text: ft.text,
+                x: ft.x, y: ft.y,
+                color: ft.color,
+                size: ft.size
+              });
+            }
+          }
+        }
+      } catch (e) {}
+      return r;
+    };
+  })();
+
+  // Host 端：在 buildSpectateFrame 前提供一個 helper 廣播螢幕震動
+  function broadcastShakeToSpectators(mag) {
+    if (_suppressSpectateBroadcast) return;
+    if (!spectatorConns || spectatorConns.size === 0) return;
+    try { broadcastEffectToSpectators('SHAKE', { mag: mag }); } catch(e) {}
+  }
+
+  function broadcastSpectatorListToAll() {
+    if (!spectatorConns) return;
+    const list = Array.from(spectatorConns.values()).map(s => s.username);
+    const payload = { type: 'SPECTATE_LIST', list: list };
+    spectatorConns.forEach((info) => {
+      try { if (info.conn && info.conn.open) info.conn.send(payload); }
+      catch (e) {}
+    });
+    updateSpectatorBadge();
+  }
+
+  function updateSpectatorBadge() {
+    const badge = document.getElementById('spectator-badge');
+    if (!badge) return;
+    const n = spectatorConns ? spectatorConns.size : 0;
+    if (n === 0) {
+      badge.classList.add('hidden');
+      const popup = document.getElementById('spectator-list-popup');
+      if (popup) popup.classList.add('hidden');
+      return;
+    }
+    badge.classList.remove('hidden');
+    const countEl = document.getElementById('spectator-badge-count');
+    if (countEl) countEl.textContent = n;
+    const popup = document.getElementById('spectator-list-popup');
+    if (popup && !popup.classList.contains('hidden')) renderSpectatorListPopup();
+  }
+
+  function renderSpectatorListPopup() {
+    const popup = document.getElementById('spectator-list-popup');
+    if (!popup) return;
+    if (!spectatorConns || spectatorConns.size === 0) {
+      popup.innerHTML = '<div style="padding:8px; font-size:11px; color:rgba(255,255,255,0.5);">目前沒有觀戰者</div>';
+      return;
+    }
+    let html = '<div style="padding:6px 8px; font-size:11px; font-weight:900; color:var(--I); border-bottom:1px solid rgba(255,255,255,0.2);">👀 觀戰中 (' + spectatorConns.size + '/' + MAX_SPECTATORS + ')</div>';
+    spectatorConns.forEach((info) => {
+      html += '<div style="padding:5px 10px; font-size:12px; color:var(--white); border-bottom:1px solid rgba(255,255,255,0.05);">' + info.username + '</div>';
+    });
+    popup.innerHTML = html;
+  }
+
+  // 處理觀戰請求 (host 端，由 setupConnection 的 data handler 呼叫)
+  function handleSpectateRequest(connection, fromUsername) {
+    if (isPracticeMode) {
+      try { connection.send({ type: 'SPECTATE_REJECT', reason: 'PRACTICE' }); } catch(e) {}
+      setTimeout(() => { try { connection.close(); } catch(e) {} }, 500);
+      return;
+    }
+    // Phase 2：允許 MULTIPLAYER / AI_BATTLE 觀戰
+    if (spectatorConns.size >= MAX_SPECTATORS) {
+      try { connection.send({ type: 'SPECTATE_REJECT', reason: 'FULL' }); } catch(e) {}
+      setTimeout(() => { try { connection.close(); } catch(e) {} }, 500);
+      return;
+    }
+    spectatorConns.set(connection.peer, {
+      conn: connection,
+      username: fromUsername || '???',
+      joinedAt: Date.now(),
+      pingMs: 0
+    });
+    try {
+      connection.send({
+        type: 'SPECTATE_ACCEPT',
+        hostUsername: currentPlayer,
+        mode: isAIMode ? 'AI_BATTLE' : (isMultiplayer ? 'MULTIPLAYER' : 'SINGLE')
+      });
+      // 立即送一個 frame 讓觀戰端有畫面
+      connection.send({ type: 'SPECTATE_FRAME', frame: buildSpectateFrame() });
+    } catch(e) {}
+    showToast('👀 ' + (fromUsername || '某玩家') + ' 開始觀戰你！', 2500);
+    broadcastSpectatorListToAll();
+  }
+
+  function removeSpectatorByPeerId(peerId) {
+    if (!spectatorConns.has(peerId)) return;
+    const info = spectatorConns.get(peerId);
+    try {
+      if (info.conn && info.conn.open) {
+        try { info.conn.close(); } catch(e) {}
+      }
+    } catch(e) {}
+    spectatorConns.delete(peerId);
+    broadcastSpectatorListToAll();
+  }
+
+  function endAllSpectatorSessions(reason) {
+    if (!spectatorConns || spectatorConns.size === 0) return;
+    spectatorConns.forEach((info) => {
+      try {
+        if (info.conn && info.conn.open) info.conn.send({ type: 'SPECTATE_END', reason: reason || 'HOST_LEFT' });
+        setTimeout(() => { try { info.conn.close(); } catch(e) {} }, 200);
+      } catch(e) {}
+    });
+    spectatorConns.clear();
+    updateSpectatorBadge();
+  }
+
+  // ----------------------------------------
+  //  作為「觀戰方 (Viewer)」的邏輯
+  // ----------------------------------------
+
+  async function startSpectate(targetUsername) {
+    if (isSpectating) {
+      showToast('⚠️ 你已經在觀戰其他玩家');
+      return;
+    }
+    if (isMultiplayer || isAIMode) {
+      showToast('⚠️ 對戰中無法觀戰');
+      return;
+    }
+    if (!peer || !isMyPeerReady) {
+      showToast('⚠️ 連線尚未就緒');
+      return;
+    }
+    if (targetUsername === currentPlayer) {
+      showToast('⚠️ 不能觀戰自己');
+      return;
+    }
+    // 軟提示：若本機正在進行單機遊戲，提醒玩家會中斷
+    if (gameStarted && !gameOver) {
+      showToast('⚠️ 進入觀戰將中斷你目前的遊戲', 2000);
+    }
+    showToast('正在連線到 ' + targetUsername + '...', 1500);
+    try {
+      const snap = await db.collection('users').where('username', '==', targetUsername).get();
+      if (snap.empty) {
+        showToast('⚠️ 找不到此玩家');
+        return;
+      }
+      const targetPeerId = snap.docs[0].data().currentPeerId;
+      if (!targetPeerId) {
+        showToast('⚠️ 此玩家未上線');
+        return;
+      }
+      const c = peer.connect(targetPeerId, { reliable: true, metadata: { kind: 'spectate' } });
+      let opened = false;
+      const openTimeout = setTimeout(() => {
+        if (!opened) {
+          showToast('⚠️ 連線超時');
+          try { c.close(); } catch(e) {}
+        }
+      }, 8000);
+      c.on('open', () => {
+        opened = true;
+        clearTimeout(openTimeout);
+        try { c.send({ type: 'SPECTATE_REQUEST', from: currentPlayer }); } catch(e) {}
+      });
+      c.on('data', (data) => handleSpectateData(c, data, targetUsername));
+      c.on('close', () => {
+        if (isSpectating && spectateConn === c) {
+          showToast('👀 觀戰連線已關閉', 2500);
+          exitSpectateMode('CONN_CLOSED');
+        }
+      });
+      c.on('error', (err) => {
+        console.log('觀戰連線錯誤:', err);
+        if (isSpectating && spectateConn === c) exitSpectateMode('CONN_ERROR');
+        else showToast('⚠️ 觀戰連線失敗');
+      });
+      spectateConn = c;
+      spectateTarget = { username: targetUsername, peerId: targetPeerId };
+    } catch (e) {
+      console.error(e);
+      showToast('⚠️ 觀戰失敗：' + (e && e.message ? e.message : '未知錯誤'));
+    }
+  }
+
+  function handleSpectateData(connection, data, targetUsername) {
+    if (!data || !data.type) return;
+    if (data.type === 'SPECTATE_REJECT') {
+      const reasons = {
+        PRACTICE: '對方在練習模式，無法觀戰',
+        FULL: '觀戰人數已滿 (' + MAX_SPECTATORS + '/' + MAX_SPECTATORS + ')',
+        BUSY: '對方目前無法被觀戰',
+        PHASE_PENDING: '對戰中觀戰功能即將開放'
+      };
+      showToast('⚠️ ' + (reasons[data.reason] || '無法觀戰'), 3000);
+      try { connection.close(); } catch(e) {}
+      spectateConn = null;
+      spectateTarget = null;
+      return;
+    }
+    if (data.type === 'SPECTATE_ACCEPT') {
+      _spectateHostMode = data.mode || 'SINGLE';
+      _spectateHostUsername = data.hostUsername || targetUsername;
+      enterSpectateMode();
+      return;
+    }
+    if (data.type === 'SPECTATE_END') {
+      const reasons = {
+        HOST_LEFT: '對方離開了遊戲',
+        GAME_END: '對方結束了這局',
+        DISCONNECT: '對方斷線了',
+        UNSTABLE: '連線不穩，已斷開觀戰',
+        RETURN_LOBBY: '對方返回了主畫面',
+        ENTERED_BATTLE: '對方進入了對戰模式',
+        ENTERED_PRACTICE: '對方進入了練習模式'
+      };
+      showToast('👀 ' + (reasons[data.reason] || '觀戰結束'), 3000);
+      exitSpectateMode(data.reason || 'END');
+      return;
+    }
+    if (data.type === 'SPECTATE_FRAME') {
+      applySpectateFrame(data.frame);
+      spectateLastFrameAt = Date.now();
+      return;
+    }
+    if (data.type === 'SPECTATE_EFFECT') {
+      applySpectateEffect(data.effect, data.params || {});
+      return;
+    }
+    if (data.type === 'SPECTATE_LIST') {
+      // 名單更新：Phase 1 不顯示，Phase 2/3 可在觀戰角落列出其他觀戰者
+      return;
+    }
+    if (data.type === 'SPECTATE_PONG') {
+      spectatePingMs = Date.now() - spectateLastPingSent;
+      const lat = document.getElementById('spectate-latency');
+      if (lat) {
+        lat.textContent = '~' + spectatePingMs + 'ms';
+        lat.style.color = spectatePingMs < 100 ? 'var(--S)' : (spectatePingMs < 200 ? 'var(--O)' : 'var(--Z)');
+      }
+      return;
+    }
+    if (data.type === 'SPECTATE_PING') {
+      // 對方在量我的延遲（理論上不會發生，但保險回個 PONG）
+      try { connection.send({ type: 'SPECTATE_PONG' }); } catch(e) {}
+      return;
+    }
+  }
+
+  function enterSpectateMode() {
+    isSpectating = true;
+    if (typeof updateMyActivity === 'function') updateMyActivity('SPECTATING');
+    // 暫停我自己的遊戲（不會結算）
+    _spectateLocalPlayingBackup = { gameStarted: gameStarted, score: score, highScore: highScore };
+    isPaused = false;
+    gameStarted = false;
+    gameOver = false;
+    countdownValue = 0;
+    // 觀戰時 MUSIC/SFX 仍是觀戰者自己的，不動 bgm
+    // 清空我自己的遊戲狀態，等候 frame 灌入
+    if (typeof createBoard === 'function') board = createBoard();
+    current = null;
+    holdType = null;
+    holdUsed = false;
+    queue = [];
+    score = 0;
+    lines = 0;
+    level = 1;
+    combo = -1;
+    b2b = 0;
+    activeGarbage = 0;
+    nextGarbage = 0;
+    if (scoreEl) scoreEl.textContent = '0';
+    if (linesEl) linesEl.textContent = '0';
+    if (levelEl) levelEl.textContent = '1';
+
+    // 替換名稱顯示為 <對方名稱> 👀觀戰中
+    const myTitleEl = document.getElementById('my-name-display');
+    if (myTitleEl) {
+      myTitleEl.innerHTML = '<div style="display:inline-flex; align-items:center; gap:6px; color:var(--I); white-space:nowrap;">' + (_spectateHostUsername || '???') + ' <span style="font-size:13px; color:var(--O);">👀觀戰中</span></div>';
+    }
+    // Phase 2：若進入時 host 已在對戰中，直接切換到對戰佈局
+    if (_spectateHostMode === 'MULTIPLAYER' || _spectateHostMode === 'AI_BATTLE') {
+      enterSpectateBattleLayout();
+    }
+    // 顯示「離開觀戰」按鈕 + 延遲顯示
+    showSpectateOverlayUI();
+    // 啟動延遲量測 + 心跳
+    if (spectatePingTimer) clearInterval(spectatePingTimer);
+    spectatePingTimer = setInterval(() => {
+      if (!spectateConn || !spectateConn.open) return;
+      spectateLastPingSent = Date.now();
+      try { spectateConn.send({ type: 'SPECTATE_PING' }); } catch(e) {}
+      // 超過 5 秒沒收到 frame 視為斷線
+      if (spectateLastFrameAt && Date.now() - spectateLastFrameAt > 5000) {
+        showToast('⚠️ 觀戰連線中斷');
+        exitSpectateMode('TIMEOUT');
+      }
+    }, 2000);
+    showToast('👀 開始觀戰 ' + (_spectateHostUsername || '玩家'), 2000);
+  }
+
+  function exitSpectateMode(reason) {
+    if (!isSpectating && !spectateConn) return;
+    const wasSpectating = isSpectating;
+    isSpectating = false;
+    if (spectateConn) {
+      try {
+        if (spectateConn.open) spectateConn.send({ type: 'SPECTATE_LEAVE' });
+        setTimeout(() => { try { spectateConn.close(); } catch(e) {} }, 200);
+      } catch(e) {}
+    }
+    spectateConn = null;
+    spectateTarget = null;
+    _spectateHostMode = null;
+    _spectateHostUsername = null;
+    if (spectatePingTimer) { clearInterval(spectatePingTimer); spectatePingTimer = null; }
+    spectatePingMs = 0;
+    spectateLastFrameAt = 0;
+
+    // 還原 UI
+    hideSpectateOverlayUI();
+    // Phase 2：若處於對戰佈局，先還原單人佈局
+    if (isSpectatingBattle) exitSpectateBattleLayout();
+    const myTitleEl = document.getElementById('my-name-display');
+    if (myTitleEl) myTitleEl.innerHTML = 'You';
+
+    // 清空棋盤回到 PRESS ENTER 畫面
+    if (typeof createBoard === 'function') board = createBoard();
+    current = null;
+    holdType = null;
+    holdUsed = false;
+    queue = [];
+    score = 0;
+    lines = 0;
+    level = 1;
+    combo = -1;
+    b2b = 0;
+    activeGarbage = 0;
+    nextGarbage = 0;
+    gameStarted = false;
+    gameOver = false;
+    isPaused = false;
+    countdownValue = 0;
+    if (scoreEl) scoreEl.textContent = '0';
+    if (linesEl) linesEl.textContent = '0';
+    if (levelEl) levelEl.textContent = '1';
+    // 還原 HIGH SCORE 顯示為本機紀錄
+    const hsEl = document.getElementById('high-score');
+    if (hsEl) hsEl.textContent = highScore || 0;
+
+    // 強制刷新 HOLD / NEXT / QUEUE 側邊面板，清掉觀戰時留下的方塊
+    try { if (typeof renderPanels === 'function') renderPanels(); } catch(e) {}
+
+    if (typeof updateMyActivity === 'function') updateMyActivity('IDLE');
+    // 重新拉一次線上名單以恢復按鈕狀態
+    if (typeof listenToOnlineUsers === 'function') listenToOnlineUsers();
+  }
+
+  function applySpectateFrame(f) {
+    if (!f) return;
+    _suppressSpectateBroadcast = true;
+    try {
+      // Phase 2：如果 host 模式變了，動態切換觀戰佈局
+      if (f.mode && f.mode !== _spectateHostMode) {
+        const wasBattle = (_spectateHostMode === 'MULTIPLAYER' || _spectateHostMode === 'AI_BATTLE');
+        const isBattle = (f.mode === 'MULTIPLAYER' || f.mode === 'AI_BATTLE');
+        if (!wasBattle && isBattle) enterSpectateBattleLayout();
+        else if (wasBattle && !isBattle) exitSpectateBattleLayout();
+        _spectateHostMode = f.mode;
+      }
+      if (typeof f.b === 'string' && f.b.length === ROWS * COLS) {
+        if (!board) board = createBoard();
+        let idx = 0;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const ch = f.b[idx++];
+            board[r][c] = (ch === '.') ? null : ch;
+          }
+        }
+      }
+      if (f.c && PIECES[f.c.t]) {
+        const t = f.c.t, rot = f.c.rot || 0;
+        current = {
+          type: t,
+          matrix: PIECES[t][rot],
+          rot: rot,
+          row: f.c.r,
+          col: f.c.c,
+          lowestRow: f.c.r
+        };
+        visualRow = (typeof f.vR === 'number') ? f.vR : f.c.r;
+        visualCol = (typeof f.vC === 'number') ? f.vC : f.c.c;
+        visualGhostRow = (typeof f.gR === 'number') ? f.gR : f.c.r;
+      } else {
+        current = null;
+      }
+      holdType = f.h || null;
+      holdUsed = !!f.hu;
+      queue = Array.isArray(f.q) ? f.q.slice() : [];
+      score = f.s || 0;
+      lines = f.ln || 0;
+      level = f.lv || 1;
+      combo = (typeof f.cb === 'number') ? f.cb : -1;
+      b2b = f.bb || 0;
+      activeGarbage = f.g || 0;
+      nextGarbage = f.ng || 0;
+      gameStarted = !!f.gs;
+      gameOver = !!f.go;
+      isPaused = !!f.ip;
+      countdownValue = f.cd || 0;
+
+      if (scoreEl) scoreEl.textContent = score;
+      if (linesEl) linesEl.textContent = lines;
+      if (levelEl) levelEl.textContent = level;
+      // 觀戰時 HIGH SCORE 顯示對方的紀錄（不寫入本機 highScore 變數，避免汙染）
+      const hsEl = document.getElementById('high-score');
+      if (hsEl && typeof f.hi === 'number') hsEl.textContent = f.hi;
+
+      // 同步繪製 HOLD / NEXT / QUEUE 側邊面板（renderPanels 正常只在事件時呼叫，觀戰時要強制刷新）
+      try { if (typeof renderPanels === 'function') renderPanels(); } catch(e) {}
+
+      // Phase 2：對戰模式同步對手資料、match score、計時器
+      if (isSpectatingBattle) {
+        if (f.opp) {
+          if (!oppState) oppState = {};
+          Object.assign(oppState, f.opp);
+          try { if (typeof renderOpponentPanels === 'function') renderOpponentPanels(); } catch(e) {}
+        }
+        // 比分
+        const myWinsEl = document.getElementById('my-wins-el');
+        const oppWinsEl = document.getElementById('opp-wins-el');
+        if (myWinsEl && typeof f.mw === 'number') myWinsEl.textContent = f.mw;
+        if (oppWinsEl && typeof f.ow === 'number') oppWinsEl.textContent = f.ow;
+        // 計時器
+        if (typeof f.tm === 'string') {
+          const timerEl = document.getElementById('battle-timer');
+          if (timerEl) timerEl.textContent = f.tm;
+        }
+        // 同步我方 KO / LINES SENT 顯示
+        if (typeof f.mk === 'number') {
+          const myKoEl = document.getElementById('my-ko-display');
+          if (myKoEl) myKoEl.textContent = f.mk;
+        }
+        if (typeof f.mls === 'number') {
+          const myLinesEl = document.getElementById('my-lines-sent-display');
+          if (myLinesEl) myLinesEl.textContent = f.mls;
+        }
+        // 對手 KO / LINES SENT
+        if (f.opp) {
+          const oppKoEl = document.getElementById('opp-ko-display');
+          if (oppKoEl && typeof f.opp.k === 'number') oppKoEl.textContent = f.opp.k;
+          const oppLinesEl = document.getElementById('opp-lines-sent-display');
+          if (oppLinesEl && typeof f.opp.ls === 'number') oppLinesEl.textContent = f.opp.ls;
+        }
+        // Phase 3：AI 模式同步唯讀 AI 設定顯示
+        if (f.am && (typeof f.aiSp === 'string' || typeof f.aiW === 'string')) {
+          if (typeof f.aiSp === 'string') {
+            document.querySelectorAll('#ai-speed-group .ai-option-btn').forEach(btn => {
+              if (btn.dataset.speed === f.aiSp) btn.classList.add('selected-speed');
+              else btn.classList.remove('selected-speed');
+            });
+          }
+          if (typeof f.aiW === 'string') {
+            document.querySelectorAll('#ai-wide-group .ai-option-btn').forEach(btn => {
+              if (btn.dataset.wide === f.aiW) btn.classList.add('selected');
+              else btn.classList.remove('selected');
+            });
+          }
+        }
+      }
+    } finally {
+      _suppressSpectateBroadcast = false;
+    }
+  }
+
+  function applySpectateEffect(effect, params) {
+    if (!effect) return;
+    params = params || {};
+    _suppressSpectateBroadcast = true;
+    try {
+      // playSound 的 type 直接對應，這層 switch 只處理需要額外視覺效果的
+      switch (effect) {
+        case 'clear':
+        case 'tetris':
+        case 'tspin':
+        case 'perfect':
+        case 'drop':
+        case 'rotate':
+        case 'move':
+        case 'win':
+        case 'lose':
+        case 'undo':
+          try { playSound(effect, params.param || 0); } catch(e) {}
+          if (effect === 'tetris') shakeMag = Math.max(shakeMag, 8);
+          else if (effect === 'tspin') shakeMag = Math.max(shakeMag, 5);
+          else if (effect === 'clear') shakeMag = Math.max(shakeMag, 2 + (params.param || 1));
+          break;
+        case 'attack':
+          if (typeof FloatingText === 'function')
+            myFloatingTexts.push(new FloatingText('+' + (params.lines || 0), (COLS*SIZE)/2, (VISIBLE_ROWS*SIZE)/2 + 40, '#ff0d62', 50));
+          break;
+        case 'incoming':
+          if (typeof FloatingText === 'function')
+            myFloatingTexts.push(new FloatingText('-' + (params.lines || 0), (COLS*SIZE)/2, (VISIBLE_ROWS*SIZE)/2 + 20, '#ff1111', 50));
+          break;
+        case 'ko':
+          if (typeof FloatingText === 'function')
+            myFloatingTexts.push(new FloatingText('K.O.', (COLS*SIZE)/2, (VISIBLE_ROWS*SIZE)/2, '#ff0d62', 100));
+          try { playSound('perfect'); } catch(e) {}
+          break;
+        case 'topout':
+          if (typeof FloatingText === 'function')
+            myFloatingTexts.push(new FloatingText('TOP OUT!', (COLS*SIZE)/2, (VISIBLE_ROWS*SIZE)/2, '#ff0d62', 60));
+          break;
+        case 'msg':
+          if (params.text && typeof FloatingText === 'function')
+            myFloatingTexts.push(new FloatingText(params.text, (COLS*SIZE)/2, (VISIBLE_ROWS*SIZE)/2 - 20, params.color || '#ffffff', params.size || 36));
+          break;
+        case 'FLOAT':
+          // 由 host 端監聽 myFloatingTexts.push 自動廣播，原樣重建浮動文字
+          if (typeof FloatingText === 'function' && params && typeof params.text === 'string') {
+            myFloatingTexts.push(new FloatingText(
+              params.text,
+              (typeof params.x === 'number') ? params.x : (COLS*SIZE)/2,
+              (typeof params.y === 'number') ? params.y : (VISIBLE_ROWS*SIZE)/2,
+              params.color || '#ffffff',
+              params.size || 40
+            ));
+          }
+          break;
+        case 'SHAKE':
+          shakeMag = Math.max(shakeMag, params.mag || 4);
+          break;
+        case 'OPP_PROFILE':
+          // Phase 2：更新對手名稱框（仿 host 端 PROFILE handler 的 HTML 組裝）
+          if (isSpectatingBattle && params && params.profile) {
+            const p = params.profile;
+            const oppTitleEl = document.getElementById('opp-name-display');
+            if (oppTitleEl) {
+              const fireIcon = (p.streak && p.streak >= 3) ? '<span style="position: absolute; left: 100%; top: 50%; transform: translateY(-50%); color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
+              const nameHtml = '<div style="position: relative; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; color: var(--Z);">' + (p.name || 'OPPONENT') + fireIcon + '</div>';
+              const oppLp = p.lp || 0;
+              let statsHtml = '';
+              if (typeof getRankInfo === 'function') {
+                const rankInfo = getRankInfo(oppLp);
+                const winRateText = p.winRate ? ' | 勝率: ' + p.winRate : '';
+                statsHtml = '<div style="font-size: 13px; color: ' + rankInfo.color + '; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">' + rankInfo.name + ' (' + oppLp + ' LP)' + winRateText + '</div>';
+              }
+              oppTitleEl.innerHTML = nameHtml + statsHtml;
+              oppTitleEl.style.color = '';
+              oppTitleEl.style.textShadow = '';
+            }
+            if (!oppState) oppState = {};
+            oppState.name = p.name || 'OPPONENT';
+            oppState.lp = p.lp || 0;
+          }
+          break;
+        default:
+          break;
+      }
+    } finally {
+      _suppressSpectateBroadcast = false;
+    }
+  }
+
+  // Phase 2：進入 / 離開觀戰對戰佈局（只動 DOM，不碰 isMultiplayer 等核心狀態）
+  function enterSpectateBattleLayout() {
+    if (isSpectatingBattle) return;
+    isSpectatingBattle = true;
+
+    const layout = document.getElementById('layout');
+    if (layout) layout.classList.add('is-multiplayer');
+
+    const oppPanel = document.getElementById('opp-panel');
+    const scorePanel = document.getElementById('singleplayer-ui');
+    const vsTimer = document.getElementById('vs-timer');
+    if (oppPanel) oppPanel.classList.remove('hidden');
+    if (scorePanel) scorePanel.classList.add('hidden');
+    if (vsTimer) vsTimer.classList.remove('hidden');
+    document.querySelectorAll('.mp-only').forEach(el => el.classList.remove('hidden'));
+
+    // 線上名單與排行榜在對戰佈局中隱藏
+    const onlinePanel = document.getElementById('online-panel');
+    if (onlinePanel) onlinePanel.classList.add('hidden');
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+    if (leaderboardContainer) leaderboardContainer.style.display = 'none';
+
+    // MULTIPLAYER 面板裡只留 MATCH SCORE（保留 invite-toast 才能在觀戰中收到邀請）
+    const hideIds = ['mp-input-group','mp-ready-group','ai-btn','conn-status','ping-display','emoji-hint-panel'];
+    hideIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    const myIdLine = document.querySelector('#network-section p');
+    if (myIdLine) myIdLine.style.display = 'none';
+    const scoreboardEl = document.getElementById('scoreboard');
+    if (scoreboardEl) scoreboardEl.style.display = 'block';
+
+    // 對戰佈局專用：隱藏 VS AI / LEAVE ROOM / READY 相關按鈕，別讓觀戰者誤觸
+    const mpLeaveBtn = document.getElementById('mp-leave-btn');
+    if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
+
+    // 對手名稱預設
+    const oppTitleEl = document.getElementById('opp-name-display');
+    if (oppTitleEl) {
+      oppTitleEl.innerHTML = 'LOADING...';
+      oppTitleEl.style.color = 'rgba(255,255,255,0.5)';
+    }
+
+    // Phase 3：若 host 是 AI_BATTLE，顯示 AI 設定面板為唯讀
+    if (_spectateHostMode === 'AI_BATTLE') {
+      const aiPanel = document.getElementById('ai-config-panel');
+      if (aiPanel) {
+        aiPanel.classList.remove('hidden');
+        aiPanel.setAttribute('data-spectate-readonly', '1');
+        aiPanel.style.pointerEvents = 'none';
+        aiPanel.style.opacity = '0.85';
+        // 加上「唯讀」浮水印提示
+        let watermark = aiPanel.querySelector('.spectate-readonly-mark');
+        if (!watermark) {
+          watermark = document.createElement('div');
+          watermark.className = 'spectate-readonly-mark';
+          watermark.style.cssText = 'text-align:center; font-size:11px; color:var(--I); font-weight:900; margin-top:-8px; margin-bottom:6px; letter-spacing:1px;';
+          watermark.textContent = '👀 唯讀同步中';
+          aiPanel.insertBefore(watermark, aiPanel.firstChild.nextSibling);
+        } else {
+          watermark.style.display = '';
+        }
+      }
+    }
+
+    // 對戰時計時器區域要重繪
+    setTimeout(() => { if (typeof fitLayout === 'function') fitLayout(); }, 50);
+  }
+
+  function exitSpectateBattleLayout() {
+    if (!isSpectatingBattle) return;
+    isSpectatingBattle = false;
+
+    const layout = document.getElementById('layout');
+    if (layout) layout.classList.remove('is-multiplayer');
+
+    const oppPanel = document.getElementById('opp-panel');
+    const scorePanel = document.getElementById('singleplayer-ui');
+    const vsTimer = document.getElementById('vs-timer');
+    if (oppPanel) oppPanel.classList.add('hidden');
+    if (scorePanel) scorePanel.classList.remove('hidden');
+    if (vsTimer) vsTimer.classList.add('hidden');
+    document.querySelectorAll('.mp-only').forEach(el => el.classList.add('hidden'));
+
+    if (currentUserUID) {
+      const onlinePanel = document.getElementById('online-panel');
+      if (onlinePanel) onlinePanel.classList.remove('hidden');
+    }
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+    if (leaderboardContainer) leaderboardContainer.style.display = 'flex';
+
+    // 還原 MULTIPLAYER 面板
+    const showIds = ['mp-input-group','ai-btn','conn-status','emoji-hint-panel'];
+    showIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+    const mpReady = document.getElementById('mp-ready-group');
+    if (mpReady) mpReady.style.display = 'none';
+    const pingDisplay = document.getElementById('ping-display');
+    if (pingDisplay) pingDisplay.style.display = 'none';
+    const inviteToast = document.getElementById('invite-toast');
+    if (inviteToast) { inviteToast.style.display = ''; inviteToast.classList.add('hidden'); }
+    const myIdLine = document.querySelector('#network-section p');
+    if (myIdLine) myIdLine.style.display = '';
+    const scoreboardEl = document.getElementById('scoreboard');
+    if (scoreboardEl) scoreboardEl.style.display = 'none';
+
+    // 還原對手名稱預設
+    const oppTitleEl = document.getElementById('opp-name-display');
+    if (oppTitleEl) {
+      oppTitleEl.innerHTML = 'OPPONENT';
+      oppTitleEl.style.color = 'var(--Z)';
+      oppTitleEl.style.textShadow = '0 0 10px var(--Z)';
+    }
+    // 清空對手資料，避免殘影
+    oppState = null;
+
+    // Phase 3：還原 AI 設定面板
+    const aiPanel = document.getElementById('ai-config-panel');
+    if (aiPanel) {
+      aiPanel.classList.add('hidden');
+      aiPanel.removeAttribute('data-spectate-readonly');
+      aiPanel.style.pointerEvents = '';
+      aiPanel.style.opacity = '';
+      const watermark = aiPanel.querySelector('.spectate-readonly-mark');
+      if (watermark) watermark.style.display = 'none';
+    }
+
+    setTimeout(() => { if (typeof fitLayout === 'function') fitLayout(); }, 50);
+  }
+
+  function showSpectateOverlayUI() {
+    // 把離開觀戰按鈕釘在 .player-section 的右上角（NEXT 方塊的正上方，和 "YOU" 名字齊高）
+    const playerSection = document.querySelector('.player-section');
+    if (!playerSection) return;
+    if (!playerSection.style.position || playerSection.style.position === 'static') {
+      playerSection.style.position = 'relative';
+    }
+
+    let btn = document.getElementById('spectate-leave-overlay');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'spectate-leave-overlay';
+      btn.innerHTML = '✕ 離開觀戰';
+      btn.style.cssText = 'position:absolute; top:0px; right:0px; z-index:50; background:rgba(255,13,98,0.88); color:#fff; border:2px solid #fff; border-radius:6px; padding:4px 10px; font-weight:900; font-size:12px; cursor:pointer; box-shadow:0 0 10px rgba(255,13,98,0.6); white-space:nowrap;';
+      btn.addEventListener('click', () => exitSpectateMode('USER_LEAVE'));
+      playerSection.appendChild(btn);
+    }
+    btn.style.display = 'block';
+
+    // 延遲顯示放在 HOLD 方塊正上方（.player-section 左上角）
+    let lat = document.getElementById('spectate-latency');
+    if (!lat) {
+      lat = document.createElement('div');
+      lat.id = 'spectate-latency';
+      lat.style.cssText = 'position:absolute; top:2px; left:0px; z-index:50; background:rgba(0,0,0,0.55); color:var(--S); border:1px solid rgba(255,255,255,0.3); border-radius:4px; padding:3px 8px; font-weight:900; font-size:11px; font-family:monospace;';
+      lat.textContent = '~--ms';
+      playerSection.appendChild(lat);
+    }
+    lat.style.display = 'block';
+  }
+
+  function hideSpectateOverlayUI() {
+    const btn = document.getElementById('spectate-leave-overlay');
+    if (btn) btn.style.display = 'none';
+    const lat = document.getElementById('spectate-latency');
+    if (lat) lat.style.display = 'none';
+  }
+
   // --- 即時狀態同步發射器 ---
   function sendState() {
+    // 即使沒有對手連線，只要有觀戰者就要送 frame
+    if ((!conn || !conn.open) && (!spectatorConns || spectatorConns.size === 0)) return;
+    // 廣播給所有觀戰者（重用一次 buildSpectateFrame，效率最好）
+    if (spectatorConns && spectatorConns.size > 0) {
+      try { broadcastFrameToSpectators(); } catch(e) {}
+    }
     if (!conn || !conn.open) return;
     try {
       let compressedBoard = '';
@@ -5390,8 +6289,11 @@
   }
 
   function update(delta) {
+    // 觀戰中：完全不執行本機遊戲邏輯，只靠 frame 灌入 + draw() 渲染
+    if (isSpectating) return;
+
     pollGamepad(); // 🎮 每一幀都檢查一次搖桿狀態
-    
+
     if (isAIMode) updateAI(delta); // AI 對戰更新
 
     if (!gameStarted || gameOver || isPaused || isKOed || countdownValue > 0) return;
@@ -5461,6 +6363,21 @@
     // 【重要防呆】如果玩家正在「輸入對手 ID」的文字框裡打字，絕對不要攔截按鍵！
     // (這也確保了在輸入框裡的 Ctrl+C/V 絕對有效)
     if (e.target.tagName === 'INPUT') return;
+
+    // 👀 觀戰中按 ESC 直接離開觀戰
+    if (isSpectating && (e.code === 'Escape' || e.key === 'Escape')) {
+      e.preventDefault();
+      exitSpectateMode('USER_LEAVE');
+      return;
+    }
+    // 觀戰中攔截所有遊戲按鍵，避免操作到本機
+    if (isSpectating) {
+      const blockKeys = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space','KeyA','KeyX','KeyZ','KeyC','KeyF','ShiftLeft','ShiftRight','ControlLeft','ControlRight','KeyR','KeyP','Enter','NumpadEnter'];
+      if (blockKeys.includes(e.code)) {
+        e.preventDefault();
+        return;
+      }
+    }
 
     // 按下任何按鍵時，強制喚醒合成器
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -5958,6 +6875,18 @@
   const IDLE_TIMEOUT = 3 * 60 * 1000; // 3分鐘沒動靜算作閒置
 
   function updateMyActivity(activityType) {
+    // 👀 觀戰生命週期：只有真正切換到「不同模式」時才結束觀戰
+    // - IDLE（遊戲結束回到 lobby）：保留，玩家可能馬上再來一局
+    // - AWAY（切視窗/閒置）：保留，可能只是短暫離開
+    // - PRACTICE / MULTIPLAYER / AI_BATTLE：結束，進入完全不同的模式
+    if (typeof spectatorConns !== 'undefined' && spectatorConns && spectatorConns.size > 0) {
+      if (activityType === 'PRACTICE') {
+        endAllSpectatorSessions('ENTERED_PRACTICE');
+      } else if (activityType === 'MULTIPLAYER' || activityType === 'AI_BATTLE') {
+        // Phase 1：進入對戰前先結束所有單人觀戰（Phase 2 將加入對戰中觀戰）
+        endAllSpectatorSessions('ENTERED_BATTLE');
+      }
+    }
     if (activityType !== 'AWAY') {
       lastActiveState = activityType; // 只要不是離開，就記住現在到底在幹嘛
     }
@@ -6063,6 +6992,16 @@
         globalOnlineUsersList = others.map(u => u.username);
       }
 
+      // 👀 觀戰方：被觀戰的 host 離線就自動退出觀戰
+      if (isSpectating && spectateTarget && spectateTarget.username) {
+        const stillOnline = (myData && myData.username === spectateTarget.username)
+          || others.some(u => u.username === spectateTarget.username);
+        if (!stillOnline) {
+          showToast('👀 對方已離線，觀戰結束', 2500);
+          exitSpectateMode('HOST_OFFLINE');
+        }
+      }
+
       // 確保自己永遠排在陣列第一個
       if (myData) {
         users.push(myData);
@@ -6098,11 +7037,12 @@
         else if (actStr === 'PRACTICE') { activityText = '深山修行中'; activityColor = 'var(--S)'; dotColor = 'var(--S)'; }
         else if (actStr === 'AI_BATTLE') { activityText = '與 AI 激戰中'; activityColor = 'var(--T)'; dotColor = 'var(--T)'; }
         else if (actStr === 'MULTIPLAYER') { activityText = '雙人對戰中'; activityColor = 'var(--Z)'; dotColor = 'var(--Z)'; }
+        else if (actStr === 'SPECTATING') { activityText = '👀 觀戰中'; activityColor = 'var(--I)'; dotColor = 'var(--I)'; }
         // 離開與閒置狀態
         else if (actStr === 'AWAY') { activityText = '離開 (閒置中)'; activityColor = '#888888'; dotColor = '#888888'; }
 
         let inviteButtonHTML = '';
-        let chatButtonHTML = ''; // 聊天專屬按鈕
+        let spectateButtonHTML = ''; // 👀 觀戰專屬按鈕（取代原本的聊天 💬 快捷鍵）
 
         if (username !== currentPlayer) {
            let btnText = 'INVITE';
@@ -6118,11 +7058,26 @@
            }
 
            inviteButtonHTML = `<button class="quick-invite-btn" data-username="${username}" style="background:${btnBg}; color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:${btnCursor}; font-size:10px; padding:3px 8px;" ${btnDisabled}>${btnText}</button>`;
-           // 產生專屬的對話氣泡按鈕
-           chatButtonHTML = `<button class="chat-trigger" data-username="${username}" style="background:transparent; border:none; color:var(--I); font-size:14px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;" title="傳送訊息">💬</button>`;
+           // 產生 👀 觀戰按鈕
+           let spectateDisabled = false;
+           let spectateTitle = '觀戰此玩家';
+           let spectateColor = 'var(--I)';
+           let spectateCursor = 'pointer';
+           if (actStr === 'PRACTICE') {
+             spectateDisabled = true; spectateTitle = '練習模式不可觀戰'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+           } else if (actStr === 'SPECTATING') {
+             spectateDisabled = true; spectateTitle = '對方正在觀戰，無法被觀戰'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+           } else if (isSpectating) {
+             spectateDisabled = true; spectateTitle = '你已在觀戰其他玩家'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+           } else if (isMultiplayer || isAIMode) {
+             spectateDisabled = true; spectateTitle = '對戰中無法觀戰'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+           } else if (!isMyPeerReady) {
+             spectateDisabled = true; spectateTitle = '連線尚未就緒'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+           }
+           spectateButtonHTML = `<button class="spectate-trigger" data-username="${username}" data-disabled="${spectateDisabled ? '1' : '0'}" style="background:transparent; border:none; color:${spectateColor}; font-size:14px; cursor:${spectateCursor}; padding:0; display:flex; align-items:center; justify-content:center;" title="${spectateTitle}">👀</button>`;
         } else {
           inviteButtonHTML = `<span style="font-size:10px; color:rgba(255,255,255,0.5); font-weight:bold;">(YOU)</span>`;
-          chatButtonHTML = `<button style="visibility:hidden; padding:0; border:none; font-size:14px; display:flex; align-items:center; justify-content:center;">💬</button>`;
+          spectateButtonHTML = `<button style="visibility:hidden; padding:0; border:none; font-size:14px; display:flex; align-items:center; justify-content:center;">👀</button>`;
         }
 
         const unreadBadge = (typeof unreadUsers !== 'undefined' && unreadUsers.has(username)) ? '<span style="color:var(--Z); margin-left:5px; font-size:10px; animation: flash 1s infinite;">● NEW</span>' : '';
@@ -6132,7 +7087,7 @@
               <div style="display:flex; align-items:flex-start; gap:8px;">
                  <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
                    <div class="online-dot" style="background-color:${dotColor}; box-shadow: 0 0 5px ${dotColor}; flex-shrink: 0;"></div>
-                   ${chatButtonHTML}
+                   ${spectateButtonHTML}
                  </div>
                  <div style="display:flex; flex-direction:column; gap:4px;">
                    <div style="display:flex; align-items:center;">
@@ -6364,9 +7319,52 @@
       if (e.key === 'Enter') sendChatMessage();
   });
 
+  // 👀 安全的周期性 frame 廣播：保證即使 host 處於 lobby 或無新事件時，觀戰端也能保持同步
+  setInterval(() => {
+    if (spectatorConns && spectatorConns.size > 0 && !isSpectating) {
+      try { broadcastFrameToSpectators(); } catch(e) {}
+    }
+  }, 250);
+
+  // 觀戰人數徽章：點擊切換名單 popup
+  (function bindSpectatorBadge() {
+    const badge = document.getElementById('spectator-badge');
+    const popup = document.getElementById('spectator-list-popup');
+    if (badge && popup) {
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (popup.classList.contains('hidden')) {
+          renderSpectatorListPopup();
+          popup.classList.remove('hidden');
+        } else {
+          popup.classList.add('hidden');
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!popup.contains(e.target) && e.target !== badge) {
+          popup.classList.add('hidden');
+        }
+      });
+    }
+  })();
+
   // 綁定點擊名字打開聊天 (利用事件委派)
   document.getElementById('online-users-list').addEventListener('click', (e) => {
-      if (e.target.classList.contains('chat-trigger')) {
+      // 觀戰按鈕（事件冒泡：先檢查 spectate-trigger，避免被當成 chat-trigger 處理）
+      const spectateBtn = e.target.closest && e.target.closest('.spectate-trigger');
+      if (spectateBtn) {
+          e.stopPropagation();
+          if (spectateBtn.getAttribute('data-disabled') === '1') {
+              const t = spectateBtn.getAttribute('title') || '無法觀戰';
+              showToast('⚠️ ' + t);
+              return;
+          }
+          const username = spectateBtn.getAttribute('data-username');
+          if (username) startSpectate(username);
+          return;
+      }
+      // 點名字仍可打開聊天
+      if (e.target.classList && e.target.classList.contains('chat-trigger')) {
           const username = e.target.getAttribute('data-username');
           openChat(username);
       }
@@ -6912,7 +7910,12 @@
       document.getElementById('invite-toast').classList.add('hidden');
       document.getElementById('invite-toast').classList.remove('show-invite');
       if (inviteTimeoutTimer) clearTimeout(inviteTimeoutTimer);
-      
+
+      // Phase 3：觀戰中接受邀請 → 自動退出觀戰
+      if (isSpectating) {
+        exitSpectateMode('INVITE_ACCEPTED');
+      }
+
       if (pendingConn && pendingConn.open) {
         // 處理現任：如果我正在跟別人對戰 (或是跟AI對戰)
         if (isMultiplayer) {
@@ -7144,7 +8147,8 @@
 
     draw();
     // 只有在對戰、待處理邀請、或剛要進對戰倒數時才畫對手畫面
-    if (isMultiplayer || pendingConn || (conn && !isPracticeMode)) {
+    // Phase 2：觀戰對戰模式時也要畫對手
+    if (isMultiplayer || pendingConn || (conn && !isPracticeMode) || isSpectatingBattle) {
       drawOpponent();
     }
 
