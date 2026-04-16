@@ -1305,6 +1305,10 @@
   let countdownInterval = null; // 儲存倒數計時器，用來支援強制中斷
   let isKOed = false; // 用來記錄玩家是否處於 1 秒的死亡懲罰中
   let oppKOTimer = 0; // 記錄對手處於 KO 狀態的倒數計時
+  // --- 死亡寬限期變數 ---
+  let isCheckingGameOver = false;
+  let gameOverTimeout = null;
+  const GRACE_PERIOD = 300; // 300毫秒的寬限期
   // --- 段位積分 (LP) 與連勝次數 ---
   let myLP = 0;
   let myWinStreak = 0;
@@ -1813,6 +1817,10 @@
     consecutiveGarbageHoles = 0;
 
     isKOed = false; // 確保每次新開局，絕對不會帶著上一局的死亡狀態
+    // --- 重置寬限期狀態 ---
+    isCheckingGameOver = false;
+    if (gameOverTimeout) clearTimeout(gameOverTimeout);
+
     matchResult = null; // 強制重置上一局的勝負結果
 
     // --- 清除上一局對手與自己畫面上可能殘留的文字特效與黑幕 ---
@@ -2421,8 +2429,26 @@
         } else if (data.type === 'TOP_OUT_LOSE') {
            if (!gameOver) {
              oppFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
-             showToast("🎉 對手被方塊淹沒了！");
-             setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('WIN'); } }, 1000);
+             
+             // --- 死亡寬限期邏輯 (收到對手 Top Out) ---
+             if (isCheckingGameOver) {
+               // 我剛剛已經死了(在寬限期內)，現在收到對手死訊 -> 雙方平局！
+               clearTimeout(gameOverTimeout);
+               isCheckingGameOver = false;
+               showToast("🤝 雙方同時 Top Out，平局！");
+               setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('DRAW'); } }, 1000);
+             } else {
+               // 對手先死了，開啟寬限期，等看看我在這 300ms 內會不會也剛好死掉
+               isCheckingGameOver = true;
+               showToast("🎉 對手被方塊淹沒了！");
+               gameOverTimeout = setTimeout(() => {
+                 isCheckingGameOver = false;
+                 if (!gameOver) {
+                   // 300ms 過去了我都沒事，我贏了！
+                   setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('WIN'); } }, 700);
+                 }
+               }, GRACE_PERIOD);
+             }
            }
         } else if (data.type === 'OPPONENT_DISCONNECTED') {
            // 收到後，系統會跳出警告並立刻讓他退出對戰模式，回到單人畫面
@@ -2934,7 +2960,24 @@
         showMsg("TOP OUT!");
         myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
         playSound('lose'); 
-        setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('LOSE'); } }, 1200);
+
+        // --- 死亡寬限期邏輯 (自己 Top Out) ---
+        if (isCheckingGameOver) {
+          // 對手剛剛已經傳來死訊，現在我也死了 -> 雙方同時 Top Out！平局！
+          clearTimeout(gameOverTimeout);
+          isCheckingGameOver = false;
+          setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('DRAW'); } }, 1200);
+        } else {
+          // 我先死了，啟動寬限期，等看看對手會不會在 300ms 內也死掉
+          isCheckingGameOver = true;
+          gameOverTimeout = setTimeout(() => {
+            isCheckingGameOver = false;
+            if (!gameOver) { 
+              // 寬限期過了對手都沒事，那就是我真的輸了 (900ms 是保留給文字動畫飄完的時間)
+              setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('LOSE'); } }, 900); 
+            }
+          }, GRACE_PERIOD);
+        }
         return; 
       }
 
