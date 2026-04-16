@@ -1293,6 +1293,7 @@
   // --- 垃圾行系統變數 ---
   let activeGarbage = 0; // 準備湧入的垃圾 (危險：紅色)
   let nextGarbage = 0;   // 剛收到的垃圾，還在寬限期 (警告：黃色)
+  let matchGeneration = 0; // 每局遞增，防止上一局的延遲垃圾滲入新局
   let lastGarbageHole = -1; // 記憶上一次垃圾行的缺口位置
   let consecutiveGarbageHoles = 0; // 跨回合記憶目前缺口連續出現的次數
   // --- 記錄戰況變數 ---
@@ -1802,6 +1803,7 @@
       aiSyncOppState();
     }
     score = 0; lines = 0; level = 1; activeGarbage = 0; nextGarbage = 0;
+    matchGeneration++; // 遞增世代，讓上一局延遲中的垃圾行 setTimeout 自動失效
 
     // 確保每一局都是全新的，不會Undo退回上一局
     previousGameState = null;
@@ -1899,7 +1901,12 @@
     if (oppKoEl) oppKoEl.textContent = '0';
     if (myLinesEl) myLinesEl.textContent = '0';
     if (oppLinesEl) oppLinesEl.textContent = '0';
-    
+
+    // 計數器歸零後，立刻再廣播一次 frame 給觀戰者，避免倒數期間仍顯示上一局的 KO/SENT
+    if (spectatorConns && spectatorConns.size > 0) {
+      try { broadcastFrameToSpectators(); } catch(e) {}
+    }
+
     const timerEl = document.getElementById('battle-timer');
     if (timerEl) timerEl.textContent = "02:00";
     
@@ -2417,7 +2424,8 @@
              if (oppLinesEl) oppLinesEl.textContent = oppLinesSent;
              myFloatingTexts.push(new FloatingText(`+${data.lines}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, '#ff0d62', 50));
              playSound('drop'); shakeMag = 6;
-             setTimeout(() => { if (!gameOver) { nextGarbage += data.lines; sendState(); } }, 2000); 
+             const gen = matchGeneration; // 捕捉當前世代，防止延遲垃圾滲入下一局
+             setTimeout(() => { if (!gameOver && matchGeneration === gen) { nextGarbage += data.lines; sendState(); } }, 2000);
            }
         } else if (data.type === 'I_AM_KO') {
            oppKOTimer = 1000;
@@ -5483,6 +5491,7 @@
       gs: gameStarted ? 1 : 0,
       go: gameOver ? 1 : 0,
       ip: isPaused ? 1 : 0,
+      ko: isKOed ? 1 : 0,
       cd: countdownValue || 0,
       c: current ? { t: current.type, r: current.row, c: current.col, rot: current.rot } : null,
       h: holdType || null,
@@ -5983,6 +5992,7 @@
       gameStarted = !!f.gs;
       gameOver = !!f.go;
       isPaused = !!f.ip;
+      isKOed = !!f.ko;
       countdownValue = f.cd || 0;
       const prevMatchResult = matchResult;
       matchResult = f.mR || null;
@@ -8609,7 +8619,7 @@
           </div>
           <div style="display:flex; justify-content:space-between; gap:10px;">
             <div style="flex:1; text-align:center; background:rgba(0,0,0,0.25); padding:6px; border-radius:4px;">
-              <div style="color:var(--T); font-weight:900; font-size:13px;">${currentPlayer || '我'}</div>
+              <div style="color:var(--T); font-weight:900; font-size:13px;">${_historyViewingPlayer || currentPlayer || '我'}</div>
               <div style="color:${myRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${m.myRank || '—'} (${m.myLP || 0} LP)</div>
               <div style="color:var(--white); font-weight:900; font-size:14px; margin-top:3px;">${(m.myScore || 0).toLocaleString()}</div>
             </div>
