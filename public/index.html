@@ -532,32 +532,32 @@
     FPS <span id="fps-value">0</span>
   </div>
   
-  <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 90%; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px;">
-    <h2 style="margin: 0; color: var(--I); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; font-size: 20px; letter-spacing: 2px;">PATCH NOTES</h2>
+  <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px; box-sizing: border-box;">
+    <h2 style="margin: 0; color: var(--I); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">PATCH NOTES</h2>
     
-    <div id="changelog-content" style="max-height: 350px; overflow-y: auto; padding-right: 10px; line-height: 1.6;">
+    <div id="changelog-content" style="max-height: 350px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 10px; line-height: 1.6;">
     </div>
 
-    <button id="close-changelog-btn" style="width: 100%; padding: 10px; background: var(--I); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
+    <button id="close-changelog-btn" style="width: 100%; padding: 10px; background: var(--I); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
   </div>
 
-  <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 92%; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px;">
-    <h2 id="history-title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px;">📜 對戰紀錄</h2>
-    <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85);"></div>
-    <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center;">
+  <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px; box-sizing: border-box;">
+    <h2 id="history-title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">📜 對戰紀錄</h2>
+    <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85); flex-shrink: 0;"></div>
+    <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center; flex-shrink: 0;">
       <button class="history-tab" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
       <button class="history-tab" data-filter="WIN" style="flex:1; padding:6px 0; background:transparent; color:var(--S); font-weight:900; border:2px solid var(--S); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">勝</button>
       <button class="history-tab" data-filter="LOSE" style="flex:1; padding:6px 0; background:transparent; color:var(--Z); font-weight:900; border:2px solid var(--Z); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">負</button>
     </div>
-    <div id="history-content" style="max-height: 440px; overflow-y: auto; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
+    <div id="history-content" style="max-height: 440px; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
     </div>
-    <button id="close-history-btn" style="width: 100%; padding: 10px; background: var(--O); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
+    <button id="close-history-btn" style="width: 100%; padding: 10px; background: var(--O); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
   </div>
 
-  <div id="rank-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 580px; max-width: 92%; background: rgba(6,0,79,0.96); border: 2px solid var(--T); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(177,68,247,0.4); color: var(--white); display: flex; flex-direction: column; gap: 14px;">
-    <h2 style="margin: 0; color: var(--T); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px;">🏆 段位規則</h2>
-    <div id="rank-modal-content" style="max-height: 500px; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.6;"></div>
-    <button id="close-rank-btn" style="width: 100%; padding: 10px; background: var(--T); color: var(--white); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px;">CLOSE</button>
+  <div id="rank-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 580px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.96); border: 2px solid var(--T); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(177,68,247,0.4); color: var(--white); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box;">
+    <h2 style="margin: 0; color: var(--T); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">🏆 段位規則</h2>
+    <div id="rank-modal-content" style="max-height: 500px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.6;"></div>
+    <button id="close-rank-btn" style="width: 100%; padding: 10px; background: var(--T); color: var(--white); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
   </div>
 
   <div id="system-toast"></div>
@@ -8520,8 +8520,8 @@
       const hi = (a, b) => a > b ? 'color:var(--S);' : (a < b ? 'color:var(--Z);' : 'color:var(--white);');
 
       const statTable = `
-        <div style="margin-top:8px; font-size:10px; background:rgba(0,0,0,0.3); padding:6px 8px; border-radius:4px;">
-          <div style="display:grid; grid-template-columns: 32px repeat(6, 1fr) 44px; gap:4px; align-items:center;">
+        <div style="margin-top:8px; font-size:10px; background:rgba(0,0,0,0.3); padding:6px 8px; border-radius:4px; overflow-x: auto;">
+          <div style="display:grid; grid-template-columns: 32px repeat(6, 1fr) 44px; gap:4px; align-items:center; min-width: 340px;">
             <div style="color:rgba(255,255,255,0.5); font-weight:bold; text-align:left;"></div>
             <div title="本局自己盤面消掉的總行數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">消行</div>
             <div title="本局送給對手的垃圾行數（攻擊表計算，例如 Tetris=4 行、T-Spin Double=4 行）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">攻擊</div>
