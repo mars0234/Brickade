@@ -674,7 +674,7 @@
                   <span title="Pieces Per Second（平均每秒放下的方塊數）">AVG PPS: <span id="display-avg-pps" style="color: var(--L); font-weight: bold;">0.00</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                  <span title="生涯最高連擊（單局中連續消行的最大次數）">MAX COMBO: <span id="display-max-combo" style="color: var(--J); font-weight: bold;">0</span></span>
+                  <span title="生涯場均最高連擊（每局 Max Combo 的平均值）">AVG COMBO: <span id="display-avg-combo" style="color: var(--J); font-weight: bold;">0</span></span>
                   <span title="累積擊倒對手次數（把對手 Top Out 一次算一次）">TOTAL KO: <span id="display-total-ko" style="color: var(--Z); font-weight: bold;">0</span></span>
                 </div>
               </div>
@@ -3236,7 +3236,8 @@
           careerLines: firebase.firestore.FieldValue.increment(lines),
           careerKOs: firebase.firestore.FieldValue.increment(myKOs),
           careerPieces: firebase.firestore.FieldValue.increment(piecesPlaced),
-          careerDurationSec: firebase.firestore.FieldValue.increment(durForCareer)
+          careerDurationSec: firebase.firestore.FieldValue.increment(durForCareer),
+          careerComboSum: firebase.firestore.FieldValue.increment(maxCombo || 0)
         };
         if (matchResult === 'WIN') {
           updateData.wins = firebase.firestore.FieldValue.increment(1);
@@ -3257,13 +3258,6 @@
               document.getElementById('display-winrate').textContent = wr + '%';
               updateRankUI(data.lp || 0);
               updateCareerStatsUI(data);
-
-              // 若本局 maxCombo 高於生涯最高，補一筆更新
-              if ((maxCombo || 0) > (data.careerMaxCombo || 0)) {
-                db.collection('users').doc(currentUserUID)
-                  .set({ careerMaxCombo: maxCombo }, { merge: true })
-                  .catch(err => console.error('更新 careerMaxCombo 失敗:', err));
-              }
 
               // 更新名字旁邊的連勝火焰
               const fireIcon = currentStreak >= 3 ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;">🔥</span>' : '';
@@ -7842,15 +7836,16 @@
     const durMin = dur > 0 ? dur / 60 : 0;
     const avgApm = durMin > 0 ? Math.round((data.careerLinesSent || 0) / durMin) : 0;
     const avgPps = dur > 0 ? +((data.careerPieces || 0) / dur).toFixed(2) : 0;
-    const maxC = data.careerMaxCombo || 0;
+    const matches = data.matches || 0;
+    const avgCombo = matches > 0 ? +((data.careerComboSum || 0) / matches).toFixed(1) : 0;
     const totalKO = data.careerKOs || 0;
     const elApm = document.getElementById('display-avg-apm');
     const elPps = document.getElementById('display-avg-pps');
-    const elMc = document.getElementById('display-max-combo');
+    const elCombo = document.getElementById('display-avg-combo');
     const elKo = document.getElementById('display-total-ko');
     if (elApm) elApm.textContent = avgApm;
     if (elPps) elPps.textContent = avgPps.toFixed(2);
-    if (elMc) elMc.textContent = maxC;
+    if (elCombo) elCombo.textContent = avgCombo;
     if (elKo) elKo.textContent = totalKO;
   }
 
@@ -8195,6 +8190,18 @@
   initMenu();
   updateSoundUI();
 
+  // --- 對手名稱可點擊查看戰績 ---
+  const oppNameDisplay = document.getElementById('opp-name-display');
+  if (oppNameDisplay) {
+    oppNameDisplay.style.cursor = 'pointer';
+    oppNameDisplay.addEventListener('click', () => {
+      const oppName = (oppState && oppState.name) ? oppState.name : null;
+      if (oppName && oppName !== 'OPPONENT' && oppName !== 'Guest' && oppName !== 'LOADING...') {
+        openPlayerHistory(oppName);
+      }
+    });
+  }
+
   // --- 利用 Web Worker 建立不受分頁休眠影響的「背景引擎」 ---
   // 一段寫在字串裡的微型腳本，用來在背景獨立計時
   const workerCode = `
@@ -8447,7 +8454,7 @@
 
     if (!docs || docs.length === 0) {
       historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">這個分類裡還沒有任何紀錄。</div>';
-      historySummary.innerHTML = '';
+      if (!_historyViewingPlayer) historySummary.innerHTML = '';
       return;
     }
 
@@ -8461,13 +8468,21 @@
     });
     const lpSumColor = lpSum > 0 ? 'var(--S)' : (lpSum < 0 ? 'var(--Z)' : 'var(--white)');
     const lpSumText = (lpSum > 0 ? '+' : '') + lpSum;
-    historySummary.innerHTML = `
-      <span>近 <span style="color:var(--O);">${historyDocsCache.length}</span> 場</span>
-      <span style="color:var(--S);">勝 ${winCount}</span>
-      <span style="color:var(--Z);">負 ${loseCount}</span>
-      <span style="color:rgba(255,255,255,0.7);">平 ${drawCount}</span>
-      <span>LP: <span style="color:${lpSumColor}; font-weight:900;">${lpSumText}</span></span>
-    `;
+    const summaryLine = `
+      <div style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85);">
+        <span>近 <span style="color:var(--O);">${historyDocsCache.length}</span> 場</span>
+        <span style="color:var(--S);">勝 ${winCount}</span>
+        <span style="color:var(--Z);">負 ${loseCount}</span>
+        <span style="color:rgba(255,255,255,0.7);">平 ${drawCount}</span>
+        <span>LP: <span style="color:${lpSumColor}; font-weight:900;">${lpSumText}</span></span>
+      </div>`;
+    if (_historyViewingPlayer) {
+      const existing = historySummary.querySelector('.player-stats-card');
+      const cardHtml = existing ? existing.outerHTML : '';
+      historySummary.innerHTML = cardHtml + summaryLine;
+    } else {
+      historySummary.innerHTML = summaryLine;
+    }
 
     historyContent.innerHTML = '';
     docs.forEach(doc => {
@@ -8626,6 +8641,35 @@
 
   let _historyViewingPlayer = null;
 
+  function buildPlayerStatsCard(data, username) {
+    const lp = data.lp || 0;
+    const rankInfo = getRankInfo(lp);
+    const m = data.matches || 0;
+    const w = data.wins || 0;
+    const wr = m > 0 ? Math.round((w / m) * 100) : 0;
+    const dur = data.careerDurationSec || 0;
+    const durMin = dur > 0 ? dur / 60 : 0;
+    const avgApm = durMin > 0 ? Math.round((data.careerLinesSent || 0) / durMin) : 0;
+    const avgPps = dur > 0 ? +((data.careerPieces || 0) / dur).toFixed(2) : 0;
+    const avgCombo = m > 0 ? +((data.careerComboSum || 0) / m).toFixed(1) : 0;
+    const totalKO = data.careerKOs || 0;
+    return `
+      <div class="player-stats-card" style="background:rgba(0,0,0,0.35); border:2px solid ${rankInfo.color}; border-radius:6px; padding:10px 14px; margin-bottom:4px;">
+        <div style="text-align:center; margin-bottom:6px;">
+          <span style="font-size:16px; font-weight:900; color:var(--T);">${username}</span>
+          <div style="font-size:14px; font-weight:900; color:${rankInfo.color}; text-shadow:0 0 5px ${rankInfo.color}80; margin-top:2px;">${rankInfo.name} <span style="font-size:12px;">(${lp} LP)</span></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:12px; color:rgba(255,255,255,0.85);">
+          <div>MATCH: <span style="color:var(--white); font-weight:bold;">${m}</span></div>
+          <div>WIN RATE: <span style="color:var(--S); font-weight:bold;">${wr}%</span></div>
+          <div>AVG APM: <span style="color:var(--T); font-weight:bold;">${avgApm}</span></div>
+          <div>AVG PPS: <span style="color:var(--L); font-weight:bold;">${avgPps.toFixed(2)}</span></div>
+          <div>AVG COMBO: <span style="color:var(--J); font-weight:bold;">${avgCombo}</span></div>
+          <div>TOTAL KO: <span style="color:var(--Z); font-weight:bold;">${totalKO}</span></div>
+        </div>
+      </div>`;
+  }
+
   function openPlayerHistory(targetUsername) {
     if (!targetUsername) return;
     if (targetUsername === currentPlayer) { openHistoryModal(); return; }
@@ -8633,18 +8677,19 @@
     historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">讀取中...</div>';
     historySummary.innerHTML = '';
     const historyTitle = document.getElementById('history-title');
-    if (historyTitle) historyTitle.textContent = '📜 ' + targetUsername + ' 的對戰紀錄';
+    if (historyTitle) historyTitle.textContent = '📜 ' + targetUsername + ' 的戰績';
     _historyViewingPlayer = targetUsername;
     playSound('move');
 
+    let playerDoc = null;
     db.collection('users').where('username', '==', targetUsername).limit(1).get()
       .then(snap => {
         if (snap.empty) {
           historyContent.innerHTML = '<div style="text-align:center; color:var(--Z); padding:30px; font-size:13px;">找不到此玩家。</div>';
-          return;
+          return Promise.reject('NOT_FOUND');
         }
-        const uid = snap.docs[0].id;
-        return db.collection('users').doc(uid)
+        playerDoc = snap.docs[0];
+        return db.collection('users').doc(playerDoc.id)
           .collection('matchHistory')
           .orderBy('ts', 'desc')
           .limit(50)
@@ -8652,10 +8697,13 @@
       })
       .then(snap => {
         if (!snap) return;
+        const statsCard = buildPlayerStatsCard(playerDoc.data(), targetUsername);
+        historySummary.innerHTML = statsCard;
         historyDocsCache = snap.docs;
         setHistoryFilter('ALL');
       })
       .catch(err => {
+        if (err === 'NOT_FOUND') return;
         console.error('讀取玩家對戰紀錄失敗:', err);
         historyContent.innerHTML = '<div style="text-align:center; color:var(--Z); padding:20px; font-size:12px;">讀取失敗：' + (err.message || err) + '</div>';
       });
