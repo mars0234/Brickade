@@ -542,7 +542,7 @@
   </div>
 
   <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 92%; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px;">
-    <h2 style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px;">📜 對戰紀錄</h2>
+    <h2 id="history-title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px;">📜 對戰紀錄</h2>
     <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85);"></div>
     <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center;">
       <button class="history-tab" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
@@ -721,9 +721,9 @@
             <div id="scoreboard" style="display: none; background: rgba(0,0,0,0.25); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
               <div style="font-size: 14px; color: var(--O); font-weight: bold; margin-bottom: 4px;">MATCH SCORE</div>
               <div style="font-size: 24px; font-weight: 900; display: flex; justify-content: center;gap: 16px;">
-                <div><span style="font-size: 11px; display:block; color:rgba(255,255,255,0.7);">YOU</span><span id="my-wins-el" style="color: var(--S);">0</span></div>
+                <div><span id="score-label-left" style="font-size: 11px; display:block; color:rgba(255,255,255,0.7); max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">YOU</span><span id="my-wins-el" style="color: var(--S);">0</span></div>
                 <span style="color: rgba(255,255,255,0.5);">-</span>
-                <div><span style="font-size: 11px; display:block; color:rgba(255,255,255,0.7);">OPP</span><span id="opp-wins-el" style="color: var(--Z);">0</span></div>
+                <div><span id="score-label-right" style="font-size: 11px; display:block; color:rgba(255,255,255,0.7); max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">OPP</span><span id="opp-wins-el" style="color: var(--Z);">0</span></div>
               </div>
             </div>
 
@@ -1385,6 +1385,11 @@
   const mpLeaveBtn = document.getElementById('mp-leave-btn');
   if (mpLeaveBtn) {
     mpLeaveBtn.addEventListener('click', () => {
+      // 👀 觀戰模式：直接離開觀戰，不需要 confirm
+      if (isSpectating) {
+        exitSpectateMode('USER_LEAVE');
+        return;
+      }
       if (confirm("確定要離開對戰房間，回到單人模式嗎？")) {
         if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
         
@@ -2793,7 +2798,7 @@
     
     // 連線模式下，上方有一個飛出界外 (-75px) 的計時器和離房按鈕
     // 把它需要的 85px 真實空間，加進「總需求高度」來計算縮放
-    const extraTopSpace = isMultiplayer ? 85 : 0; 
+    const extraTopSpace = (isMultiplayer || isSpectatingBattle) ? 85 : 0;
     const requiredH = rect.height + extraTopSpace;
     
     // 計算出最完美的縮放比例
@@ -2801,7 +2806,7 @@
     
     // 計算 Y 軸偏移：因為 transform 是基於中心點 (-50%) 縮放
     // 為了把上方的 extraTopSpace 空間讓出來，把中心點「往下推」這段空間的一半
-    const offsetY = isMultiplayer ? (extraTopSpace * scale) / 2 : 0;
+    const offsetY = (isMultiplayer || isSpectatingBattle) ? (extraTopSpace * scale) / 2 : 0;
     
     layout.style.transform = `translate(-50%, calc(-50% + ${offsetY}px)) scale(${scale})`;
 
@@ -3643,38 +3648,43 @@
     ctx.restore(); // 恢復畫布狀態
 
     // --- 讓我方輸的時候，或是處於 KO 狀態時，盤面變暗 (畫在結算面板的下方) ---
-    if ((isMultiplayer && isKOed && !gameOver) || (gameOver && matchResult === 'LOSE')) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; 
+    if (((isMultiplayer || isSpectatingBattle) && isKOed && !gameOver) || (gameOver && matchResult === 'LOSE')) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     // --- 遊戲結束結算畫面 ---
     if (gameOver) {
+      const boxH = (isSpectating && (isMultiplayer || isSpectatingBattle) && matchResult) ? 80 : 136;
+      const boxY = canvas.height / 2 - boxH / 2;
       ctx.fillStyle = 'rgba(6,0,79,0.9)';
-      ctx.fillRect(18, canvas.height / 2 - 68, canvas.width - 36, 136);
+      ctx.fillRect(18, boxY, canvas.width - 36, boxH);
       ctx.strokeStyle = '#f2f2f2';
       ctx.lineWidth = 4;
-      ctx.strokeRect(18, canvas.height / 2 - 68, canvas.width - 36, 136);
+      ctx.strokeRect(18, boxY, canvas.width - 36, boxH);
       ctx.fillStyle = '#f2f2f2';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      if (isMultiplayer && matchResult) {
-        // 連線模式的勝負畫面
+      if ((isMultiplayer || isSpectatingBattle) && matchResult) {
         ctx.fillStyle = matchResult === 'WIN' ? '#48d62f' : (matchResult === 'LOSE' ? '#ff0d62' : '#f7dd16');
         ctx.font = '900 36px Arial';
-        ctx.fillText(matchResult === 'WIN' ? 'YOU WIN!' : (matchResult === 'LOSE' ? 'YOU LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2 - 24);
-        
-        ctx.fillStyle = '#f2f2f2';
-        ctx.font = '700 14px Arial';
-        ctx.fillText('Press ENTER to Play Again', canvas.width / 2, canvas.height / 2 + 16);
-        ctx.fillText('Press R to Disconnect', canvas.width / 2, canvas.height / 2 + 40);
+        if (isSpectating) {
+          ctx.fillText(matchResult === 'WIN' ? 'WIN!' : (matchResult === 'LOSE' ? 'LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2);
+        } else {
+          ctx.fillText(matchResult === 'WIN' ? 'YOU WIN!' : (matchResult === 'LOSE' ? 'YOU LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2 - 24);
+          ctx.fillStyle = '#f2f2f2';
+          ctx.font = '700 14px Arial';
+          ctx.fillText('Press ENTER to Play Again', canvas.width / 2, canvas.height / 2 + 16);
+          ctx.fillText('Press R to Disconnect', canvas.width / 2, canvas.height / 2 + 40);
+        }
       } else {
-        // 單機模式的 Game Over 畫面
         ctx.font = '900 32px Arial';
         ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 10);
-        ctx.font = '700 15px Arial';
-        ctx.fillText('Press R to restart', canvas.width / 2, canvas.height / 2 + 26);
+        if (!isSpectating) {
+          ctx.font = '700 15px Arial';
+          ctx.fillText('Press R to restart', canvas.width / 2, canvas.height / 2 + 26);
+        }
       }
     }
 
@@ -3809,18 +3819,16 @@
       oppCtx.fillRect(0, 0, oppCanvas.width, oppCanvas.height);
     }
 
-    if (gameOver && matchResult && isMultiplayer) {
+    if (gameOver && matchResult && (isMultiplayer || isSpectatingBattle)) {
       oppCtx.fillStyle = 'rgba(6,0,79,0.9)';
-      // 畫一個精緻的結算框在對手畫面上
       oppCtx.fillRect(18, oppCanvas.height / 2 - 40, oppCanvas.width - 36, 80);
       oppCtx.strokeStyle = '#f2f2f2';
       oppCtx.lineWidth = 4;
       oppCtx.strokeRect(18, oppCanvas.height / 2 - 40, oppCanvas.width - 36, 80);
-      
-      // 鏡像邏輯：我贏 = 對手輸，我輸 = 對手贏
+
       let oppResText = matchResult === 'WIN' ? 'LOSE!' : (matchResult === 'LOSE' ? 'WIN!' : 'DRAW!');
       let oppResColor = matchResult === 'WIN' ? '#ff0d62' : (matchResult === 'LOSE' ? '#48d62f' : '#f7dd16');
-      
+
       oppCtx.fillStyle = oppResColor;
       oppCtx.textAlign = 'center';
       oppCtx.textBaseline = 'middle';
@@ -5449,7 +5457,8 @@
       vC: (typeof visualCol === 'number') ? visualCol : 0,
       gR: (typeof visualGhostRow === 'number') ? visualGhostRow : 0,
       mk: (typeof myKOs === 'number') ? myKOs : 0,
-      mls: (typeof myLinesSent === 'number') ? myLinesSent : 0
+      mls: (typeof myLinesSent === 'number') ? myLinesSent : 0,
+      mR: matchResult || null
     };
     // Phase 2：對戰模式附加對手資料與分數 / 計時器
     if (isMultiplayer || isAIMode) {
@@ -5787,14 +5796,24 @@
     b2b = 0;
     activeGarbage = 0;
     nextGarbage = 0;
+    matchResult = null;
     if (scoreEl) scoreEl.textContent = '0';
     if (linesEl) linesEl.textContent = '0';
     if (levelEl) levelEl.textContent = '1';
 
-    // 替換名稱顯示為 <對方名稱> 👀觀戰中
+    // 替換名稱顯示：名字置中 + 觀戰中標籤在右側偏移（可點擊查看戰績）
     const myTitleEl = document.getElementById('my-name-display');
     if (myTitleEl) {
-      myTitleEl.innerHTML = '<div style="display:inline-flex; align-items:center; gap:6px; color:var(--I); white-space:nowrap;">' + (_spectateHostUsername || '???') + ' <span style="font-size:13px; color:var(--O);">👀觀戰中</span></div>';
+      myTitleEl.innerHTML = '<div style="position:relative; display:inline-block; color:var(--I); white-space:nowrap; cursor:pointer;" id="spectate-host-name-link">' +
+        (_spectateHostUsername || '???') +
+        '<span style="position:absolute; left:calc(100% + 6px); top:50%; transform:translateY(-50%); font-size:11px; color:var(--O); white-space:nowrap; pointer-events:none;">👀觀戰中</span>' +
+        '</div>';
+      const nameLink = document.getElementById('spectate-host-name-link');
+      if (nameLink) {
+        nameLink.addEventListener('click', () => {
+          if (_spectateHostUsername) openPlayerHistory(_spectateHostUsername);
+        });
+      }
     }
     // Phase 2：若進入時 host 已在對戰中，直接切換到對戰佈局
     if (_spectateHostMode === 'MULTIPLAYER' || _spectateHostMode === 'AI_BATTLE') {
@@ -5808,8 +5827,8 @@
       if (!spectateConn || !spectateConn.open) return;
       spectateLastPingSent = Date.now();
       try { spectateConn.send({ type: 'SPECTATE_PING' }); } catch(e) {}
-      // 超過 5 秒沒收到 frame 視為斷線
-      if (spectateLastFrameAt && Date.now() - spectateLastFrameAt > 5000) {
+      // 超過 15 秒沒收到 frame 視為斷線（容忍瀏覽器背景分頁節流）
+      if (spectateLastFrameAt && Date.now() - spectateLastFrameAt > 15000) {
         showToast('⚠️ 觀戰連線中斷');
         exitSpectateMode('TIMEOUT');
       }
@@ -5822,10 +5841,11 @@
     const wasSpectating = isSpectating;
     isSpectating = false;
     if (spectateConn) {
+      const oldConn = spectateConn;
       try {
-        if (spectateConn.open) spectateConn.send({ type: 'SPECTATE_LEAVE' });
-        setTimeout(() => { try { spectateConn.close(); } catch(e) {} }, 200);
+        if (oldConn.open) oldConn.send({ type: 'SPECTATE_LEAVE' });
       } catch(e) {}
+      setTimeout(() => { try { oldConn.close(); } catch(e) {} }, 300);
     }
     spectateConn = null;
     spectateTarget = null;
@@ -5859,6 +5879,7 @@
     gameOver = false;
     isPaused = false;
     countdownValue = 0;
+    matchResult = null;
     if (scoreEl) scoreEl.textContent = '0';
     if (linesEl) linesEl.textContent = '0';
     if (levelEl) levelEl.textContent = '1';
@@ -5926,6 +5947,16 @@
       gameOver = !!f.go;
       isPaused = !!f.ip;
       countdownValue = f.cd || 0;
+      const prevMatchResult = matchResult;
+      matchResult = f.mR || null;
+      // 觀戰中比賽結束時，自動更新正在查看的戰績 modal
+      if (matchResult && !prevMatchResult && (matchResult === 'WIN' || matchResult === 'LOSE' || matchResult === 'DRAW')) {
+        setTimeout(() => {
+          if (_historyViewingPlayer && !historyModal.classList.contains('hidden')) {
+            openPlayerHistory(_historyViewingPlayer);
+          }
+        }, 2000);
+      }
 
       if (scoreEl) scoreEl.textContent = score;
       if (linesEl) linesEl.textContent = lines;
@@ -5943,6 +5974,27 @@
           if (!oppState) oppState = {};
           Object.assign(oppState, f.opp);
           try { if (typeof renderOpponentPanels === 'function') renderOpponentPanels(); } catch(e) {}
+          // 若對手名稱尚未顯示（仍為 LOADING），嘗試從 frame 中的 opp.name 填入
+          if (f.opp.name) {
+            // 更新 MATCH SCORE 右側標籤
+            const scoreLabelRight = document.getElementById('score-label-right');
+            if (scoreLabelRight && (scoreLabelRight.textContent === '...' || scoreLabelRight.textContent === 'OPP')) {
+              scoreLabelRight.textContent = f.opp.name.length > 6 ? f.opp.name.slice(0, 6) + '…' : f.opp.name;
+              scoreLabelRight.title = f.opp.name;
+            }
+            const oppTitleEl = document.getElementById('opp-name-display');
+            if (oppTitleEl && (oppTitleEl.textContent.includes('LOADING') || oppTitleEl.textContent.includes('OPPONENT'))) {
+              const oppLp = f.opp.lp || 0;
+              let statsHtml = '';
+              if (typeof getRankInfo === 'function') {
+                const rankInfo = getRankInfo(oppLp);
+                statsHtml = '<div style="font-size: 13px; color: ' + rankInfo.color + '; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">' + rankInfo.name + ' (' + oppLp + ' LP)</div>';
+              }
+              oppTitleEl.innerHTML = '<div style="position: relative; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; color: var(--Z);">' + f.opp.name + '</div>' + statsHtml;
+              oppTitleEl.style.color = '';
+              oppTitleEl.style.textShadow = '';
+            }
+          }
         }
         // 比分
         const myWinsEl = document.getElementById('my-wins-el');
@@ -6089,6 +6141,44 @@
     const layout = document.getElementById('layout');
     if (layout) layout.classList.add('is-multiplayer');
 
+    // --- 搬移聊天室到 layout（和正常對戰模式一樣的位置）---
+    const chatIcon = document.getElementById('chat-icon-wrapper');
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatIcon && layout) {
+      chatIcon.classList.remove('hidden');
+      layout.appendChild(chatIcon);
+      chatIcon.style.bottom = 'auto';
+      chatIcon.style.right = 'auto';
+      chatIcon.style.top = '-65px';
+      chatIcon.style.left = 'calc(50% - 210px)';
+    }
+    if (chatPanel && layout) {
+      layout.appendChild(chatPanel);
+      chatPanel.style.bottom = 'auto';
+      chatPanel.style.right = 'auto';
+      chatPanel.style.top = '0px';
+      chatPanel.style.left = 'calc(50% - 410px)';
+    }
+
+    // --- 搬移高幀率按鈕到 layout ---
+    const settingsContainer = document.getElementById('settings-container');
+    const fpsBtn = document.getElementById('fps-mode-btn');
+    if (settingsContainer && layout) {
+      layout.appendChild(settingsContainer);
+      settingsContainer.style.top = '-60px';
+      settingsContainer.style.right = '175px';
+      settingsContainer.style.width = '160px';
+      if (fpsBtn) {
+        fpsBtn.style.width = '160px';
+        fpsBtn.style.padding = '10px 0';
+        fpsBtn.style.textAlign = 'center';
+        fpsBtn.style.fontSize = '14px';
+        fpsBtn.style.borderRadius = '25px';
+        fpsBtn.style.background = 'transparent';
+        fpsBtn.style.backdropFilter = 'blur(4px)';
+      }
+    }
+
     const oppPanel = document.getElementById('opp-panel');
     const scorePanel = document.getElementById('singleplayer-ui');
     const vsTimer = document.getElementById('vs-timer');
@@ -6097,11 +6187,9 @@
     if (vsTimer) vsTimer.classList.remove('hidden');
     document.querySelectorAll('.mp-only').forEach(el => el.classList.remove('hidden'));
 
-    // 線上名單與排行榜在對戰佈局中隱藏
+    // 線上名單隱藏（排行榜保留可見）
     const onlinePanel = document.getElementById('online-panel');
     if (onlinePanel) onlinePanel.classList.add('hidden');
-    const leaderboardContainer = document.getElementById('leaderboard-container');
-    if (leaderboardContainer) leaderboardContainer.style.display = 'none';
 
     // MULTIPLAYER 面板裡只留 MATCH SCORE（保留 invite-toast 才能在觀戰中收到邀請）
     const hideIds = ['mp-input-group','mp-ready-group','ai-btn','conn-status','ping-display','emoji-hint-panel'];
@@ -6111,15 +6199,49 @@
     const scoreboardEl = document.getElementById('scoreboard');
     if (scoreboardEl) scoreboardEl.style.display = 'block';
 
-    // 對戰佈局專用：隱藏 VS AI / LEAVE ROOM / READY 相關按鈕，別讓觀戰者誤觸
+    // 觀戰時 MATCH SCORE 標籤替換為玩家名稱
+    const scoreLabelLeft = document.getElementById('score-label-left');
+    const scoreLabelRight = document.getElementById('score-label-right');
+    if (scoreLabelLeft && _spectateHostUsername) {
+      scoreLabelLeft.textContent = _spectateHostUsername.length > 6 ? _spectateHostUsername.slice(0, 6) + '…' : _spectateHostUsername;
+      scoreLabelLeft.title = _spectateHostUsername;
+    }
+    if (scoreLabelRight) {
+      scoreLabelRight.textContent = '...';
+      scoreLabelRight.title = '';
+    }
+
+    // 替換 LEAVE ROOM 按鈕為「離開觀戰」功能
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
-    if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
+    if (mpLeaveBtn) {
+      mpLeaveBtn._origText = mpLeaveBtn.innerHTML;
+      mpLeaveBtn.innerHTML = '✕ 離開觀戰';
+      mpLeaveBtn.style.color = '#fff';
+      mpLeaveBtn.style.borderColor = 'var(--Z)';
+      mpLeaveBtn.style.background = 'rgba(255,13,98,0.7)';
+      mpLeaveBtn.classList.remove('hidden');
+    }
+    // 隱藏自定義的 overlay 離開按鈕（由 mp-leave-btn 取代）
+    const spectateLeaveOverlay = document.getElementById('spectate-leave-overlay');
+    if (spectateLeaveOverlay) spectateLeaveOverlay.style.display = 'none';
 
     // 對手名稱預設
     const oppTitleEl = document.getElementById('opp-name-display');
     if (oppTitleEl) {
-      oppTitleEl.innerHTML = 'LOADING...';
-      oppTitleEl.style.color = 'rgba(255,255,255,0.5)';
+      if (_spectateHostMode === 'AI_BATTLE') {
+        oppTitleEl.innerHTML = '🤖 AI<br><span style="font-size:12px; color:rgba(255,255,255,0.6); letter-spacing:0px;">電腦對手</span>';
+        oppTitleEl.style.color = 'var(--T)';
+        oppTitleEl.style.textShadow = '0 0 10px var(--T)';
+      } else {
+        oppTitleEl.innerHTML = 'LOADING...';
+        oppTitleEl.style.color = 'rgba(255,255,255,0.5)';
+      }
+    }
+
+    // AI 對戰觀戰時隱藏排行榜（讓 AI 設定面板有空間），真人對戰保留排行榜
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+    if (_spectateHostMode === 'AI_BATTLE') {
+      if (leaderboardContainer) leaderboardContainer.style.display = 'none';
     }
 
     // Phase 3：若 host 是 AI_BATTLE，顯示 AI 設定面板為唯讀
@@ -6130,7 +6252,6 @@
         aiPanel.setAttribute('data-spectate-readonly', '1');
         aiPanel.style.pointerEvents = 'none';
         aiPanel.style.opacity = '0.85';
-        // 加上「唯讀」浮水印提示
         let watermark = aiPanel.querySelector('.spectate-readonly-mark');
         if (!watermark) {
           watermark = document.createElement('div');
@@ -6144,7 +6265,6 @@
       }
     }
 
-    // 對戰時計時器區域要重繪
     setTimeout(() => { if (typeof fitLayout === 'function') fitLayout(); }, 50);
   }
 
@@ -6154,6 +6274,45 @@
 
     const layout = document.getElementById('layout');
     if (layout) layout.classList.remove('is-multiplayer');
+
+    // --- 搬回聊天室到 viewport ---
+    const chatIcon = document.getElementById('chat-icon-wrapper');
+    const chatPanel = document.getElementById('chat-panel');
+    const viewport = document.getElementById('viewport');
+    if (chatIcon && viewport) {
+      chatIcon.classList.remove('hidden');
+      viewport.appendChild(chatIcon);
+      chatIcon.style.top = 'auto';
+      chatIcon.style.bottom = '15px';
+      chatIcon.style.right = '20px';
+      chatIcon.style.left = 'auto';
+    }
+    if (chatPanel && viewport) {
+      viewport.appendChild(chatPanel);
+      chatPanel.style.top = 'auto';
+      chatPanel.style.bottom = '75px';
+      chatPanel.style.right = '20px';
+      chatPanel.style.left = 'auto';
+    }
+
+    // --- 搬回高幀率按鈕（完全仿 exitMultiplayerMode 的還原寫法）---
+    const settingsContainer = document.getElementById('settings-container');
+    const fpsBtn = document.getElementById('fps-mode-btn');
+    if (settingsContainer && viewport) {
+      viewport.appendChild(settingsContainer);
+      settingsContainer.style.top = '20px';
+      settingsContainer.style.right = '20px';
+      settingsContainer.style.width = '220px';
+      if (fpsBtn) {
+        fpsBtn.style.width = '220px';
+        fpsBtn.style.padding = '10px';
+        fpsBtn.style.textAlign = 'center';
+        fpsBtn.style.fontSize = '14px';
+        fpsBtn.style.borderRadius = '8px';
+        fpsBtn.style.background = 'transparent';
+        fpsBtn.style.backdropFilter = 'none';
+      }
+    }
 
     const oppPanel = document.getElementById('opp-panel');
     const scorePanel = document.getElementById('singleplayer-ui');
@@ -6167,11 +6326,11 @@
       const onlinePanel = document.getElementById('online-panel');
       if (onlinePanel) onlinePanel.classList.remove('hidden');
     }
-    const leaderboardContainer = document.getElementById('leaderboard-container');
-    if (leaderboardContainer) leaderboardContainer.style.display = 'flex';
 
-    // 還原 MULTIPLAYER 面板
-    const showIds = ['mp-input-group','ai-btn','conn-status','emoji-hint-panel'];
+    // 還原 MULTIPLAYER 面板（mp-input-group 原始是 display:flex，其餘回復預設）
+    const mpInputGroup = document.getElementById('mp-input-group');
+    if (mpInputGroup) mpInputGroup.style.display = 'flex';
+    const showIds = ['ai-btn','conn-status','emoji-hint-panel'];
     showIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
     const mpReady = document.getElementById('mp-ready-group');
     if (mpReady) mpReady.style.display = 'none';
@@ -6184,6 +6343,22 @@
     const scoreboardEl = document.getElementById('scoreboard');
     if (scoreboardEl) scoreboardEl.style.display = 'none';
 
+    // 還原 MATCH SCORE 標籤
+    const scoreLabelLeft = document.getElementById('score-label-left');
+    const scoreLabelRight = document.getElementById('score-label-right');
+    if (scoreLabelLeft) { scoreLabelLeft.textContent = 'YOU'; scoreLabelLeft.title = ''; }
+    if (scoreLabelRight) { scoreLabelRight.textContent = 'OPP'; scoreLabelRight.title = ''; }
+
+    // 還原 LEAVE ROOM 按鈕
+    const mpLeaveBtn = document.getElementById('mp-leave-btn');
+    if (mpLeaveBtn) {
+      mpLeaveBtn.innerHTML = mpLeaveBtn._origText || '🚪 LEAVE ROOM';
+      mpLeaveBtn.style.color = '';
+      mpLeaveBtn.style.borderColor = '';
+      mpLeaveBtn.style.background = '';
+      mpLeaveBtn.classList.add('hidden');
+    }
+
     // 還原對手名稱預設
     const oppTitleEl = document.getElementById('opp-name-display');
     if (oppTitleEl) {
@@ -6191,8 +6366,13 @@
       oppTitleEl.style.color = 'var(--Z)';
       oppTitleEl.style.textShadow = '0 0 10px var(--Z)';
     }
-    // 清空對手資料，避免殘影
+    // 清空對手資料、勝負結果
     oppState = null;
+    matchResult = null;
+
+    // 還原排行榜（AI 觀戰會隱藏）
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+    if (leaderboardContainer) leaderboardContainer.style.display = 'flex';
 
     // Phase 3：還原 AI 設定面板
     const aiPanel = document.getElementById('ai-config-panel');
@@ -7348,7 +7528,8 @@
     }
   })();
 
-  // 綁定點擊名字打開聊天 (利用事件委派)
+  // 綁定點擊名字：單擊=查看戰績，雙擊=聊天 (利用事件委派)
+  let _onlineClickTimer = null;
   document.getElementById('online-users-list').addEventListener('click', (e) => {
       // 觀戰按鈕（事件冒泡：先檢查 spectate-trigger，避免被當成 chat-trigger 處理）
       const spectateBtn = e.target.closest && e.target.closest('.spectate-trigger');
@@ -7363,10 +7544,22 @@
           if (username) startSpectate(username);
           return;
       }
-      // 點名字仍可打開聊天
+      // 單擊名字 = 查看戰績（延遲判斷，避免與雙擊衝突）
       if (e.target.classList && e.target.classList.contains('chat-trigger')) {
           const username = e.target.getAttribute('data-username');
-          openChat(username);
+          if (_onlineClickTimer) { clearTimeout(_onlineClickTimer); _onlineClickTimer = null; }
+          _onlineClickTimer = setTimeout(() => {
+              _onlineClickTimer = null;
+              if (username) openPlayerHistory(username);
+          }, 250);
+      }
+  });
+  // 雙擊名字 = 開啟聊天
+  document.getElementById('online-users-list').addEventListener('dblclick', (e) => {
+      if (e.target.classList && e.target.classList.contains('chat-trigger')) {
+          if (_onlineClickTimer) { clearTimeout(_onlineClickTimer); _onlineClickTimer = null; }
+          const username = e.target.getAttribute('data-username');
+          if (username) openChat(username);
       }
   });
 
@@ -8431,10 +8624,50 @@
       });
   }
 
+  let _historyViewingPlayer = null;
+
+  function openPlayerHistory(targetUsername) {
+    if (!targetUsername) return;
+    if (targetUsername === currentPlayer) { openHistoryModal(); return; }
+    historyModal.classList.remove('hidden');
+    historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">讀取中...</div>';
+    historySummary.innerHTML = '';
+    const historyTitle = document.getElementById('history-title');
+    if (historyTitle) historyTitle.textContent = '📜 ' + targetUsername + ' 的對戰紀錄';
+    _historyViewingPlayer = targetUsername;
+    playSound('move');
+
+    db.collection('users').where('username', '==', targetUsername).limit(1).get()
+      .then(snap => {
+        if (snap.empty) {
+          historyContent.innerHTML = '<div style="text-align:center; color:var(--Z); padding:30px; font-size:13px;">找不到此玩家。</div>';
+          return;
+        }
+        const uid = snap.docs[0].id;
+        return db.collection('users').doc(uid)
+          .collection('matchHistory')
+          .orderBy('ts', 'desc')
+          .limit(50)
+          .get();
+      })
+      .then(snap => {
+        if (!snap) return;
+        historyDocsCache = snap.docs;
+        setHistoryFilter('ALL');
+      })
+      .catch(err => {
+        console.error('讀取玩家對戰紀錄失敗:', err);
+        historyContent.innerHTML = '<div style="text-align:center; color:var(--Z); padding:20px; font-size:12px;">讀取失敗：' + (err.message || err) + '</div>';
+      });
+  }
+
   if (historyBtn && historyModal && closeHistoryBtn) {
     historyBtn.addEventListener('click', openHistoryModal);
     closeHistoryBtn.addEventListener('click', () => {
       historyModal.classList.add('hidden');
+      const historyTitle = document.getElementById('history-title');
+      if (historyTitle) historyTitle.textContent = '📜 對戰紀錄';
+      _historyViewingPlayer = null;
       playSound('move');
     });
     historyBtn.addEventListener('mouseenter', () => {
