@@ -7153,6 +7153,64 @@
     }
   });
 
+  // --- Rules Modal (遊戲規則彈窗) ---
+  function openRulesModal() {
+    const modal = document.getElementById('rules-modal');
+    const overlay = document.getElementById('rules-modal-overlay');
+    if (modal) modal.classList.remove('hidden');
+    if (overlay) overlay.classList.remove('hidden');
+  }
+  function closeRulesModal() {
+    const modal = document.getElementById('rules-modal');
+    const overlay = document.getElementById('rules-modal-overlay');
+    if (modal) modal.classList.add('hidden');
+    if (overlay) overlay.classList.add('hidden');
+  }
+  function switchRulesTab(tabName) {
+    document.querySelectorAll('.rules-tab-btn').forEach(btn => {
+      const isActive = btn.dataset.tab === tabName;
+      btn.classList.toggle('active', isActive);
+      const colorMap = { operation: 'var(--I)', solo: 'var(--O)', battle: 'var(--Z)' };
+      const rgbMap = { operation: '56,189,238', solo: '247,221,22', battle: '255,13,98' };
+      const c = colorMap[btn.dataset.tab] || 'var(--I)';
+      const rgb = rgbMap[btn.dataset.tab] || '56,189,238';
+      btn.style.background = isActive ? `rgba(${rgb},0.15)` : 'transparent';
+      btn.style.borderColor = isActive ? c : `rgba(${rgb},0.35)`;
+    });
+    document.querySelectorAll('.rules-tab-panel').forEach(panel => {
+      panel.classList.toggle('hidden', panel.dataset.panel !== tabName);
+    });
+    const contentEl = document.getElementById('rules-modal-content');
+    if (contentEl) contentEl.scrollTop = 0;
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target) return;
+    if (e.target.id === 'open-rules-btn' || (e.target.parentElement && e.target.parentElement.id === 'open-rules-btn')) {
+      openRulesModal();
+      return;
+    }
+    if (e.target.id === 'close-rules-btn' || e.target.id === 'close-rules-btn-x' || e.target.id === 'rules-modal-overlay') {
+      closeRulesModal();
+      return;
+    }
+    const tabBtn = e.target.closest && e.target.closest('.rules-tab-btn');
+    if (tabBtn && tabBtn.dataset.tab) {
+      switchRulesTab(tabBtn.dataset.tab);
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('rules-modal');
+      if (modal && !modal.classList.contains('hidden')) {
+        closeRulesModal();
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }
+  }, true);
+
   logoutBtn.addEventListener('click', () => {
     if (isMultiplayer && conn && conn.open) {
       conn.send({ type: 'OPPONENT_DISCONNECTED' });

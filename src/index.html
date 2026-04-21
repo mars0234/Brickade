@@ -567,6 +567,182 @@
     <button id="close-rank-btn" style="width: 100%; padding: 10px; background: var(--T); color: var(--white); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
   </div>
 
+  <div id="rules-modal-overlay" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); z-index:1999;"></div>
+  <div id="rules-modal" class="hidden" style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:760px; max-width:95vw; max-height:90vh; background:linear-gradient(135deg, rgba(6,0,79,0.98), rgba(16,6,58,0.98)); border:2px solid var(--I); border-radius:10px; padding:22px 26px; z-index:2000; box-shadow:0 0 40px rgba(56,189,238,0.4), 0 0 80px rgba(177,68,247,0.2); color:var(--white); display:flex; flex-direction:column; gap:14px; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid rgba(255,255,255,0.08); padding-bottom:12px; flex-shrink:0;">
+      <h2 style="margin:0; color:var(--I); font-size:22px; letter-spacing:3px; text-shadow:0 0 12px rgba(56,189,238,0.6);">📖 GAME RULES</h2>
+      <button id="close-rules-btn-x" title="關閉" style="background:transparent; border:none; color:var(--white); font-size:26px; cursor:pointer; padding:0 6px; line-height:1; opacity:0.7; transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">&times;</button>
+    </div>
+
+    <div id="rules-tabs" style="display:flex; gap:6px; flex-shrink:0;">
+      <button class="rules-tab-btn active" data-tab="operation" style="flex:1; padding:10px 8px; background:rgba(56,189,238,0.15); color:var(--I); border:1.5px solid var(--I); border-radius:6px; font-weight:900; font-size:13px; cursor:pointer; letter-spacing:1px;">🎮 OPERATION</button>
+      <button class="rules-tab-btn" data-tab="solo" style="flex:1; padding:10px 8px; background:transparent; color:var(--O); border:1.5px solid rgba(247,221,22,0.35); border-radius:6px; font-weight:900; font-size:13px; cursor:pointer; letter-spacing:1px;">🏆 SOLO</button>
+      <button class="rules-tab-btn" data-tab="battle" style="flex:1; padding:10px 8px; background:transparent; color:var(--Z); border:1.5px solid rgba(255,13,98,0.35); border-radius:6px; font-weight:900; font-size:13px; cursor:pointer; letter-spacing:1px;">⚔️ BATTLE</button>
+    </div>
+
+    <div id="rules-modal-content" style="flex:1; min-height:0; overflow-y:auto; padding-right:8px; font-size:13px; line-height:1.65;">
+      <!-- Tab: Operation -->
+      <div class="rules-tab-panel" data-panel="operation">
+        <p style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">掌握這些按鍵，你才能在 Tetris 世界隨心所欲。</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 18px;">
+          <div><b style="color:var(--I);">← →</b> 左右移動</div>
+          <div><b style="color:var(--I);">↓</b> 軟降 Soft Drop <span style="color:var(--O); font-size:11px;">(+1 分 / 格)</span></div>
+          <div><b style="color:var(--I);">Space</b> 硬降 Hard Drop <span style="color:var(--O); font-size:11px;">(+2 分 / 格)</span></div>
+          <div><b style="color:var(--I);">↑ / X</b> 順時針旋轉</div>
+          <div><b style="color:var(--I);">Z / Ctrl</b> 逆時針旋轉</div>
+          <div><b style="color:var(--I);">C / Shift</b> 保留 Hold <span style="color:rgba(255,255,255,0.6); font-size:11px;">(每顆限用一次)</span></div>
+          <div><b style="color:var(--I);">P / Esc</b> 暫停 / 繼續</div>
+          <div><b style="color:var(--I);">R</b> 重新開始 / 離開房間</div>
+          <div><b style="color:var(--I);">A</b> Undo 反悔上一步</div>
+          <div><b style="color:var(--I);">M / N</b> 音樂 / 音效靜音</div>
+          <div><b style="color:var(--I);">+ / -</b> 遊戲音量大 / 小</div>
+          <div><b style="color:var(--I);">1 ~ 4</b> 發送表情 <span style="color:rgba(255,255,255,0.6); font-size:11px;">(對戰)</span></div>
+          <div style="grid-column:1 / -1;"><b style="color:var(--Z);">F ×2</b> 連按兩下投降 <span style="color:rgba(255,255,255,0.6); font-size:11px;">(對戰中)</span></div>
+        </div>
+        <div style="margin-top:16px; padding:10px 12px; background:rgba(177,68,247,0.1); border-left:3px solid var(--T); border-radius:4px;">
+          <b style="color:var(--T);">💡 Tip：</b>Hold (C) 是高手的必備工具，存下 I 型方塊等大招會讓你火力翻倍！
+        </div>
+      </div>
+
+      <!-- Tab: Solo -->
+      <div class="rules-tab-panel hidden" data-panel="solo">
+        <p style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">單人模式的核心是 <b style="color:var(--O);">消行 → 得分 → 升級 → 變快</b>。越高級分數倍率越高，但速度也越恐怖。</p>
+
+        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🎯 消行基礎分 <span style="font-size:11px; color:rgba(255,255,255,0.5); font-weight:400;">(最終分 = 基礎分 × Level)</span></h3>
+        <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12.5px;">
+          <thead>
+            <tr style="background:rgba(56,189,238,0.15); color:var(--I);"><th style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(56,189,238,0.3);">技巧</th><th style="padding:7px 10px; text-align:right; border-bottom:1px solid rgba(56,189,238,0.3);">基礎分</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Single（單列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">100</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Double（雙列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">300</td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Triple（三列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">500</td></tr>
+            <tr style="background:rgba(56,189,238,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>Tetris（四列）</b> 🏆</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>800</b></td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin <span style="color:rgba(255,255,255,0.5); font-size:11px;">(無消行)</span></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">100</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin Single</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">200</td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin Double</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">400</td></tr>
+            <tr style="background:rgba(177,68,247,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin</b> <span style="color:rgba(255,255,255,0.5); font-size:11px;">(無消行)</span></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>400</b></td></tr>
+            <tr style="background:rgba(177,68,247,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Single (TSS)</b></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>800</b></td></tr>
+            <tr style="background:rgba(177,68,247,0.14);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Double (TSD)</b></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>1200</b></td></tr>
+            <tr style="background:linear-gradient(90deg, rgba(177,68,247,0.2), rgba(255,13,98,0.15));"><td style="padding:6px 10px; color:var(--T);"><b>T-Spin Triple (TST)</b> ⚡</td><td style="padding:6px 10px; text-align:right; color:var(--T);"><b>1600</b></td></tr>
+          </tbody>
+        </table>
+        <div style="margin:-6px 0 14px 0; padding:8px 10px; background:rgba(177,68,247,0.1); border-left:3px solid var(--T); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.9);">
+          <b style="color:var(--T);">💡 注意：</b>T-Spin / Mini T-Spin <b>即使沒消行也有得分</b>（T-Spin 400、Mini T-Spin 100，× Level），所以看到紫色特效就代表你賺到了！
+        </div>
+
+        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🔥 加成規則</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+          <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(247,221,22,0.12), rgba(255,152,0,0.12)); border:1px solid rgba(247,221,22,0.3); border-radius:6px;">
+            <b style="color:var(--O);">B2B 連擊</b>
+            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">連續施展 Tetris 或 T-Spin 消行，基礎分 <b style="color:var(--O);">× 1.5</b>。</div>
+          </div>
+          <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(72,214,47,0.12), rgba(56,189,238,0.12)); border:1px solid rgba(72,214,47,0.3); border-radius:6px;">
+            <b style="color:var(--S);">Combo 連消</b>
+            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">連續消行 N 次，額外 <b style="color:var(--S);">+50 × N</b> 分。</div>
+          </div>
+          <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(56,189,238,0.12), rgba(42,127,255,0.12)); border:1px solid rgba(56,189,238,0.3); border-radius:6px;">
+            <b style="color:var(--I);">Soft Drop</b>
+            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">手動按 ↓ 每下降 1 格 <b style="color:var(--I);">+1 分</b>（破最低紀錄）。</div>
+          </div>
+          <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(177,68,247,0.12), rgba(255,13,98,0.12)); border:1px solid rgba(177,68,247,0.3); border-radius:6px;">
+            <b style="color:var(--T);">Hard Drop</b>
+            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">按 Space 每下落 1 格 <b style="color:var(--T);">+2 分</b>。</div>
+          </div>
+        </div>
+
+        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">⚡ Level 與速度曲線</h3>
+        <p style="margin:0 0 10px 0; color:rgba(255,255,255,0.8); font-size:12.5px;">每消 <b style="color:var(--O);">10 行</b> 升 1 級。下落速度公式：<code style="color:var(--I); background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:3px; font-size:11.5px;">(0.8 − (L−1)×0.007)^(L−1) 秒/格</code></p>
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+          <thead>
+            <tr style="background:rgba(247,221,22,0.12); color:var(--O);"><th style="padding:6px 8px; text-align:left; border-bottom:1px solid rgba(247,221,22,0.3);">Level</th><th style="padding:6px 8px; text-align:right; border-bottom:1px solid rgba(247,221,22,0.3);">每格下落時間</th><th style="padding:6px 8px; text-align:left; border-bottom:1px solid rgba(247,221,22,0.3);">感受</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:5px 8px;">1</td><td style="padding:5px 8px; text-align:right;">1000 ms</td><td style="padding:5px 8px; color:rgba(255,255,255,0.65);">悠閒</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:5px 8px;">5</td><td style="padding:5px 8px; text-align:right;">~513 ms</td><td style="padding:5px 8px; color:rgba(255,255,255,0.65);">開始變緊</td></tr>
+            <tr><td style="padding:5px 8px;">10</td><td style="padding:5px 8px; text-align:right;">~72 ms</td><td style="padding:5px 8px; color:var(--O);">飆速</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:5px 8px;">15</td><td style="padding:5px 8px; text-align:right;">~12 ms</td><td style="padding:5px 8px; color:var(--L);">極限反應</td></tr>
+            <tr style="background:rgba(255,13,98,0.1);"><td style="padding:5px 8px; color:var(--Z);"><b>20+</b></td><td style="padding:5px 8px; text-align:right; color:var(--Z);"><b>&lt; 2 ms</b></td><td style="padding:5px 8px; color:var(--Z);"><b>20G — 瞬間貼地</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Battle -->
+      <div class="rules-tab-panel hidden" data-panel="battle">
+        <p style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">對戰模式你要做的是 <b style="color:var(--Z);">消更多行、送更多垃圾、把對手頂上天</b>。重力固定 1 秒 1 格，時長 <b style="color:var(--Z);">2 分鐘</b>。</p>
+
+        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">⚔️ 垃圾行攻擊表</h3>
+        <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12.5px;">
+          <thead>
+            <tr style="background:rgba(255,13,98,0.15); color:var(--Z);">
+              <th style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(255,13,98,0.3);">技巧</th>
+              <th style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(255,13,98,0.3);">送出垃圾行</th>
+              <th style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(255,13,98,0.3); background:linear-gradient(90deg, rgba(247,221,22,0.2), rgba(255,152,0,0.2)); color:var(--O);">B2B 版本 🔥</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Single</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.5);">0</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.3);">—</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Double</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06);">1</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.3);">—</td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Triple</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06);">2</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.3);">—</td></tr>
+            <tr style="background:rgba(56,189,238,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>Tetris</b> 🏆</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>4</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>6</b></td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin Single</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">1</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>2</b></td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Single (TSS)</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>2</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>3</b></td></tr>
+            <tr style="background:rgba(177,68,247,0.1);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Double (TSD)</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>4</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>6</b></td></tr>
+            <tr style="background:linear-gradient(90deg, rgba(177,68,247,0.15), rgba(255,13,98,0.15));"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Triple (TST)</b> ⚡</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>6</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>9</b></td></tr>
+            <tr style="background:linear-gradient(90deg, rgba(247,221,22,0.15), rgba(255,152,0,0.15));"><td style="padding:6px 10px; color:var(--O);"><b>PERFECT CLEAR</b> ⭐</td><td style="padding:6px 10px; text-align:center; color:var(--O);" colspan="2"><b>額外 +10 行</b>（最兇的一擊！）</td></tr>
+          </tbody>
+        </table>
+        <div style="margin:-6px 0 14px 0; padding:8px 10px; background:rgba(247,221,22,0.08); border-left:3px solid var(--O); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.85);">
+          <b style="color:var(--O);">🔥 B2B = Back-to-Back：</b>連續施展 <b>Tetris</b> 或 <b>T-Spin</b>（中間不能插入普通 Single/Double/Triple），第二次起就會觸發 B2B 版本的加量攻擊。高手連續 B2B TSD 就是一波 6 行 6 行地送！
+        </div>
+
+        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🌀 Combo 額外攻擊</h3>
+        <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12.5px;">
+          <thead>
+            <tr style="background:rgba(72,214,47,0.15); color:var(--S);"><th style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(72,214,47,0.3);">連續消行次數</th><th style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(72,214,47,0.3);">額外送出</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 1 ~ 2</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--S);">+1 行</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 3 ~ 4</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--S);">+2 行</td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 5 ~ 6</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);">+3 行</td></tr>
+            <tr style="background:rgba(255,13,98,0.08);"><td style="padding:6px 10px; color:var(--Z);"><b>Combo 7+</b></td><td style="padding:6px 10px; text-align:center; color:var(--Z);"><b>+4 行</b>（上限）</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🛡️ 垃圾抵銷 & 寬限期</h3>
+        <div style="margin-bottom:12px; padding:10px 12px; background:rgba(56,189,238,0.08); border:1px solid rgba(56,189,238,0.3); border-radius:6px; font-size:12.5px;">
+          對手送來的垃圾會先以 <b style="color:var(--O);">🟡 黃色警告條</b> 停留 <b style="color:var(--O);">2 秒</b>，這段期間只要你成功消行，攻擊可以<b style="color:var(--I);">反打抵銷</b>！<br>
+          時間一過就變成 <b style="color:var(--Z);">🔴 紅色危險條</b>，下次落地就會從盤底真的頂上來。
+          <br><br>
+          <b style="color:var(--I);">抵銷順序：</b>你的攻擊 → 先抵自己的 🔴 紅色 → 再抵 🟡 黃色 → 有剩才送給對手。
+        </div>
+
+        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">💀 KO 判定</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+          <div style="padding:10px 12px; background:rgba(72,214,47,0.1); border:1px solid rgba(72,214,47,0.35); border-radius:6px; font-size:12.5px;">
+            <b style="color:var(--S);">✅ 被 KO 可復活</b><br>
+            <span style="color:rgba(255,255,255,0.8);">頂到天花板時，盤上<b>有垃圾行</b> → 被 KO 但復活，對手 <b>+1 KO</b>，比賽繼續。</span>
+          </div>
+          <div style="padding:10px 12px; background:rgba(255,13,98,0.1); border:1px solid rgba(255,13,98,0.35); border-radius:6px; font-size:12.5px;">
+            <b style="color:var(--Z);">❌ TOP OUT 直接輸</b><br>
+            <span style="color:rgba(255,255,255,0.8);">頂到天花板時，盤上<b>沒有垃圾行</b>（是你自己堆上去的） → 直接落敗。</span>
+          </div>
+        </div>
+        <div style="margin-bottom:14px; padding:8px 10px; background:rgba(177,68,247,0.08); border-left:3px solid var(--T); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.85);">
+          <b style="color:var(--T);">🤝 死亡寬限期：</b>雙方在 300ms 內幾乎同時死亡 → 判定 <b>平手（DRAW）</b>，吸收網路延遲造成的「搶先一步」不公平。
+        </div>
+
+        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🏅 勝負 & 段位</h3>
+        <div style="padding:10px 12px; background:rgba(177,68,247,0.08); border:1px solid rgba(177,68,247,0.3); border-radius:6px; font-size:12.5px; color:rgba(255,255,255,0.85);">
+          時間結束時，<b style="color:var(--Z);">KO 較多者獲勝</b>；KO 相同則比較 <b>LINES SENT</b>。贏了加 LP 爬段位，輸了扣 LP。<br>
+          <span style="color:var(--T);">📖 完整段位規則請到左側 <b>PLAYER 框</b>，點擊你目前的段位文字即可查看。</span>
+        </div>
+      </div>
+    </div>
+
+    <button id="close-rules-btn" style="width:100%; padding:10px; background:linear-gradient(135deg, var(--I), var(--T)); color:var(--white); font-weight:900; font-size:15px; border:none; border-radius:4px; cursor:pointer; letter-spacing:2px; flex-shrink:0;">CLOSE</button>
+  </div>
+
   <div id="system-toast"></div>
 
   <div id="settings-container" style="position: absolute; right: 20px; top: 20px; z-index: 101; display: flex; flex-direction: column; gap: 10px;">
@@ -819,20 +995,16 @@
         <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
 
         <div class="info-panel" id="controls-section" style="font-size: 14px;">
-            <h2 style="text-align:center; color:var(--I); margin:0 0 10px 0;">CONTROLS</h2>
+            <h2 style="text-align:center; color:var(--I); margin:0 0 12px 0;">CONTROLS</h2>
             <p style="margin: 5px 0;"><b>← →</b> : 左右移動</p>
             <p style="margin: 5px 0;"><b>↓</b> : 軟降 (加速下落)</p>
             <p style="margin: 5px 0;"><b>Space</b> : 硬降 (瞬間落下)</p>
             <p style="margin: 5px 0;"><b>↑ / X</b> : 順時針旋轉</p>
-            <p style="margin: 5px 0;"><b>Z / Ctrl</b> : 逆時針旋轉</p>
             <p style="margin: 5px 0;"><b>C / Shift</b> : 保留方塊 (Hold)</p>
             <p style="margin: 5px 0;"><b>P / Esc</b> : 暫停 / 繼續遊戲</p>
             <p style="margin: 5px 0;"><b>R</b> : 重新開始 / 離開房間</p>
-            <p style="margin: 5px 0;"><b>M / N</b> : 音樂 / 音效 靜音</p>
-            <p style="margin: 5px 0;"><b>+ / -</b> : 遊戲音量 大 / 小</p>
-            <p style="margin: 5px 0;"><b>1 ~ 4</b> : 發送表情符號 (對戰)</p>
-            <p style="margin: 5px 0;"><b>F (連按兩下)</b> : 投降 (對戰中)</p>
             <p style="margin: 5px 0;"><b>A</b> : 反悔 (Undo 上一步)</p>
+            <button id="open-rules-btn" title="查看完整遊戲規則、計分、對戰機制" style="width:100%; margin-top:12px; padding:10px; background:linear-gradient(135deg, rgba(72,214,47,0.15), rgba(56,189,238,0.15)); color:var(--S); border:2px solid var(--S); font-weight:900; font-size:13px; cursor:pointer; border-radius:8px; letter-spacing:2px; transition:all 0.2s; box-shadow:0 0 12px rgba(72,214,47,0.35);">📖 完整規則 & 計分</button>
         </div>
 
       </div>
