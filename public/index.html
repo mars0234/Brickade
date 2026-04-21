@@ -1103,7 +1103,7 @@
     5: 'Space',       // R1 -> 硬降 (瞬間落下)
     9: 'Escape',      // Options -> 暫停
     
-    // --- 新增的客製化按鍵設定 ---
+    // --- 客製化按鍵設定 ---
     0: 'Enter',       // ❌ (Cross) -> Enter / 確認與開始
     1: 'KeyR',        // ⭕️ (Circle) -> R / Reconnect 或 再來一局
     3: 'KeyA',        // 🔺 (Triangle) -> Undo (時光倒流反悔)
@@ -1858,10 +1858,28 @@
       } else {
         playSound('perfect');
         clearInterval(countdownInterval);
-        
+
         lastActionTime = Date.now(); // 倒數結束，重置掛機判定
         if (isAIMode) {
            aiThinkTimer = 0; // 防止 AI 一解凍就瞬間把方塊砸下來
+        }
+        // 保險：若 AI 對戰的 battleTime 計時器從未啟動（例如初始倒數曾被打斷），在這裡補建
+        if (isAIMode && battleTime > 0) {
+          const timerEl2 = document.getElementById('battle-timer');
+          if (timerInterval) clearInterval(timerInterval);
+          timerInterval = setInterval(() => {
+            if (!gameOver && isMultiplayer && !isPaused && countdownValue <= 0) {
+              battleTime--;
+              let mins = Math.floor(battleTime / 60);
+              let secs = battleTime % 60;
+              if (timerEl2) timerEl2.textContent = `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
+              if (battleTime <= 0) {
+                clearInterval(timerInterval);
+                matchEndReason = 'TIMEOUT';
+                endBattleMatch();
+              }
+            }
+          }, 1000);
         }
         if (!current) {
           if (isAIMode && !aiCurrent) startAI(); // 確保 AI 也一起啟動
@@ -2126,10 +2144,9 @@
 
   // 退出雙人模式的畫面切換邏輯 (抽離出來)
   function exitMultiplayerMode(showDisconnectWarning = true) {
-    updateMyActivity('IDLE'); // 退出房間回到閒置大廳
     if (typeof battleBgm !== 'undefined') battleBgm.pause(); // 退出對戰時切斷音樂
     if (timerInterval) clearInterval(timerInterval); // 退出時確保計時器徹底停止
-    
+
     // 只要是異常斷線就給通知
     if (showDisconnectWarning && isMultiplayer && !isAIMode) {
       if (gameStarted && !gameOver) {
@@ -2143,7 +2160,9 @@
       gameOver = true; // 即使不顯示警告，也要確保遊戲狀態被終止
     }
 
+    // 必須先把 isMultiplayer / isAIMode 重置，updateMyActivity 會觸發 Firebase 名單重算；若此時這兩個旗標還是 true，其他玩家觀戰此人的按鈕會被鎖在「對戰中無法觀戰」狀態
     isMultiplayer = false; isAIMode = false; iAmReady = false; oppIsReady = false;
+    updateMyActivity('IDLE'); // 退出房間回到閒置大廳
 
     // --- 退出對戰：將聊天室搬回原本的右下角 ---
     const chatIcon = document.getElementById('chat-icon-wrapper');
@@ -2277,6 +2296,9 @@
       readyBtn.style.cursor = 'pointer';           // 恢復滑鼠手勢
       readyBtn.disabled = false;
     }
+
+    // 強制重拉線上名單：即使 Firebase onValue 沒立刻 fire，也要確保觀戰按鈕恢復可點
+    if (typeof listenToOnlineUsers === 'function') listenToOnlineUsers();
   }
 
   function setupConnection(connection, isSender = false) {
@@ -2354,7 +2376,7 @@
         enterMultiplayerMode();
       }
       else if (data.type === 'INVITE_LATE') {
-        // 🌟 新增：我按了接受，但對方已經跟第一名開始遊戲了
+        // 我按了接受，但對方已經跟第一名開始遊戲了
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
         showToast("😭 慢了一步！對方已經跟別人開始遊戲了！", 4000);
         connStatus.textContent = 'Status: Too Slow';
@@ -2647,7 +2669,7 @@
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
       osc.start(now); osc.stop(now + 0.15);
     } else if (type === 'clear') {
-      // --- 升級：Combo 升頻機制 ---
+      // --- Combo 升頻機制 ---
       // param 接收 Combo 數量，利用十二平均律讓每次 Combo 完美升半音 (乘上 1.05946)
       const pitchMultiplier = Math.pow(1.05946, param); 
       osc.type = 'sawtooth';
@@ -2657,7 +2679,7 @@
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
       osc.start(now); osc.stop(now + 0.4);
     } else if (type === 'tetris') {
-      // --- 新增：Tetris 專屬的雙重震盪器「和弦」爆炸聲 ---
+      // --- Tetris 專屬的雙重震盪器「和弦」爆炸聲 ---
       osc.type = 'square';
       osc.frequency.setValueAtTime(250, now);
       osc.frequency.linearRampToValueAtTime(500, now + 0.4);
@@ -2680,7 +2702,7 @@
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
       osc.start(now); osc.stop(now + 0.5);
     } else if (type === 'perfect') {
-      // --- 新增：Perfect Clear 神聖高音 ---
+      // --- Perfect Clear 神聖高音 ---
       osc.type = 'sine';
       osc.frequency.setValueAtTime(1200, now);
       osc.frequency.linearRampToValueAtTime(2400, now + 0.6);
@@ -2989,7 +3011,10 @@
         return; 
       }
 
-      isKOed = true; 
+      isKOed = true;
+      // 被 KO 後原本的 undo 快照已經失效（盤面被清、方塊被重給），必須沒收，否則復活後按 A 會生出一模一樣的方塊
+      canUndo = false;
+      previousGameState = null;
       if (conn && conn.open) conn.send({ type: 'I_AM_KO' });
 
       activeGarbage = 0;
@@ -4879,9 +4904,10 @@
     oppState = {
       b: compressed,
       s: aiScore,
-      g: aiActiveGarbage,  
-      ng: aiNextGarbage,   
-      k: 0,
+      g: aiActiveGarbage,
+      ng: aiNextGarbage,
+      // 觀戰端用 oppState.k 顯示對方的 KO 數；AI 的「擊殺次數」就是我方被 KO 的次數
+      k: oppKOs,
       ls: oppLinesSent,
       lp: 0,
       isGuest: true,
@@ -6790,11 +6816,14 @@
       return;
     }
     else if (k === 'KeyP' || k === 'Escape') {
-      if (!gameOver && (!isMultiplayer || isAIMode)) {
+      // gameStarted 必須為 true 才能暫停：READY 準備畫面 (CLICK READY TO START) 按 P 會讓 PAUSED 字樣重疊進來
+      if (!gameOver && gameStarted && (!isMultiplayer || isAIMode)) {
         if (!isPaused) {
-          isPaused = true; 
+          // 倒數 3-2-1 期間不允許暫停：如果在初始倒數被中斷，battleTime 的 timerInterval 會來不及建立，導致恢復後計時器永遠不動
+          if (countdownValue > 0) return;
+          isPaused = true;
           if (countdownInterval) clearInterval(countdownInterval);
-          countdownValue = 0; 
+          countdownValue = 0;
         } else {
           resumeCountdown();
         }
@@ -7433,21 +7462,24 @@
   }
 
   document.getElementById('close-chat-btn').addEventListener('click', () => {
+     // 只關面板、保留 activeChatUser/activeChatPeerId，下次打開時可以直接繼續和同一個人聊天
      document.getElementById('chat-panel').classList.add('hidden');
-     activeChatUser = null;
   });
 
-  // 點擊右下角圖示：如果已經開著就關掉，如果關著就打開(預設找第一個密你的人，或保持空畫面)
+  // 點擊右下角圖示：如果已經開著就關掉，如果關著就打開(預設繼續上次聊天對象，或找第一個密你的人，否則空開)
   document.getElementById('chat-icon-wrapper').addEventListener('click', () => {
       const panel = document.getElementById('chat-panel');
       if (panel.classList.contains('hidden')) {
           let target = activeChatUser;
           if (!target && unreadUsers.size > 0) target = Array.from(unreadUsers)[0];
           if (target) openChat(target);
-          else panel.classList.remove('hidden'); // 空開
+          else {
+              panel.classList.remove('hidden'); // 空開
+              // 空開時標題維持「未選擇」狀態，和 activeChatUser=null 同步，避免送出時跳「請先選對象」
+              document.getElementById('chat-title-name').textContent = 'Player ▼';
+          }
       } else {
-          panel.classList.add('hidden');
-          activeChatUser = null;
+          panel.classList.add('hidden'); // 保留 activeChatUser，讓下次打開可以無縫接續
       }
   });
 
