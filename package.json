@@ -1,0 +1,25 @@
+{
+  "name": "tetris-battle",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "node build.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mars0234/Tetris-Battle.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mars0234/Tetris-Battle/issues"
+  },
+  "homepage": "https://github.com/mars0234/Tetris-Battle#readme",
+  "devDependencies": {
+    "javascript-obfuscator": "^5.4.1"
+  }
+}

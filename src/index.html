@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JUST FUCKING TETRIS</title>
+<style>
+  :root{
+    --bg:#06004f;
+    --white:#f2f2f2;
+    --panel:#06004f;
+    --cell-bg:#0b0767;
+    --I:#38bdee;
+    --J:#2a7fff;
+    --L:#ff9800;
+    --O:#f7dd16;
+    --S:#48d62f;
+    --T:#b144f7;
+    --Z:#ff0d62;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    /* 🌟 垂直聚光燈 (溫和版)：最邊緣不再死黑，使用經典藍打底，向中央平滑過渡到明亮星雲紫 */
+    background: linear-gradient(to right, #06004f 0%, #0a0470 25%, #1a0f96 50%, #0a0470 75%, #06004f 100%);
+    color:var(--white);
+    font-family:Arial,Helvetica,sans-serif;
+    overflow:hidden;
+  }
+  .logo-word{
+    font-weight:900;
+    font-size:66px;
+    line-height:.9;
+    letter-spacing:-3px;
+    color:var(--white);
+    text-transform:uppercase;
+    user-select:none;
+  }
+  .registered{font-size:.22em;vertical-align:super;margin-left:4px}
+  canvas{display:block;image-rendering:pixelated}
+  #game,#next-canvas,#hold-canvas,#queue-canvas{background:var(--bg)}
+
+  .wing-inner{
+    width:100%;
+    display:flex;
+    justify-content:center;
+  }
+
+    .controls-section{
+    width:310px;
+  }
+    .sidebar{
+    width:286px;
+  }
+
+  .info-card:last-child{ margin-bottom:0; }
+
+  .info-title{
+    margin:0 0 8px;
+    font-size:18px;
+    font-weight:900;
+    letter-spacing:1px;
+  }
+  .score-value{
+    font-size:46px;
+    font-weight:900;
+    line-height:1;
+  }
+  .meta-row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:8px;
+    font-weight:800;
+  }
+  .mini-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .controls-grid{
+    display:grid;
+    grid-template-columns:auto auto 1fr;
+    gap:14px 12px;
+    align-items:center;
+    font-size:16px;
+  }
+  .key{
+    width: 66px;  /* 強制所有按鍵寬度相同 */
+    height: 38px; /* 強制所有按鍵高度相同 */
+    display: flex;
+    align-items: center;
+    justify-content: center; /* 讓按鍵內的文字完美置中 */
+    border: 3px solid var(--white);
+    font-weight: 800;
+    font-size: 14px;
+    padding: 0;
+  }
+  .wide{ width: 100%; } /* 讓寬按鍵自動填滿跨越的空間 */
+  .hidden{visibility:hidden}
+  .footer-note{
+    margin-top:10px;
+    font-size:13px;
+    opacity:.85;
+    line-height:1.4;
+  }
+
+  /* =========================================
+     全新的 Tetris Battle 佈局 CSS
+     ========================================= */
+  .viewport {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden; /* 防止捲軸 */
+    padding: 24px 40px;
+  }
+
+  /* 全場主標題 (TETRIS) */
+  .match-title-container {
+    position: relative; 
+    text-align: center;
+    width: 100%;
+    margin-bottom: 25px;
+  }
+  .match-title {
+    font-size: 68px;
+    font-weight: 900;
+    letter-spacing: 15px;
+    color: var(--white);
+    text-shadow: 0 0 20px var(--I);
+    margin-bottom: 0;
+  }
+
+  .wing {
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  
+  /* 單人模式的置中：強制左右兩邊等寬 (260+20+260 = 540px) */
+  .left-wing {
+    width: 540px; 
+    flex-direction: column !important;
+    justify-content: center;
+    gap: 15px;
+  }
+  .right-wing {
+    width: 540px; 
+    justify-content: flex-start;
+  }
+
+  /* 戰鬥競技場 (用來置中與縮放) */
+  .battle-layout {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  }
+
+  /* 當進入連線模式時，釋放右翼的寬度限制，讓對手畫面自然展開 */
+  .battle-layout.is-multiplayer .right-wing {
+    width: max-content;
+  }
+
+  /* 雙人模式下，解除無意義的強制寬度，並榨乾多餘縫隙 */
+  .battle-layout.is-multiplayer { 
+    gap: 45px !important; 
+  }
+  .battle-layout.is-multiplayer .left-wing {
+    width: 540px !important; /* 拔除幽靈寬度，恢復原本大小 */
+    align-items: flex-end; /* 讓左邊的選單靠右貼緊，畫面更集中 */
+    margin-top: -65px; /* 往上推 65px，對齊計時器的頂部，同時收縮整體高度 */
+  }
+  .battle-layout.is-multiplayer .right-wing {
+    width: max-content !important; /* 讓右邊自然包覆對手 */
+  }
+  
+  /* 稍微縮小雙人模式的框線內距，為遊戲主體爭取最大化空間 */
+  .battle-layout.is-multiplayer .game-section {
+    padding: 12px !important;
+    gap: 10px !important;
+  }
+  
+  .battle-arena {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 30px;
+    flex-wrap: nowrap !important;
+  }
+
+  /* flex-shrink: 0 確保對手跟你的框一模一樣大 */
+  /* 注意：這裡原本有 backdrop-filter: blur() 是 GPU killer，對戰時會有兩個 .game-section 同時存在，
+     整合顯卡每幀要算兩大塊毛玻璃。改用純色背景保持視覺一致但 0 compositor 成本。 */
+  .game-section {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(8, 12, 35, 0.85);
+    padding: 15px;
+    border-radius: 10px;
+    border: 2px solid var(--white);
+    flex-shrink: 0;
+  }
+
+  .board-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .side-col { display: flex; flex-direction: column; gap: 15px; flex-shrink: 0; margin-top: 60px}
+  
+  /* You / OPPONENT 標題 */
+  .game-title {
+    font-size: 25px;
+    font-weight: 900;
+    color: var(--T);
+    text-shadow: 0 0 10px var(--T);
+    letter-spacing: 2px;
+    
+    height: 65px;          /* 設定一個足夠容納兩行文字的固定高度 */
+    display: flex;         /* 使用 Flex 排版 */
+    flex-direction: column;/* 讓內容上下排列 */
+    justify-content: center;/* 讓內容在 55px 高度內垂直置中 */
+    align-items: center;   /* 讓內容水平置中 */
+    margin-bottom: 5px;    /* 稍微調整與底下拉鋸 */
+    line-height: 1.2;      /* 設定行高，避免兩行貼太近 */
+  }
+
+  /* 遊戲主畫布 */
+  #game, #opp-game {
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 4px;
+    background: var(--cell-bg);
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* 小框框 (Hold/Next/Queue) */
+  .mini-block-canvas {
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 4px;
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .mini-title {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 900;
+    margin-bottom: 5px;
+    letter-spacing: 2px;
+    color: var(--white);
+  }
+
+  /* 讓周圍的控制列、排行榜變成「偽玻璃質感」，拯救 GPU 效能！ */
+  .game-section,
+  #player-profile-section, 
+  #network-section, 
+  #singleplayer-score,
+  #controls-section, 
+  #score-leaderboard-section, 
+  #wins-leaderboard-section, 
+  #ai-leaderboard-section, 
+  #ai-config-panel,
+  .online-panel,
+  .invite-toast,
+  #system-toast {
+  
+    /* 背景改用微微的對角線漸層，模擬玻璃表面反光 */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
+
+    /* 保留邊框，並讓上方邊框稍微亮一點，增加厚度感 */
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.2) !important;
+
+    /* 內光暈 (inset) + 外部深邃陰影，完美取代模糊感 */
+    box-shadow: 
+      inset 0 0 15px rgba(255, 255, 255, 0.03), /* 玻璃內部微光 */
+      0 8px 32px rgba(0, 0, 0, 0.4) !important; /* 讓面板浮起來的陰影 */
+  }
+
+  /* 針對某些特定面板需要蓋過背景顏色的微調 */
+  .info-panel {
+    background: linear-gradient(135deg, rgba(6, 0, 79, 0.6) 0%, rgba(6, 0, 79, 0.3) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .hidden { display: none !important; }
+
+  /* === AI 設定面板 === */
+  #ai-settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ai-setting-group {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 10px;
+    border-radius: 6px;
+  }
+  .ai-setting-label {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .ai-btn-group {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .ai-option-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 2px;
+    font-size: 13px;
+    font-weight: 900;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.3);
+    color: rgba(255,255,255,0.9);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ai-option-btn:hover {
+    border-color: var(--T);
+    color: var(--T);
+    background: rgba(177,68,247,0.1);
+  }
+  .ai-option-btn.selected {
+    border-color: var(--T);
+    background: var(--T);
+    color: var(--white);
+    box-shadow: 0 0 8px rgba(177,68,247,0.5);
+  }
+  .ai-option-btn.selected-speed {
+    border-color: var(--I);
+    background: var(--I);
+    color: var(--bg);
+    box-shadow: 0 0 8px rgba(56,189,238,0.5);
+  }
+
+  @media (max-height: 760px){
+    .logo-word{font-size:58px}
+    .info-card{padding:12px;margin-bottom:10px}
+    .score-value{font-size:40px}
+    .controls-grid{font-size:14px;gap:6px 8px}
+    .key{min-width:32px;padding:5px 8px;border-width:2px}
+    .wide{min-width:68px}
+    .controls-section{width:248px}
+    .sidebar{width:292px}
+  }
+
+  /* 右側上線玩家面板 */
+  .online-panel {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    width: 220px;
+    background: rgba(20, 25, 55, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    z-index: 100;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+  .online-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .online-dot {
+    width: 10px;
+    height: 10px;
+    background-color: var(--S); /* 亮綠色代表上線 */
+    border-radius: 50%;
+    box-shadow: 0 0 5px var(--S);
+  }
+
+  /* 連線邀請通知 (Toast) - 強化玻璃版 */
+  .invite-toast {
+    background: rgba(20, 25, 55, 0.94) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+    padding: 15px;
+    border-radius: 12px;
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 0;               /* 預設透明 */
+    transform: scale(0.8);    /* 預設縮小 */
+  }
+
+  .invite-toast.show-invite {
+    opacity: 1;
+    transform: scale(1);
+    position: relative;
+  }
+  /* 呼吸發光：用偽元素 + opacity 動畫，全程走 compositor 不觸發 repaint */
+  .invite-toast.show-invite::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      0 0 0 1px rgba(0, 229, 255, 0.55),
+      0 0 28px rgba(0, 229, 255, 0.55);
+    animation: invite-breath 2.4s ease-in-out infinite;
+    will-change: opacity;
+  }
+
+  @keyframes invite-breath {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+  }
+
+  .invite-btns { display: flex; gap: 10px; width: 100%; }
+  
+  .invite-btn {
+    flex: 1;
+    padding: 8px 0;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 1px;
+    border-radius: 20px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+  .btn-accept { background: rgba(72, 214, 47, 0.15); color: var(--S); border: 1px solid var(--S); }
+  .btn-accept:hover { background: var(--S); color: var(--bg); box-shadow: 0 0 12px rgba(72, 214, 47, 0.6); }
+  .btn-reject { background: rgba(255, 13, 98, 0.15); color: var(--Z); border: 1px solid var(--Z); }
+  .btn-reject:hover { background: var(--Z); color: var(--white); box-shadow: 0 0 12px rgba(255, 13, 98, 0.6); }
+
+  /* 上方系統通知 (System Toast) - 膠囊玻璃版 */
+  #system-toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: rgba(20, 25, 55, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: var(--white);
+    padding: 12px 28px;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    border-radius: 25px; 
+    z-index: 9999;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+    opacity: 0;
+    white-space: nowrap;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  #system-toast.toast-show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* 對戰模式專用的橫式邀請框 (膠囊狀) */
+  .invite-toast.horizontal {
+    flex-direction: row !important;
+    width: auto !important;
+    padding: 8px 24px !important;
+    border-radius: 40px !important;
+    top: -65px !important;
+    right: 360px !important; /* 確保放在計時器右邊、按鈕左邊的黃金地帶 */
+  }
+  .invite-toast.horizontal .invite-btns {
+    width: auto !important;
+    gap: 8px !important;
+  }
+  .invite-toast.horizontal .invite-btn {
+    padding: 6px 16px !important;
+  }
+  .invite-toast.horizontal > div:first-child {
+    margin-bottom: 0 !important; /* 移除文字下方的空白 */
+    margin-right: 10px;
+    white-space: nowrap;
+  }
+
+  /* 聊天室專用提示動畫 */
+  @keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 15px rgba(56,189,238,0.3); }
+    50% { transform: scale(1.1); box-shadow: 0 0 25px rgba(255,13,98,0.8); }
+    100% { transform: scale(1); box-shadow: 0 0 15px rgba(56,189,238,0.3); }
+  }
+
+  </style>
+
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+
+  <script src="changelog.js"></script>
+</head>
+<body>
+<div class="viewport" id="viewport">
+
+  <div id="fps-counter" style="position: absolute; top: 15px; left: 20px; font-size: 13px; font-weight: 900; color: var(--S); z-index: 1000; letter-spacing: 1px;">
+    FPS <span id="fps-value">0</span>
+  </div>
+  
+  <div id="changelog-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.95); border: 2px solid var(--I); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(56,189,238,0.4); color: var(--white); display: flex; flex-direction: column; gap: 15px; box-sizing: border-box;">
+    <h2 style="margin: 0; color: var(--I); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">PATCH NOTES</h2>
+    
+    <div id="changelog-content" style="max-height: 350px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 10px; line-height: 1.6;">
+    </div>
+
+    <button id="close-changelog-btn" style="width: 100%; padding: 10px; background: var(--I); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
+  </div>
+
+  <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px; box-sizing: border-box;">
+    <h2 id="history-title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">📜 對戰紀錄</h2>
+    <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85); flex-shrink: 0;"></div>
+    <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center; flex-shrink: 0;">
+      <button class="history-tab" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
+      <button class="history-tab" data-filter="WIN" style="flex:1; padding:6px 0; background:transparent; color:var(--S); font-weight:900; border:2px solid var(--S); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">勝</button>
+      <button class="history-tab" data-filter="LOSE" style="flex:1; padding:6px 0; background:transparent; color:var(--Z); font-weight:900; border:2px solid var(--Z); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">負</button>
+    </div>
+    <div id="history-content" style="max-height: 440px; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
+    </div>
+    <button id="close-history-btn" style="width: 100%; padding: 10px; background: var(--O); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
+  </div>
+
+  <div id="rank-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 580px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.96); border: 2px solid var(--T); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(177,68,247,0.4); color: var(--white); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box;">
+    <h2 style="margin: 0; color: var(--T); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">🏆 段位規則</h2>
+    <div id="rank-modal-content" style="max-height: 500px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.6;"></div>
+    <button id="close-rank-btn" style="width: 100%; padding: 10px; background: var(--T); color: var(--white); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
+  </div>
+
+  <div id="system-toast"></div>
+
+  <div id="settings-container" style="position: absolute; right: 20px; top: 20px; z-index: 101; display: flex; flex-direction: column; gap: 10px;">
+    
+    <button id="fps-mode-btn" style="width: 220px; box-sizing: border-box; background: transparent; color: var(--I); border: 2px solid var(--I); padding: 10px; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 8px; letter-spacing: 1px; transition: all 0.2s; box-shadow: 0 0 10px rgba(56,189,238,0.2);">
+      ✨ 高幀率模式
+    </button>
+
+    <div id="online-panel" class="online-panel hidden" style="position: static; width: 220px; box-sizing: border-box; max-height: calc(100vh - 120px); margin: 0;">
+      <h2 style="text-align:center; color:var(--S); margin:0 0 10px 0; font-size:24px; white-space: nowrap;">🟢 ONLINE (<span id="online-count">0</span>)</h2>
+      <div id="online-users-list"></div>
+    </div>
+  </div>
+
+  <div class="battle-layout" id="layout" style="transform-origin: center center;">
+    
+    <button id="mp-leave-btn" class="hidden" style="position: absolute; top: -60px; right: 0; width: 160px; box-sizing: border-box; background: rgba(6, 0, 79, 0.5); color: var(--Z); border: 2px solid var(--Z); padding: 10px 0; text-align: center; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 25px; z-index: 1000; letter-spacing: 1px; box-shadow: 0 0 10px rgba(255,13,98,0.2); transition: all 0.2s;">🚪 LEAVE ROOM</button>
+
+    <div id="vs-timer" class="hidden" style="position: absolute; top: -75px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; width: 200px;">
+      <div style="font-size: 16px; font-weight: 900; color: var(--O); letter-spacing: 4px; text-shadow: 0 0 10px var(--O); margin-bottom: -5px;">TIME</div>
+      <div id="battle-timer" style="font-size: 48px; font-weight: 900; color: var(--white); text-shadow: 0 0 15px var(--white); line-height: 1.1;">02:00</div>
+    </div>
+
+    <div class="wing left-wing" id="left-wing">
+      <div class="match-title-container" style="text-align: center; margin-bottom: 25px;">
+        <div style="position: relative; display: inline-block;">
+          
+          <div class="logo-word match-title" style="margin-bottom: 0; line-height: 0.85;">TETRIS</div>
+          
+          <div id="version-tag" style="position: absolute; bottom: 2px; left: 100%; margin-left: 8px; font-size: 13px; font-weight: 900; color: var(--I); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease; text-shadow: 0 0 10px rgba(56,189,238,0.8); white-space: nowrap;">
+            Build <span id="version-text" style="color: var(--white);"></span>
+          </div>
+
+        </div>
+      </div>
+      <div style="display: flex; gap: 20px; width: 100%;">
+        <div style="width: 260px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0;">
+
+          <!-- 排行榜（預設顯示） -->
+          <div id="leaderboard-container" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="info-panel" id="score-leaderboard-section">
+              <h2 style="text-align:center; color:var(--O); margin:0 0 10px 0; font-size:24px;">TOP 3 SCORE</h2>
+              <div id="score-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
+            <div class="info-panel" id="wins-leaderboard-section">
+              <h2 style="text-align:center; color:var(--Z); margin:0 0 10px 0; font-size:24px;">TOP 3 RANK</h2>
+              <div id="wins-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
+            <div class="info-panel" id="ai-leaderboard-section">
+              <h2 style="text-align:center; color:#00FFFF; margin:0 0 10px 0; font-size:24px;">TOP 3 AI KILLER</h2>
+              <div style="text-align:center; font-size:12px; color:rgba(255,255,255,0.6); margin-top:-6px; margin-bottom:8px;">限定高手模式 (不含AI自爆)</div>
+              <div id="ai-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
+          </div>
+
+          <!-- AI 設定面板（進 AI 模式才顯示，取代排行榜） -->
+          <div class="info-panel hidden" id="ai-config-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
+            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">⚡ 速度 / 難度</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="ai-speed-group">
+                <button class="ai-option-btn" data-speed="rookie">🐢 菜鳥</button>
+                <button class="ai-option-btn" data-speed="casual">😊 休閒</button>
+                <button class="ai-option-btn selected-speed" data-speed="adaptive" style="grid-column:1/-1;">🎯 適應模式（跟著你的手速）</button>
+                <button class="ai-option-btn" data-speed="pro">💀 高手</button>
+                <button class="ai-option-btn" data-speed="god">👾 神</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">📐 打法風格（右側保留坑寬）</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;" id="ai-wide-group">
+                <button class="ai-option-btn selected" data-wide="auto" style="grid-column:1/-1;">🧠 自動（AI 自行決策）</button>
+                <button class="ai-option-btn" data-wide="1">1-wide</button>
+                <button class="ai-option-btn" data-wide="2">2-wide</button>
+                <button class="ai-option-btn" data-wide="3">3-wide</button>
+                <button class="ai-option-btn" data-wide="4" style="grid-column:2/4;">4-wide Combo</button>
+              </div>
+              <div id="ai-wide-hint" style="font-size:14px; color:rgba(255,255,255,0.85); margin-top:6px; line-height:1.5; min-height:30px;"></div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="left-sidebar" style="width: 260px; display: flex; flex-direction: column; gap: 20px; flex-shrink: 0;">
+          <div class="info-panel" id="player-profile-section">
+            <h2 style="text-align:center; color:var(--T); margin:0 0 10px 0;">PLAYER</h2>
+            <div id="login-form">
+              <input type="text" id="username-input" placeholder="Username (中/英文皆可)" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px; font-weight: bold;">
+              <input type="password" id="password-input" placeholder="Password (至少6位)" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px;">
+              <button id="login-btn" style="width:100%; background: var(--T); color: var(--white); border: 2px solid var(--white); font-weight: 900; padding: 6px; cursor: pointer;">Login / Register</button>
+              <p style="font-size: 11px; margin-top: 8px; margin-bottom: 0; color: rgba(255,255,255,0.6); text-align: center;">Play as Guest (No Save)</p>
+            </div>
+            <div id="logged-in-info" class="hidden" style="text-align: center;">
+              <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Welcome back,</div>
+              <div id="display-username" style="font-size: 20px; font-weight: 900; color: var(--T); margin: 5px 0 10px 0;">---</div>
+
+              <button id="match-history-btn" style="width:100%; background: transparent; color: var(--O); border: 2px solid var(--O); font-weight: 900; padding: 6px; cursor: pointer; font-size: 12px; margin-bottom: 10px; letter-spacing: 1px; border-radius: 4px;">📜 對戰紀錄</button>
+
+              <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.25); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>RANK:</span>
+                  <span id="display-rank" title="點擊查看段位規則" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5); cursor: pointer;">銅牌 <span style="font-size:12px">(0 LP)</span></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span title="總對戰場次">MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
+                  <span title="勝率 = 勝場 ÷ 總場次">WIN RATE: <span id="display-winrate" style="color: var(--S); font-weight: bold;">0%</span></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span title="Attack Per Minute（平均每分鐘送出的攻擊行數）">AVG APM: <span id="display-avg-apm" style="color: var(--T); font-weight: bold;">0</span></span>
+                  <span title="Pieces Per Second（平均每秒放下的方塊數）">AVG PPS: <span id="display-avg-pps" style="color: var(--L); font-weight: bold;">0.00</span></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span title="生涯場均最高連擊（每局 Max Combo 的平均值）">AVG COMBO: <span id="display-avg-combo" style="color: var(--J); font-weight: bold;">0</span></span>
+                  <span title="累積擊倒對手次數（把對手 Top Out 一次算一次）">TOTAL KO: <span id="display-total-ko" style="color: var(--Z); font-weight: bold;">0</span></span>
+                </div>
+              </div>
+
+              <button id="change-pwd-btn" style="width:100%; background: transparent; color: var(--I); border: 1px solid var(--I); margin-bottom: 8px; padding: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">CHANGE PASSWORD</button>
+              
+              <button id="logout-btn" style="width:100%; background: transparent; color: var(--Z); border: 2px solid var(--Z); font-weight: bold; padding: 4px; cursor: pointer; font-size: 12px;">LOGOUT</button>
+
+              <div class="info-panel hidden" id="admin-panel" style="border-color: #ff0000; box-shadow: 0 0 10px rgba(255,0,0,0.5); margin-top: 15px;">
+                <h2 style="text-align:center; color:#ff0000; margin:0 0 10px 0; letter-spacing: 2px;">🛠️ ADMIN</h2>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <input type="text" id="admin-target-user" placeholder="Target Username" style="background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid #ff0000; padding: 4px; font-weight: bold;">
+                  <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                    <input type="number" id="admin-set-highscore" placeholder="High Score" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                    <input type="number" id="admin-set-lp" placeholder="LP" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                    <input type="number" id="admin-set-wins" placeholder="Wins" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                    <input type="number" id="admin-set-streak" placeholder="Streak" style="width:48%; background: rgba(0,0,0,0.5); color: var(--white); border: 1px solid var(--white); padding: 4px;">
+                  </div>
+                  <button id="admin-update-btn" style="background: #ff0000; color: var(--white); border: none; font-weight: bold; padding: 6px; cursor: pointer;">Update Player Stats</button>
+                  <hr style="border-color: rgba(255,0,0,0.3); width: 100%; margin: 5px 0;">
+                  <button id="admin-reset-btn" style="background: transparent; color: #ff0000; border: 1px solid #ff0000; font-weight: bold; padding: 6px; cursor: pointer;">⚠️ RESET SEASON</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-panel" id="network-section">
+            <h2 style="text-align:center; color:var(--J); margin:0 0 10px 0;">MULTIPLAYER</h2>
+            <p style="font-size: 14px;">My ID: <span id="my-id" style="color:var(--O); cursor:pointer; font-weight: bold;" title="點擊自動複製 ID">Loading...</span></p>
+            <div id="mp-input-group" style="display:flex; gap:5px; margin-bottom:10px;">
+              <input type="text" id="opp-id-input" placeholder="Opponent ID" style="width:60%; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 4px;">
+              <button id="connect-btn" style="width:40%; background: var(--I); color: var(--bg); border: 2px solid var(--white); font-weight: 900; cursor: pointer;">CONNECT</button>
+            </div>
+
+            <button id="ai-btn" style="width:100%; padding:8px; background:var(--T); color:var(--white); border:2px solid var(--white); font-weight:900; font-size:13px; cursor:pointer; margin-bottom:10px; letter-spacing:1px;">🤖 AI 對戰</button>
+            
+            <div id="mp-ready-group" style="display:none; margin-bottom:10px;">
+              <button id="ready-btn" style="width:100%; padding:8px; background:var(--S); color:var(--bg); font-weight:bold; border:2px solid var(--white); cursor:pointer;">READY</button>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top:10px;">
+              <p id="conn-status" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Status: Standby</p>
+              <div id="ping-display" style="font-size: 12px; font-weight: bold; display: none;"></div>
+            </div>
+            <div id="scoreboard" style="display: none; background: rgba(0,0,0,0.25); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
+              <div style="font-size: 14px; color: var(--O); font-weight: bold; margin-bottom: 4px;">MATCH SCORE</div>
+              <div style="font-size: 24px; font-weight: 900; display: flex; justify-content: center;gap: 16px;">
+                <div><span id="score-label-left" style="font-size: 11px; display:block; color:rgba(255,255,255,0.7); max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">YOU</span><span id="my-wins-el" style="color: var(--S);">0</span></div>
+                <span style="color: rgba(255,255,255,0.5);">-</span>
+                <div><span id="score-label-right" style="font-size: 11px; display:block; color:rgba(255,255,255,0.7); max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">OPP</span><span id="opp-wins-el" style="color: var(--Z);">0</span></div>
+              </div>
+            </div>
+
+            <div id="emoji-hint-panel" class="hidden" style="background: rgba(0,0,0,0.25); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px; border-radius: 4px;">
+              <div style="font-size: 12px; color: var(--J); font-weight: bold; margin-bottom: 6px; letter-spacing: 1px;">EMOJI HOTKEYS</div>
+              <div style="display: flex; justify-content: space-around; font-size: 18px;">
+                <span title="按 1">1️⃣😅</span>
+                <span title="按 2">2️⃣😡</span>
+                <span title="按 3">3️⃣🥶</span>
+                <span title="按 4">4️⃣🤣</span>
+              </div>
+            </div>
+
+            <div id="invite-toast" class="invite-toast hidden">
+              <div style="font-size: 14px; font-weight: bold; color: var(--white); margin-bottom: 5px;">
+                <span id="invite-sender-name" style="color: var(--O);">Player</span> 邀請對戰！
+              </div>
+              <div class="invite-btns">
+                <button id="invite-accept-btn" class="invite-btn btn-accept">接受</button>
+                <button id="invite-reject-btn" class="invite-btn btn-reject">拒絕</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-section player-section" style="flex-shrink: 0;">
+      <div class="side-col">
+        <div><div class="mini-title">HOLD</div><canvas id="hold-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+        
+        <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+          <div class="mini-title" style="color: var(--Z); margin-bottom: 8px;">KO</div>
+          <div style="width: 70px; height: 70px; border-radius: 50%; border: 4px solid var(--Z); display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 0 15px rgba(255,13,98,0.5), inset 0 0 10px rgba(255,13,98,0.5); background: rgba(255,13,98,0.15);">
+            <span id="my-ko-display" style="font-size: 32px; font-weight: 900; color: var(--white); text-shadow: 0 0 5px var(--white);">0</span>
+          </div>
+        </div>
+        <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+          <div class="mini-title" style="color: var(--I); margin-bottom: 4px; line-height: 1.2;">LINES<br>SENT</div>
+          <div id="my-lines-sent-display" style="font-size: 36px; font-weight: 900; color: var(--I); text-shadow: 0 0 10px var(--I);">0</div>
+        </div>
+      </div>
+      
+      <div class="board-col" style="position: relative;">
+        <div class="game-title" id="my-name-display">You</div> <canvas id="game" width="340" height="680"></canvas>
+        <div id="spectator-badge" class="hidden" style="position:absolute; top:38px; left:6px; z-index:40; background:rgba(0,0,0,0.6); color:var(--I); border:1px solid var(--I); border-radius:14px; padding:3px 9px; font-weight:900; font-size:12px; cursor:pointer; box-shadow:0 0 8px rgba(56,189,238,0.4);" title="點擊查看觀戰名單">
+          👀 <span id="spectator-badge-count">0</span>
+        </div>
+        <div id="spectator-list-popup" class="hidden" style="position:absolute; top:62px; left:6px; z-index:41; background:rgba(6,0,79,0.97); border:2px solid var(--I); border-radius:6px; min-width:140px; max-height:220px; overflow-y:auto; box-shadow:0 4px 15px rgba(0,0,0,0.7);"></div>
+      </div>
+      
+      <div class="side-col">
+        <div><div class="mini-title">NEXT</div><canvas id="next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+        <div><div class="mini-title">QUEUE</div><canvas id="queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
+      </div>
+    </div>
+
+    <div class="wing right-wing" id="right-wing">
+
+      <div id="singleplayer-ui" style="display: flex; flex-direction: column; gap: 20px; width: 220px; flex-shrink: 0;">
+
+        <div class="info-panel" id="singleplayer-score" style="width: 100%; display: flex; flex-direction: column; justify-content: center; flex-shrink: 0;">
+          <h2 style="text-align:center; margin:0 0 10px 0;">SCORE</h2>
+          <div id="score" style="font-size:32px; font-weight:bold; text-align:center; color:var(--O);">0</div>
+          
+          <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:14px; font-weight:bold;">
+            <span>HIGH SCORE</span><span id="high-score" style="color:var(--O);">0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>LINES</span><span id="lines">0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>LEVEL</span><span id="level">1</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>MUSIC</span><span id="bgm-status">ON</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:bold;">
+            <span>SFX</span><span id="sfx-status">ON</span>
+          </div>
+          
+          <div id="action-msg" style="color:var(--T); font-size:16px; font-weight:900; text-align:center; min-height:22px; margin-top:12px; text-transform:uppercase;"></div>
+        </div>
+
+        <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
+
+        <div class="info-panel" id="controls-section" style="font-size: 14px;">
+            <h2 style="text-align:center; color:var(--I); margin:0 0 10px 0;">CONTROLS</h2>
+            <p style="margin: 5px 0;"><b>← →</b> : 左右移動</p>
+            <p style="margin: 5px 0;"><b>↓</b> : 軟降 (加速下落)</p>
+            <p style="margin: 5px 0;"><b>Space</b> : 硬降 (瞬間落下)</p>
+            <p style="margin: 5px 0;"><b>↑ / X</b> : 順時針旋轉</p>
+            <p style="margin: 5px 0;"><b>Z / Ctrl</b> : 逆時針旋轉</p>
+            <p style="margin: 5px 0;"><b>C / Shift</b> : 保留方塊 (Hold)</p>
+            <p style="margin: 5px 0;"><b>P / Esc</b> : 暫停 / 繼續遊戲</p>
+            <p style="margin: 5px 0;"><b>R</b> : 重新開始 / 離開房間</p>
+            <p style="margin: 5px 0;"><b>M / N</b> : 音樂 / 音效 靜音</p>
+            <p style="margin: 5px 0;"><b>+ / -</b> : 遊戲音量 大 / 小</p>
+            <p style="margin: 5px 0;"><b>1 ~ 4</b> : 發送表情符號 (對戰)</p>
+            <p style="margin: 5px 0;"><b>F (連按兩下)</b> : 投降 (對戰中)</p>
+            <p style="margin: 5px 0;"><b>A</b> : 反悔 (Undo 上一步)</p>
+        </div>
+
+      </div>
+
+      <div class="game-section hidden" id="opp-panel">
+        <div class="side-col">
+          <div><div class="mini-title">HOLD</div><canvas id="opp-hold-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+          
+          <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+            <div class="mini-title" style="color: var(--Z); margin-bottom: 8px;">KO</div>
+            <div style="width: 70px; height: 70px; border-radius: 50%; border: 4px solid var(--Z); display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 0 15px rgba(255,13,98,0.5), inset 0 0 10px rgba(255,13,98,0.5); background: rgba(255,13,98,0.15);">
+              <span id="opp-ko-display" style="font-size: 32px; font-weight: 900; color: var(--white); text-shadow: 0 0 5px var(--white);">0</span>
+            </div>
+          </div>
+          <div class="mp-only hidden" style="text-align: center; margin-top: 15px;">
+            <div class="mini-title" style="color: var(--I); margin-bottom: 4px; line-height: 1.2;">LINES<br>SENT</div>
+            <div id="opp-lines-sent-display" style="font-size: 36px; font-weight: 900; color: var(--I); text-shadow: 0 0 10px var(--I);">0</div>
+          </div>
+        </div>
+        
+        <div class="board-col">
+          <div class="game-title" id="opp-name-display" style="color:var(--Z); text-align: center; line-height: 1.2;">OPPONENT</div> 
+          <canvas id="opp-game" width="340" height="680"></canvas>
+        </div>
+        <div class="side-col">
+          <div><div class="mini-title">NEXT</div><canvas id="opp-next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+          <div><div class="mini-title">QUEUE</div><canvas id="opp-queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="chat-icon-wrapper" style="position: absolute; bottom: 15px; right: 20px; z-index: 1000; cursor: pointer; transition: all 0.3s ease;">
+      <div id="chat-toggle-btn" style="width: 50px; height: 50px; background: rgba(6, 0, 79, 0.9); border: 2px solid var(--I); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 0 15px rgba(56,189,238,0.3); position: relative;">
+        💬
+        <div id="chat-badge" class="hidden" style="position: absolute; top: -2px; right: -2px; width: 18px; height: 18px; background: var(--Z); border-radius: 50%; border: 2px solid white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; color: white;">!</div>
+      </div>
+    </div>
+
+    <div id="chat-panel" class="hidden" style="position: absolute; bottom: 75px; right: 20px; width: 300px; height: 400px; background: rgba(6, 0, 79, 0.97); border: 2px solid var(--I); border-radius: 12px; display: flex; flex-direction: column; z-index: 2000; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); overflow: hidden;">
+      <div style="background: rgba(255, 255, 255, 0.1); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="font-weight: bold; font-size: 14px; color: var(--white); position: relative;">
+          To: <span id="chat-title-name" style="color: var(--I); cursor: pointer; text-decoration: underline;" title="點擊選擇聊天對象">Player ▼</span>
+          <div id="chat-user-dropdown" class="hidden" style="position: absolute; top: 25px; left: 0; background: rgba(20, 25, 55, 0.98); border: 1px solid var(--I); border-radius: 6px; width: 160px; max-height: 200px; overflow-y: auto; z-index: 2100; box-shadow: 0 4px 15px rgba(0,0,0,0.8);"></div>
+        </div>
+        <button id="close-chat-btn" style="background: transparent; border: none; color: var(--white); cursor: pointer; font-weight: bold; font-size: 16px;">×</button>
+      </div>
+      <div id="chat-messages" style="flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+      <div style="padding: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; gap: 8px;">
+        <input type="text" id="chat-input" placeholder="Type a message..." style="flex: 1; background: rgba(0, 0, 0, 0.5); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 8px 12px; outline: none; font-size: 13px;">
+        <button id="chat-send-btn" style="background: var(--I); color: var(--bg); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold;">➤</button>
+      </div>
+    </div>
+
+</div>
+
+<script src="./game.js"></script>
+
+</body>
+</html>
