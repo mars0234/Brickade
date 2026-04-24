@@ -13,14 +13,21 @@
     B:'#ff1111'  // 炸彈的亮紅色
   };
 
+  // --- 高 DPI (Retina / iPhone) 顯示支援：把 canvas 內部解析度提升到 DPR 倍，
+  //     繪圖座標仍用邏輯像素 (透過 ctx.scale)，遊戲邏輯完全不用改。
+  //     主要受惠：高 DPR 裝置上，PRESS ENTER / 倒數 / GAME OVER 等文字不再糊。
+  const DPR = Math.min(window.devicePixelRatio || 1, 3);
+  const CANVAS_W = 340, CANVAS_H = 680;
+
   // --- 效能優化：離線暫存網格畫布 (只畫一次) ---
   const gridCanvas = document.createElement('canvas');
-  gridCanvas.width = 340;
-  gridCanvas.height = 680;
+  gridCanvas.width = CANVAS_W * DPR;
+  gridCanvas.height = CANVAS_H * DPR;
   const gCtx = gridCanvas.getContext('2d', { alpha: false });
+  gCtx.scale(DPR, DPR);
   gCtx.fillStyle = '#06004f';
   gCtx.fillRect(0, 0, 340, 680);
-  for (let r = 0; r < 20; r++) { 
+  for (let r = 0; r < 20; r++) {
     for (let c = 0; c < 10; c++) {
       gCtx.fillStyle = '#0b0767';
       gCtx.fillRect(c * 34, r * 34, 34, 34);
@@ -31,7 +38,10 @@
   }
 
   const canvas = document.getElementById('game');
+  canvas.width = CANVAS_W * DPR;
+  canvas.height = CANVAS_H * DPR;
   const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.scale(DPR, DPR);
   const nextCanvas = document.getElementById('next-canvas');
   const nextCtx = nextCanvas.getContext('2d', { alpha:false });
   const holdCanvas = document.getElementById('hold-canvas');
@@ -2573,7 +2583,8 @@
 
   function drawGrid() {
     // 直接貼上已經預先畫好的整張網格圖片
-    ctx.drawImage(gridCanvas, 0, 0);
+    // drawImage 必須帶邏輯大小，否則會用 gridCanvas 的內部 (DPR 倍) 尺寸把格子畫成 DPR² 倍大
+    ctx.drawImage(gridCanvas, 0, 0, CANVAS_W, CANVAS_H);
   }
 
   function ghostRow() {
@@ -2817,13 +2828,13 @@
       // 畫 activeGarbage (馬上要進來的，紅色)
       if (activeGarbage > 0) {
         ctx.fillStyle = '#ff0d62'; 
-        ctx.fillRect(0, canvas.height - activeHeight, 6, activeHeight);
+        ctx.fillRect(0, CANVAS_H - activeHeight, 6, activeHeight);
       }
       // 畫 nextGarbage (還在寬限期的，黃色，疊在紅色上面)
       if (nextGarbage > 0) {
         const nextHeight = totalHeight - activeHeight;
         ctx.fillStyle = '#f7dd16'; 
-        ctx.fillRect(0, canvas.height - totalHeight, 6, nextHeight);
+        ctx.fillRect(0, CANVAS_H - totalHeight, 6, nextHeight);
       }
     }
 
@@ -2832,18 +2843,18 @@
     // --- 讓我方輸的時候，或是處於 KO 狀態時，盤面變暗 (畫在結算面板的下方) ---
     if (((isMultiplayer || isSpectatingBattle) && isKOed && !gameOver) || (gameOver && matchResult === 'LOSE')) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     }
 
     // --- 遊戲結束結算畫面 ---
     if (gameOver) {
       const boxH = (isSpectating && (isMultiplayer || isSpectatingBattle) && matchResult) ? 80 : 136;
-      const boxY = canvas.height / 2 - boxH / 2;
+      const boxY = CANVAS_H / 2 - boxH / 2;
       ctx.fillStyle = 'rgba(6,0,79,0.9)';
-      ctx.fillRect(18, boxY, canvas.width - 36, boxH);
+      ctx.fillRect(18, boxY, CANVAS_W - 36, boxH);
       ctx.strokeStyle = '#f2f2f2';
       ctx.lineWidth = 4;
-      ctx.strokeRect(18, boxY, canvas.width - 36, boxH);
+      ctx.strokeRect(18, boxY, CANVAS_W - 36, boxH);
       ctx.fillStyle = '#f2f2f2';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -2852,69 +2863,69 @@
         ctx.fillStyle = matchResult === 'WIN' ? '#48d62f' : (matchResult === 'LOSE' ? '#ff0d62' : '#f7dd16');
         ctx.font = '900 36px Arial';
         if (isSpectating) {
-          ctx.fillText(matchResult === 'WIN' ? 'WIN!' : (matchResult === 'LOSE' ? 'LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2);
+          ctx.fillText(matchResult === 'WIN' ? 'WIN!' : (matchResult === 'LOSE' ? 'LOSE!' : 'DRAW!'), CANVAS_W / 2, CANVAS_H / 2);
         } else {
-          ctx.fillText(matchResult === 'WIN' ? 'YOU WIN!' : (matchResult === 'LOSE' ? 'YOU LOSE!' : 'DRAW!'), canvas.width / 2, canvas.height / 2 - 24);
+          ctx.fillText(matchResult === 'WIN' ? 'YOU WIN!' : (matchResult === 'LOSE' ? 'YOU LOSE!' : 'DRAW!'), CANVAS_W / 2, CANVAS_H / 2 - 24);
           ctx.fillStyle = '#f2f2f2';
           ctx.font = '700 14px Arial';
-          ctx.fillText('Press ENTER to Play Again', canvas.width / 2, canvas.height / 2 + 16);
-          ctx.fillText('Press R to Disconnect', canvas.width / 2, canvas.height / 2 + 40);
+          ctx.fillText('Press ENTER to Play Again', CANVAS_W / 2, CANVAS_H / 2 + 16);
+          ctx.fillText('Press R to Disconnect', CANVAS_W / 2, CANVAS_H / 2 + 40);
         }
       } else {
         ctx.font = '900 32px Arial';
-        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillText('GAME OVER', CANVAS_W / 2, CANVAS_H / 2 - 10);
         if (!isSpectating) {
           ctx.font = '700 15px Arial';
-          ctx.fillText('Press R to restart', canvas.width / 2, canvas.height / 2 + 26);
+          ctx.fillText('Press R to restart', CANVAS_W / 2, CANVAS_H / 2 + 26);
         }
       }
     }
 
     if (isPaused && !gameOver) {
       ctx.fillStyle = 'rgba(6,0,79,0.7)'; // 半透明背景
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
       ctx.fillStyle = '#f2f2f2';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = '900 40px Arial';
-      ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+      ctx.fillText('PAUSED', CANVAS_W / 2, CANVAS_H / 2);
     }
 
     if (countdownValue > 0) {
       // 顯示 3、2、1 倒數
       ctx.fillStyle = 'rgba(6,0,79,0.8)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
       ctx.fillStyle = '#f2f2f2';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = '900 80px Arial';
-      ctx.fillText(countdownValue, canvas.width / 2, canvas.height / 2);
+      ctx.fillText(countdownValue, CANVAS_W / 2, CANVAS_H / 2);
     } else if (!gameStarted) {
       // 尚未開始遊戲時的提示
       ctx.fillStyle = 'rgba(6,0,79,0.8)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
       if (!isMultiplayer) {
         ctx.fillStyle = '#f2f2f2';
         ctx.font = '900 28px Arial';
-        ctx.fillText('PRESS ENTER', canvas.width / 2, canvas.height / 2 - 16);
+        ctx.fillText('PRESS ENTER', CANVAS_W / 2, CANVAS_H / 2 - 16);
         ctx.font = '700 18px Arial';
-        ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
+        ctx.fillText('TO START', CANVAS_W / 2, CANVAS_H / 2 + 16);
       } else {
         // 雙向鏡像：當我按下準備時，我的畫面也要變成綠色的 READY
         if (iAmReady) {
           ctx.fillStyle = '#48d62f';
           ctx.font = '900 36px Arial';
-          ctx.fillText('READY !', canvas.width / 2, canvas.height / 2);
+          ctx.fillText('READY !', CANVAS_W / 2, CANVAS_H / 2);
         } else {
           ctx.fillStyle = '#f2f2f2';
           ctx.font = '900 28px Arial';
-          ctx.fillText('CLICK READY', canvas.width / 2, canvas.height / 2 - 16);
+          ctx.fillText('CLICK READY', CANVAS_W / 2, CANVAS_H / 2 - 16);
           ctx.fillStyle = 'rgba(255,255,255,0.6)';
           ctx.font = '700 16px Arial';
-          ctx.fillText('TO START', canvas.width / 2, canvas.height / 2 + 16);
+          ctx.fillText('TO START', CANVAS_W / 2, CANVAS_H / 2 + 16);
         }
       }
     }
@@ -2934,7 +2945,7 @@
     _oppDrawHash = hashKey;
 
     // 一次性畫好完整的漂亮網格背景！
-    oppCtx.drawImage(gridCanvas, 0, 0);
+    oppCtx.drawImage(gridCanvas, 0, 0, oppCanvas.width, oppCanvas.height);
 
     if (!oppState) {
     } else {
@@ -5980,6 +5991,186 @@
     activeDir = 0;
   });
 
+  // ============================================================
+  // 📱 手機版觸控操作
+  //   觸控區覆蓋整個 .game-section.player-section（含 HOLD/NEXT/QUEUE 側欄），
+  //   座標換算仍以 #game canvas 為基準
+  //   水平 swipe = 左右移動 / 上 flick = 硬降 / 下 flick = sonic drop /
+  //   tap 左半 = 逆時針旋轉、右半 = 順時針
+  //   下方按鈕：HOLD = hold() / UNDO = triggerUndo()
+  //   遊戲結束（單人）tap 遊戲場 = 重新開始
+  // ============================================================
+  (function setupTouchControls() {
+    const gameCanvas = document.getElementById('game');
+    if (!gameCanvas) return;
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if (!isTouchDevice) return;
+
+    // 觸控接收層改用 game-section（涵蓋兩側 HOLD/NEXT/QUEUE 欄）
+    const touchSurface = document.querySelector('.game-section.player-section') || gameCanvas;
+
+    const holdBtn = document.getElementById('mobile-hold-btn');
+    const undoBtn = document.getElementById('mobile-undo-btn');
+
+    const buttonHandler = (fn) => (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { fn(); } catch (err) { console.warn('[touch button]', err); }
+    };
+    if (holdBtn) {
+      holdBtn.addEventListener('click', buttonHandler(() => hold()));
+      holdBtn.addEventListener('touchend', buttonHandler(() => hold()), { passive: false });
+    }
+    if (undoBtn) {
+      undoBtn.addEventListener('click', buttonHandler(() => triggerUndo()));
+      undoBtn.addEventListener('touchend', buttonHandler(() => triggerUndo()), { passive: false });
+    }
+
+    // --- 遊戲場手勢 ---
+    let active = false;
+    let pointerId = null;
+    let startX = 0, startY = 0, startTime = 0;
+    let accumulatedDx = 0;
+    let cellWidth = 34;
+    let didFlick = false;
+    let didMove = false;
+    const TAP_MAX_MOVE = 14;       // tap 容許輕微抖動
+    const TAP_MAX_TIME = 220;      // tap 最長時長 (ms)
+    const FLICK_MIN_DY = 55;       // 觸發 flick 的最小垂直距離
+    const FLICK_MIN_VY = 0.55;     // 觸發 flick 的最小速度 (px/ms)
+
+    function getCellWidth() {
+      const r = gameCanvas.getBoundingClientRect();
+      return Math.max(20, r.width / 10);
+    }
+
+    // 持續軟降的 timer ID（跟桌機按住「下」一樣的節奏）
+    let softDropTimer = null;
+    function stopSoftDrop() {
+      if (softDropTimer) {
+        clearInterval(softDropTimer);
+        softDropTimer = null;
+      }
+    }
+    function startSoftDropFlick() {
+      // flick 下 → 模擬桌機「按住下方向鍵」的軟降節奏，跑到底為止
+      stopSoftDrop();
+      const sdInterval = Math.max(20, SETTINGS.softDropInterval || 33);
+      // 立刻先掉一格給回饋
+      if (!softDrop(true)) return;
+      softDropTimer = setInterval(() => {
+        if (!current || gameOver || isPaused || isKOed || clearFx || countdownValue > 0) {
+          stopSoftDrop();
+          return;
+        }
+        if (!softDrop(true)) {
+          stopSoftDrop(); // 已到底，停止
+        }
+      }, sdInterval);
+    }
+
+    function maybeStartCountdown() {
+      // 單人模式 gameOver / 還沒開始：tap → 重新開始
+      if (typeof startCountdown !== 'function') return false;
+      if (typeof isMultiplayer !== 'undefined' && isMultiplayer) return false;
+      if ((typeof gameStarted !== 'undefined' && !gameStarted) || (typeof gameOver !== 'undefined' && gameOver)) {
+        startCountdown();
+        return true;
+      }
+      return false;
+    }
+
+    touchSurface.addEventListener('touchstart', (e) => {
+      if (active) return;
+      // 新手勢開始 → 中斷之前還沒跑完的軟降，讓玩家可以即時介入
+      stopSoftDrop();
+      const t = e.changedTouches[0];
+      pointerId = t.identifier;
+      active = true;
+      startX = t.clientX;
+      startY = t.clientY;
+      startTime = performance.now();
+      accumulatedDx = 0;
+      cellWidth = getCellWidth();
+      didFlick = false;
+      didMove = false;
+      e.preventDefault();
+    }, { passive: false });
+
+    touchSurface.addEventListener('touchmove', (e) => {
+      if (!active) return;
+      let t = null;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === pointerId) { t = e.changedTouches[i]; break; }
+      }
+      if (!t) return;
+
+      const dxTotal = t.clientX - startX;
+      const dyTotal = t.clientY - startY;
+      const dt = performance.now() - startTime;
+
+      // flick (一次大動作，鎖死本指後續手勢)
+      if (!didFlick && !didMove) {
+        const vy = dyTotal / Math.max(dt, 1);
+        if (Math.abs(dyTotal) > FLICK_MIN_DY && Math.abs(dyTotal) > Math.abs(dxTotal) * 1.4 && Math.abs(vy) > FLICK_MIN_VY) {
+          if (dyTotal < 0) {
+            // 上 flick → sonic drop（連續軟降）
+            startSoftDropFlick();
+          } else {
+            // 下 flick → hard drop（瞬間到底鎖定）
+            hardDrop();
+          }
+          didFlick = true;
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // 水平 swipe → 累積距離換算成移動次數
+      if (!didFlick) {
+        const desired = Math.trunc((dxTotal - accumulatedDx) / cellWidth);
+        if (desired !== 0) {
+          const dir = desired > 0 ? 1 : -1;
+          for (let i = 0; i < Math.abs(desired); i++) tryMove(dir);
+          accumulatedDx += desired * cellWidth;
+          didMove = true;
+        }
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    function endTouch(e) {
+      if (!active) return;
+      let t = null;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === pointerId) { t = e.changedTouches[i]; break; }
+      }
+      if (!t) { active = false; pointerId = null; return; }
+
+      const dxTotal = t.clientX - startX;
+      const dyTotal = t.clientY - startY;
+      const totalMove = Math.hypot(dxTotal, dyTotal);
+      const dt = performance.now() - startTime;
+
+      // tap → 旋轉（左半逆時針 / 右半順時針）；遊戲結束/未開始則改成 startCountdown()
+      // 用 #game canvas 中央當基準，touch 在側欄區域也能正確分辨左右
+      if (!didFlick && !didMove && totalMove < TAP_MAX_MOVE && dt < TAP_MAX_TIME) {
+        if (!maybeStartCountdown()) {
+          const rect = gameCanvas.getBoundingClientRect();
+          const dir = (startX < rect.left + rect.width / 2) ? -1 : 1;
+          tryRotate(dir);
+        }
+      }
+
+      active = false;
+      pointerId = null;
+      e.preventDefault();
+    }
+
+    touchSurface.addEventListener('touchend', endTouch, { passive: false });
+    touchSurface.addEventListener('touchcancel', endTouch, { passive: false });
+  })();
+
   // 自動取消反白：當玩家成功複製文字後，自動清除畫面上的反白選取狀態
   // 徹底解決忘記取消反白導致遊戲中 Ctrl+C (Hold) 失效的隱患
   document.addEventListener('copy', () => {
@@ -6076,6 +6267,15 @@
   if (aiBtn) {
     aiBtn.addEventListener('click', () => {
       if (isMultiplayer) return;
+      // 防呆：若使用者在單人/練習模式倒數中按了 AI，必須先終止倒數，
+      // 否則殘存的 countdownInterval 會在進入 mp 後跑完，導致 spawn() 在 gameStarted=false 狀態啟動，
+      // 畫面被「CLICK READY TO START」蓋住、方塊不會自然掉落。
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      countdownValue = 0;
+
       isAIMode = true;
       isMultiplayer = true;
       conn = null;

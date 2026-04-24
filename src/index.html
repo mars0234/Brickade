@@ -2,13 +2,20 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
 <title>JUST FUCKING TETRIS</title>
+
+<!-- PWA meta -->
+<meta name="theme-color" content="#06004f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="JFT" />
 
 <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon-16x16.png">
-<!--<link rel="manifest" href="./images/site.webmanifest">-->
+<link rel="manifest" href="./images/site.webmanifest">
 <link rel="shortcut icon" href="./images/favicon.ico">
 
 <style>
@@ -26,14 +33,32 @@
     --Z:#ff0d62;
   }
   *{box-sizing:border-box}
-  html,body{height:100%}
+  html{
+    height:100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    /* 純色：原本漸層中央最淺的那塊 */
+    background: #1a0f96;
+  }
   body{
     margin:0;
-    /* 垂直聚光燈 (溫和版)：最邊緣不再死黑，使用經典藍打底，向中央平滑過渡到明亮星雲紫 */
-    background: linear-gradient(to right, #06004f 0%, #0a0470 25%, #1a0f96 50%, #0a0470 75%, #06004f 100%);
+    height:100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: transparent;
     color:var(--white);
     font-family:Arial,Helvetica,sans-serif;
     overflow:hidden;
+    position: relative;
+  }
+  /* fixed 偽元素再保險一層底色，覆蓋 iOS Safari URL bar 動態收合 / standalone 露白 */
+  body::before{
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: #1a0f96;
+    z-index: -1;
+    pointer-events: none;
   }
   .logo-word{
     font-weight:900;
@@ -160,13 +185,13 @@
 
   /* 戰鬥競技場 (用來置中與縮放) */
   .battle-layout {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 30px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 30px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
   }
 
   /* 當進入連線模式時，釋放右翼的寬度限制，讓對手畫面自然展開 */
@@ -521,6 +546,1023 @@
     100% { transform: scale(1); box-shadow: 0 0 15px rgba(56,189,238,0.3); }
   }
 
+  /* ===================================================================
+     手機版 (B1 + B2)：@media (max-width: 820px)
+     B3 對手場搬家、B4 細緻 canvas、B5 safe-area 後續處理
+     =================================================================== */
+
+  /* 桌機預設隱藏手機版新增元素 */
+  #mobile-drawer-toggle,
+  #mobile-drawer,
+  #mobile-drawer-overlay,
+  #mobile-topbar,
+  #mobile-mini-bar,
+  #mobile-info-bar,
+  #mobile-action-row,
+  #mobile-hold-btn,
+  #mobile-undo-btn,
+  #mobile-avatar-btn,
+  #mobile-profile-modal,
+  #mobile-ready-wrap { display: none; }
+
+  @media (max-width: 820px) {
+    html, body {
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: manipulation;
+    }
+    /* 遊戲場禁用瀏覽器預設手勢 (滾動、雙擊縮放、捏合)，由 JS 自己處理觸控 */
+    #game,
+    #mobile-hold-btn,
+    #mobile-undo-btn {
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* 頂層裝飾元素：手機版隱藏或讓位（!important 防止 inline style / JS 覆蓋） */
+    #fps-counter { display: none !important; }
+    .logo-word { display: none !important; }
+
+    /* viewport 桌機有 padding: 24px 40px，手機要清掉避免擠壓 */
+    .viewport {
+      padding: 0 !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+    }
+
+    /* 主 layout：從 absolute-center 改成 flow 置中 */
+    .battle-layout {
+      position: static !important;
+      top: auto !important;
+      left: auto !important;
+      transform: none !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 8px !important;
+      padding: calc(env(safe-area-inset-top) + 58px) 0 env(safe-area-inset-bottom) !important;
+      min-height: 100vh;
+      min-height: 100dvh;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    /* 隱藏側欄與右翼（透過 drawer 再顯示，B3 處理對手場） */
+    #left-wing { display: none !important; }
+    #right-wing { display: none !important; }
+    /* settings-container 也預先隱藏，被 reparent 到 drawer 後由更高 specificity 規則開啟 */
+    body > .viewport > #settings-container { display: none !important; }
+
+    /* 多人模式時的 wing 特殊寬度規則取消 */
+    .battle-layout.is-multiplayer .left-wing,
+    .battle-layout.is-multiplayer .right-wing {
+      width: auto !important;
+      margin-top: 0 !important;
+    }
+
+    /* B-redo v3：兩欄結構
+       資訊條 (info-bar)：HOLD + KO + SENT + 對手縮圖（橫排，B-redo-5 加對手）
+       中央 game-section：board-col + 右 side-col（NEXT/QUEUE）
+       遊戲場吃滿剩餘空間 */
+
+    /* mini-bar 容器隱藏 */
+    #mobile-mini-bar { display: none !important; }
+
+    /* === side-col 通用樣式（適用 info-bar 內、game-section 內） === */
+    .side-col {
+      display: flex !important;
+      margin-top: 0 !important;
+      flex-shrink: 0;
+    }
+    /* mini canvas wrapper 面板樣式（精簡 padding/border 讓遊戲場 canvas 更寬） */
+    .side-col > div {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 2px !important;
+      padding: 2px 2px 3px !important;
+      background: linear-gradient(135deg, rgba(20,25,55,0.85), rgba(6,0,79,0.55));
+      border: 1px solid rgba(56,189,238,0.45);
+      border-radius: 5px;
+      box-shadow:
+        0 0 6px rgba(56,189,238,0.2),
+        inset 0 0 4px rgba(177,68,247,0.08);
+    }
+    .side-col .mini-title {
+      font-size: 9px !important;
+      margin: 0 !important;
+      letter-spacing: 1.2px;
+      color: rgba(255,255,255,0.75) !important;
+      font-weight: 900 !important;
+    }
+    /* canvas 視覺尺寸 */
+    .side-col #hold-canvas,
+    .side-col #next-canvas {
+      width: 58px !important;  
+      height: 60px !important; 
+      border-radius: 4px;
+      background: rgba(0,0,0,0.35) !important;
+    }
+    .side-col #queue-canvas {
+      width: 58px !important;  
+      height: 174px !important;
+      border-radius: 4px;
+      background: rgba(0,0,0,0.35) !important;
+    }
+    /* mp-only KO / LINES SENT */
+    .side-col .mp-only {
+      margin: 0 !important;
+      padding: 4px 6px !important;
+      background: rgba(0,0,0,0.25);
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.15);
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 2px !important;
+    }
+    .side-col .mp-only .mini-title {
+      font-size: 8px !important;
+      margin: 0 !important;
+    }
+    .side-col .mp-only > div[style*="border-radius: 50%"] {
+      width: 40px !important;
+      height: 40px !important;
+      border-width: 2px !important;
+    }
+    .side-col .mp-only #my-ko-display,
+    .side-col .mp-only #my-lines-sent-display,
+    .side-col .mp-only #opp-ko-display,
+    .side-col .mp-only #opp-lines-sent-display {
+      font-size: 18px !important;
+    }
+
+    /* === info-bar：兩種模式
+       單人：AI + 練習模式 兩顆按鈕並排佔滿
+       對戰：對手 KO/SENT (左) + 倒數計時器 (中) + READY/SURRENDER (右浮動)
+       對手縮圖獨立浮動在最左側 */
+    #mobile-info-bar {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 130px);
+      left: 60px;
+      right: 60px;
+      height: 56px;
+      z-index: 998;
+      pointer-events: none;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 8px;
+      display: flex !important;
+    }
+    /* 單人模式：隱藏對戰相關元素 */
+    body:not(.mp-mode) #mobile-info-bar #vs-timer,
+    body:not(.mp-mode) #mobile-info-bar #opp-game,
+    body:not(.mp-mode) #mobile-info-bar-opp-stats {
+      display: none !important;
+    }
+    /* 多人模式：隱藏按鈕欄 */
+    body.mp-mode #mobile-info-bar-btns {
+      display: none !important;
+    }
+    /* 多人模式 info-bar：左右等寬避開 opp-game (左寬 75+gap) / READY (右寬 100+gap)
+       對稱用大的那邊 (120) 當基準，info-bar 才會對稱於 viewport，timer 才能真正水平置中 */
+    body.mp-mode #mobile-info-bar {
+      left: 120px;
+      right: 120px;
+      height: 56px;
+      justify-content: center;
+    }
+
+    /* === 單人模式 PLAYER 框（精簡版） === */
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section {
+      pointer-events: auto;
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0 !important;
+      padding: 6px 10px !important;
+      display: flex !important;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
+    }
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section h2 {
+      font-size: 11px !important;
+      margin: 0 0 4px 0 !important;
+      letter-spacing: 1.5px;
+    }
+    /* 在精簡版藏掉的子區塊（資訊改成點 PLAYER 框→ drawer 看完整） */
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #player-stats,
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #change-pwd-btn,
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #admin-panel,
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #login-form p {
+      display: none !important;
+    }
+    /* 登入表單瘦身 */
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #login-form input {
+      padding: 4px 6px !important;
+      font-size: 11px !important;
+      margin-bottom: 4px !important;
+    }
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #login-form button {
+      padding: 5px !important;
+      font-size: 11px !important;
+    }
+    /* 已登入：只顯示名字 + 段位 + 對戰紀錄 + LOGOUT */
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #logged-in-info > div:first-child {
+      font-size: 10px !important;
+      color: rgba(255,255,255,0.6) !important;
+    }
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #display-username {
+      font-size: 16px !important;
+      margin: 1px 0 4px 0 !important;
+    }
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #match-history-btn {
+      font-size: 10px !important;
+      padding: 3px !important;
+      margin-bottom: 4px !important;
+      letter-spacing: 0.5px !important;
+    }
+    body:not(.mp-mode) #mobile-info-bar #player-profile-section #logout-btn {
+      font-size: 10px !important;
+      padding: 3px !important;
+    }
+
+    /* === 單人模式 AI / Practice 按鈕：橫排佔滿 info-bar === */
+    #mobile-info-bar-btns {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+      width: 100%;
+      pointer-events: auto;
+    }
+    #mobile-info-bar-btns #ai-btn,
+    #mobile-info-bar-btns #practice-btn {
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 8px 6px !important;
+      font-size: 13px !important;
+      letter-spacing: 0.5px !important;
+      border-radius: 8px !important;
+      flex: 1 1 0 !important;
+      line-height: 1.2 !important;
+    }
+
+    /* drawer 隱藏 MULTIPLAYER 框（單人模式下不需要；mp 模式仍保留 READY/scoreboard/invite） */
+    body:not(.mp-mode) #mobile-drawer #network-section {
+      display: none !important;
+    }
+    /* info-bar 內倒數計時器（撐滿 info-bar 高度，底部跟 READY 對齊） */
+    body.mp-mode #mobile-info-bar #vs-timer {
+      pointer-events: auto;
+      position: static !important;
+      top: auto !important;
+      left: auto !important;
+      transform: none !important;
+      width: auto !important;
+      height: 100% !important;
+      margin: 0 auto !important;
+      padding: 4px 14px !important;
+      background: linear-gradient(135deg, rgba(255,13,98,0.22), rgba(247,221,22,0.16)) !important;
+      border: 1.5px solid rgba(255,13,98,0.65) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 0 10px rgba(255,13,98,0.35), inset 0 0 6px rgba(247,221,22,0.1) !important;
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1 !important;
+      box-sizing: border-box;
+    }
+    body.mp-mode #mobile-info-bar #vs-timer > div:first-child {
+      font-size: 10px !important;
+      letter-spacing: 2px !important;
+      margin-bottom: 0 !important;
+    }
+    body.mp-mode #mobile-info-bar #vs-timer #battle-timer {
+      font-size: 22px !important;
+      line-height: 1.05 !important;
+      text-shadow: 0 0 8px rgba(255,255,255,0.5) !important;
+    }
+    /* opp-game 縮圖：獨立浮動在 info-bar 左側外面，
+       從 LEAVE 按鈕下方 (safe+56) 一路到 info-bar 底 (safe+186)，高度 130，視覺更清楚 */
+    body.mp-mode #opp-game {
+      pointer-events: auto;
+      position: fixed !important;
+      top: calc(env(safe-area-inset-top) + 56px) !important;
+      left: 10px !important;
+      right: auto !important;
+      transform: none !important;
+      width: 65px !important;
+      height: 130px !important;
+      border: 1.5px solid rgba(255,13,98,0.6) !important;
+      border-radius: 5px !important;
+      background: var(--cell-bg) !important;
+      display: block !important;
+      z-index: 998;
+      box-shadow: 0 0 8px rgba(255,13,98,0.3);
+    }
+
+    /* === 對手 KO + LINES SENT（mp 模式，垂直堆疊）
+       改用 fixed 定位獨立於 info-bar，這樣 info-bar 才能對稱置中，timer 也才能真正水平置中
+       位置：在 opp-game 縮圖右邊 (opp-game left:10 width:65 → right edge x=75)，再加 5px 間隔
+       垂直跟 info-bar 同基準線 (top: safe+130, height: 56) */
+    #mobile-info-bar-opp-stats {
+      position: fixed;
+      left: 80px;
+      top: calc(env(safe-area-inset-top) + 130px);
+      height: 56px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start !important;
+      gap: 4px;
+      pointer-events: auto;
+      z-index: 999;
+    }
+    body:not(.mp-mode) #mobile-info-bar-opp-stats { display: none !important; }
+    /* KO 在上，SENT 在下，每一條：標籤 + 數字橫排 */
+    #mobile-info-bar-opp-stats .mp-only {
+      margin: 0 !important;
+      padding: 2px 5px !important;
+      background: rgba(0,0,0,0.35) !important;
+      border: 1px solid rgba(255,13,98,0.45);
+      border-radius: 5px;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center;
+      gap: 3px !important;
+      text-align: left !important;
+      min-width: 0 !important;
+      width: max-content !important;
+    }
+    #mobile-info-bar-opp-stats .mini-title {
+      font-size: 8px !important;
+      margin: 0 !important;
+      letter-spacing: 0.5px !important;
+      color: rgba(255,255,255,0.75) !important;
+      white-space: nowrap;
+      line-height: 1.1 !important;
+    }
+    /* KO 圓圈外殼 → 攤平成 inline */
+    #mobile-info-bar-opp-stats .mp-only > div[style*="border-radius: 50%"] {
+      width: auto !important;
+      height: auto !important;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      display: inline !important;
+    }
+    #mobile-info-bar-opp-stats #opp-ko-display {
+      font-size: 15px !important;
+      color: var(--Z) !important;
+      text-shadow: 0 0 6px rgba(255,13,98,0.6) !important;
+      font-weight: 900;
+    }
+    #mobile-info-bar-opp-stats #opp-lines-sent-display {
+      font-size: 15px !important;
+      color: var(--I) !important;
+      text-shadow: 0 0 6px rgba(56,189,238,0.6) !important;
+      font-weight: 900;
+    }
+
+    /* === Profile Modal 內 MULTIPLAYER 框樣式 === */
+    #mobile-profile-modal #network-section {
+      max-width: 380px;
+      margin: 14px auto 0;
+      background: linear-gradient(135deg, rgba(20,25,55,0.98), rgba(6,0,79,0.98)) !important;
+      border: 1.5px solid var(--J) !important;
+      border-radius: 12px !important;
+      padding: 16px !important;
+      box-shadow: 0 0 24px rgba(42,127,255,0.3);
+    }
+    /* mp 模式 padding / canvas 大小與單人一致（info-bar 高度相同） */
+
+    /* === game-section 內的所有 side-col：縱排 === */
+    .game-section.player-section .side-col {
+      flex-direction: column !important;
+      gap: 6px !important;
+    }
+
+    /* === 終極精算排版：榨乾每一寸空間 === */
+    .battle-layout .game-section.player-section,
+    .battle-layout.is-multiplayer .game-section.player-section {
+      transform: none !important;
+      margin: auto 0 0 0 !important;
+      padding: 4px !important;
+      width: auto !important;
+      max-width: 100vw !important;
+      gap: 6px !important;
+      flex-direction: row !important; /* 確保三欄橫向排列 */
+      justify-content: center !important;
+      align-items: flex-start !important;
+      flex: 0 1 auto !important;
+    }
+
+    .game-section.player-section .board-col {
+      flex: 0 1 auto !important;
+      align-items: center !important;
+    }
+
+    /* 1. 調整主遊戲畫布：將寬度扣除量從 136px 增加到 144px (左右各多留 4px 的發光邊線空間) */
+    .game-section.player-section #game {
+      width: min(calc(100vw - 144px), calc((var(--app-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 260px) * 0.5)) !important;
+      height: auto !important;
+      aspect-ratio: 340 / 680 !important;
+      max-height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 260px) !important;
+      max-width: calc(100vw - 144px) !important;
+      display: block !important;
+    }
+
+    /* 2. 重新分配極限安全邊界 (維持不變) */
+    .battle-layout {
+      height: auto !important; 
+      min-height: var(--app-height, 100dvh) !important;
+      max-height: none !important;
+      padding: calc(env(safe-area-inset-top) + 190px) 0 calc(env(safe-area-inset-bottom) + 72px) !important;
+    }
+
+    /* 3. 將虛擬按鈕再往下壓：從 8px 壓到 3px，更貼近螢幕底端 */
+    #mobile-action-row {
+      display: flex !important;
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom) + 3px); 
+      left: 50%;
+      transform: translateX(-50%);
+      gap: 12px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    #mobile-hold-btn,
+    #mobile-undo-btn {
+      pointer-events: auto;
+      display: flex !important;
+      position: static;
+      width: 100px;
+      height: 52px;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: 4px;
+      border-radius: 12px;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+    }
+    #mobile-hold-btn {
+      background: linear-gradient(135deg, rgba(177,68,247,0.4), rgba(56,189,238,0.25));
+      border: 2px solid rgba(177,68,247,0.7);
+      box-shadow: 0 0 14px rgba(177,68,247,0.4), inset 0 0 8px rgba(56,189,238,0.15);
+    }
+    #mobile-undo-btn {
+      background: linear-gradient(135deg, rgba(247,221,22,0.32), rgba(255,167,0,0.22));
+      border: 2px solid rgba(247,221,22,0.7);
+      box-shadow: 0 0 14px rgba(247,221,22,0.35), inset 0 0 8px rgba(255,167,0,0.18);
+      color: var(--O);
+      letter-spacing: 3px;
+    }
+    #mobile-hold-btn:active,
+    #mobile-undo-btn:active {
+      transform: scale(0.95);
+      filter: brightness(0.85);
+    }
+
+    /* 將 MATCH SCORE 獨立浮動在計時器上方，並縮小排版 */
+    body.mp-mode #scoreboard {
+      position: fixed !important;
+      top: calc(env(safe-area-inset-top) + 76px) !important; /* 完美卡在頂部與計時器正中間的空白處 */
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      z-index: 1000 !important;
+      margin: 0 !important;
+      padding: 4px 18px 2px !important; /* 壓扁變成膠囊狀 */
+      background: linear-gradient(135deg, rgba(6,0,79,0.85), rgba(20,25,55,0.85)) !important;
+      border: 1.5px solid var(--J) !important; /* 使用藍色霓虹邊框，與多人連線主題一致 */
+      border-radius: 25px !important; /* 大圓角膠囊 */
+      box-shadow: 0 0 12px rgba(42,127,255,0.4), inset 0 0 6px rgba(42,127,255,0.2) !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      min-width: auto !important;
+    }
+    
+    body.mp-mode #scoreboard[style*="display: block"] {
+      display: flex !important;
+    }
+    
+    /* MATCH SCORE 標題變小並加上黃色發光 */
+    body.mp-mode #scoreboard > div:first-child {
+      font-size: 9px !important;
+      margin-bottom: 0px !important;
+      letter-spacing: 2px !important;
+      color: var(--O) !important; 
+      text-shadow: 0 0 6px rgba(247,221,22,0.6) !important;
+    }
+    
+    /* 分數主體區塊 */
+    body.mp-mode #scoreboard > div:last-child {
+      font-size: 18px !important; /* 縮小比分數字 */
+      gap: 12px !important;
+      align-items: baseline !important;
+    }
+    
+    /* 讓 YOU / OPP 的標籤跟數字變成「真正的橫排」節省高度 */
+    body.mp-mode #scoreboard > div:last-child > div {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: baseline !important;
+      gap: 5px !important;
+    }
+    
+    /* 縮小 YOU / OPP 的文字並弱化，用來突顯分數 */
+    body.mp-mode #scoreboard > div:last-child span[id^="score-label-"] {
+      font-size: 9px !important;
+      color: rgba(255,255,255,0.5) !important;
+      letter-spacing: 1px !important;
+    }
+    
+    /* 讓比分數字加上對應的綠色/紅色發光特效 */
+    body.mp-mode #scoreboard #my-wins-el {
+      text-shadow: 0 0 10px rgba(72,214,47,0.7) !important;
+    }
+    body.mp-mode #scoreboard #opp-wins-el {
+      text-shadow: 0 0 10px rgba(255,13,98,0.7) !important;
+    }
+
+    /* absolute 計時器與離開按鈕重新定位 */
+    #vs-timer {
+      top: calc(env(safe-area-inset-top) + 8px) !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: 100px !important;
+    }
+    #vs-timer #battle-timer {
+      font-size: 28px !important;
+    }
+    /* mp 模式：LEAVE 移到左上（取代頭像位置），避開右上的漢堡 */
+    #mp-leave-btn {
+      position: fixed !important;
+      top: calc(env(safe-area-inset-top) + 2px) !important; 
+      left: 10px !important;
+      right: auto !important;
+      width: 44px !important;
+      height: 44px !important;
+      padding: 0 !important;
+      font-size: 0 !important;
+      border-radius: 50% !important;
+      box-sizing: border-box !important;
+      z-index: 3000 !important;
+    }
+    #mp-leave-btn::before {
+      content: "🚪";
+      font-size: 20px;
+    }
+    /* mp 模式：隱藏頭像（用 LEAVE 取代它的位置） */
+    body.mp-mode #mobile-avatar-btn {
+      display: none !important;
+    }
+
+    /* ========== B2: 漢堡按鈕（移到右上）+ Drawer ========== */
+    #mobile-drawer-toggle {
+      display: flex !important;
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 2px);
+      right: 10px;
+      left: auto;
+      width: 44px;
+      height: 44px;
+      background: rgba(6, 0, 79, 0.95);
+      border: 2px solid var(--I);
+      color: var(--white);
+      font-size: 22px;
+      font-weight: 900;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 3000;
+      box-shadow: 0 0 10px rgba(56,189,238,0.4);
+      padding: 0;
+      line-height: 1;
+    }
+    /* drawer 打開時，所有浮動按鈕都要藏起來，避免擋到 drawer / overlay */
+    body.drawer-open #mobile-drawer-toggle,
+    body.drawer-open #chat-icon-wrapper,
+    body.drawer-open #chat-panel,
+    body.drawer-open #mobile-avatar-btn,
+    body.drawer-open #mp-leave-btn,
+    body.drawer-open #opp-game,
+    body.drawer-open #mobile-info-bar-opp-stats {
+      display: none !important;
+    }
+
+    /* ========== 玩家頭像（左上，取代 PLAYER 框） ========== */
+    #mobile-avatar-btn {
+      display: flex !important;
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 2px);
+      left: 10px;
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, rgba(177,68,247,0.85), rgba(56,189,238,0.65));
+      border: 2px solid var(--T);
+      color: var(--white);
+      font-size: 18px;
+      font-weight: 900;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 3000;
+      box-shadow: 0 0 10px rgba(177,68,247,0.5), inset 0 0 6px rgba(255,255,255,0.15);
+      padding: 0;
+      line-height: 1;
+      letter-spacing: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #mobile-avatar-btn:active { transform: scale(0.92); }
+
+    /* ========== 玩家資料 modal ========== */
+    #mobile-profile-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      /* 不透明深色底，把後方畫面完全遮住，避免「PRESS ENTER」等字穿透 */
+      background: rgba(2, 0, 35, 0.97);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 3100;
+      padding: calc(env(safe-area-inset-top) + 60px) 14px env(safe-area-inset-bottom);
+      box-sizing: border-box;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    body.profile-open #mobile-profile-modal {
+      display: block;
+    }
+    #mobile-profile-modal #player-profile-section {
+      max-width: 380px;
+      margin: 0 auto;
+      /* 給 PLAYER 框本身實心底，不依賴 .info-panel 的半透明 */
+      background: linear-gradient(135deg, rgba(20,25,55,0.98), rgba(6,0,79,0.98)) !important;
+      border: 1.5px solid var(--T) !important;
+      border-radius: 12px !important;
+      padding: 16px !important;
+      box-shadow: 0 0 30px rgba(177,68,247,0.4);
+    }
+    #mobile-profile-close {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 12px);
+      right: 14px;
+      width: 36px;
+      height: 36px;
+      background: transparent;
+      border: 1px solid var(--white);
+      color: var(--white);
+      font-size: 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      z-index: 3101;
+    }
+    /* 同步隱藏：profile modal 開啟時也藏掉所有浮動按鈕 */
+    body.profile-open #mobile-drawer-toggle,
+    body.profile-open #chat-icon-wrapper,
+    body.profile-open #chat-panel,
+    body.profile-open #mobile-avatar-btn,
+    body.profile-open #mp-leave-btn,
+    body.profile-open #opp-game,
+    body.profile-open #mobile-info-bar-opp-stats {
+      display: none !important;
+    }
+
+    #mobile-drawer-overlay {
+      display: block !important;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 2998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    body.drawer-open #mobile-drawer-overlay {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Drawer：從右邊滑出（漢堡按鈕也在右邊） */
+    #mobile-drawer {
+      display: block !important;
+      position: fixed;
+      top: 0;
+      right: 0;
+      left: auto;
+      width: min(85vw, 360px);
+      height: 100vh;
+      height: 100dvh;
+      background: linear-gradient(135deg, #06004f 0%, #0a0470 100%);
+      border-left: 2px solid var(--I);
+      border-right: none;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 2999;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: calc(env(safe-area-inset-top) + 60px) 14px calc(env(safe-area-inset-bottom) + 20px);
+      box-sizing: border-box;
+    }
+    body.drawer-open #mobile-drawer {
+      transform: translateX(0);
+    }
+
+    /* Drawer 內的原側欄面板重新啟用 display */
+    #mobile-drawer #left-wing,
+    #mobile-drawer #singleplayer-ui {
+      display: flex !important;
+      width: 100% !important;
+      flex-direction: column !important;
+      gap: 14px !important;
+      align-items: stretch !important;
+      margin: 0 0 14px 0 !important;
+    }
+
+    /* Drawer 內的子容器拉成 100% 寬 */
+    #mobile-drawer .wing-inner,
+    #mobile-drawer .left-sidebar {
+      width: 100% !important;
+      max-width: 100% !important;
+      flex-direction: column !important;
+      gap: 12px !important;
+    }
+
+    #mobile-drawer .info-panel {
+      width: 100% !important;
+      box-sizing: border-box;
+    }
+
+    /* B-redo-1: 修 PLAYER 框被擋掉
+       #left-wing 第 1033 行有個 inline display:flex row container，
+       drawer 寬塞不下兩個 260px column。強制 row 改 column */
+    #mobile-drawer #left-wing > div:not(.match-title-container) {
+      flex-direction: column !important;
+      width: 100% !important;
+      gap: 14px !important;
+    }
+    #mobile-drawer #left-wing > div:not(.match-title-container) > div {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    /* TETRIS 標題在 drawer 內太大佔空間，隱藏 */
+    #mobile-drawer .match-title-container {
+      display: none !important;
+    }
+
+    /* B-redo-1: 中央遊戲場拿掉邊框（使用者要求 canvas 吃滿） */
+    .battle-layout .game-section.player-section {
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    .battle-layout #game,
+    .battle-layout #opp-game {
+      border: none !important;
+    }
+
+    /* B-redo-2: 頂部資訊列（SCORE / LINES / LEVEL）
+       縮短漢堡跟聊天的水平佔位，騰出更多寬度給 SCORE 框 */
+    #mobile-topbar {
+      display: flex !important;
+      position: fixed;
+      top: env(safe-area-inset-top);
+      left: 56px;
+      right: 56px;
+      height: 60px;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      pointer-events: none;
+    }
+    /* SCORE / LINES / LEVEL 框：漸層 + glow + 三段 divider */
+    #mobile-topbar #singleplayer-score {
+      pointer-events: auto;
+      background: linear-gradient(135deg, rgba(56,189,238,0.18) 0%, rgba(177,68,247,0.18) 100%) !important;
+      border: 1.5px solid rgba(56,189,238,0.6) !important;
+      box-shadow:
+        0 0 16px rgba(56,189,238,0.4),
+        inset 0 0 12px rgba(177,68,247,0.15),
+        0 2px 10px rgba(0,0,0,0.4) !important;
+      border-radius: 12px !important;
+      padding: 6px 12px !important;
+      margin: 0 !important;
+      width: auto !important;
+      max-width: 100%;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 0 !important;
+      flex-wrap: nowrap !important;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    /* 隱藏 H2 標題、action-msg、HIGH SCORE / MUSIC / SFX（後者放到設定頁） */
+    #mobile-topbar #singleplayer-score h2,
+    #mobile-topbar #singleplayer-score #action-msg,
+    #mobile-topbar #singleplayer-score > div:has(#high-score),
+    #mobile-topbar #singleplayer-score > div:has(#bgm-status),
+    #mobile-topbar #singleplayer-score > div:has(#sfx-status) {
+      display: none !important;
+    }
+    /* SCORE 數字（左區） */
+    #mobile-topbar #singleplayer-score #score {
+      font-size: 26px !important;
+      line-height: 1 !important;
+      margin: 0 !important;
+      padding: 0 14px 0 4px !important;
+      text-align: left !important;
+      color: var(--O) !important;
+      text-shadow: 0 0 10px rgba(247,221,22,0.6);
+      font-weight: 900 !important;
+      letter-spacing: 0.5px;
+    }
+    /* LINES / LEVEL 區塊：垂直堆疊（標籤上、數字下），用 left border 當分隔線 */
+    #mobile-topbar #singleplayer-score > div {
+      margin: 0 !important;
+      padding: 0 12px !important;
+      border-left: 1.5px solid rgba(255,255,255,0.2) !important;
+      height: 38px;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: center !important;
+      align-items: center !important;
+      gap: 1px !important;
+    }
+    /* div 內第一個 span = 標籤 (LINES / LEVEL)，第二個 = 數字 */
+    #mobile-topbar #singleplayer-score > div span {
+      display: block !important;
+      line-height: 1 !important;
+    }
+    #mobile-topbar #singleplayer-score > div span:first-child {
+      font-size: 9px !important;
+      font-weight: 900 !important;
+      color: rgba(255,255,255,0.55) !important;
+      letter-spacing: 1.5px !important;
+    }
+    #mobile-topbar #singleplayer-score #lines {
+      color: var(--I) !important;
+      font-size: 18px !important;
+      font-weight: 900 !important;
+      text-shadow: 0 0 8px rgba(56,189,238,0.6);
+    }
+    #mobile-topbar #singleplayer-score #level {
+      color: var(--S) !important;
+      font-size: 18px !important;
+      font-weight: 900 !important;
+      text-shadow: 0 0 8px rgba(72,214,47,0.6);
+    }
+
+    /* 隱藏「You」/「OPPONENT」標題（手機版省空間給遊戲場） */
+    .battle-layout .game-title {
+      display: none !important;
+    }
+
+    /* 聊天 icon：右上角，漢堡下方（大小跟漢堡一致） */
+    #chat-icon-wrapper {
+      position: fixed !important;
+      top: calc(env(safe-area-inset-top) + 54px) !important;
+      right: 10px !important;
+      left: auto !important;
+      bottom: auto !important;
+      z-index: 3000 !important;
+    }
+    #chat-toggle-btn {
+      width: 44px !important;
+      height: 44px !important;
+      font-size: 20px !important;
+      border-radius: 8px !important;
+    }
+
+    /* === 浮動 READY / SURRENDER 按鈕：跟 info-bar 同高，底部對齊 ===
+       從 #network-section 拉出來，永遠看得到。寬 100px 確保 SURRENDER 字不會超出按鈕 */
+    #mobile-ready-wrap {
+      display: block !important;
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 130px);
+      right: 10px;
+      width: 100px;
+      height: 56px;
+      z-index: 999;
+    }
+    /* mp 模式才顯示；單人 / 練習用不到 READY */
+    body:not(.mp-mode) #mobile-ready-wrap {
+      display: none !important;
+    }
+    /* 抽屜 / profile modal 開啟時也藏 READY */
+    body.drawer-open #mobile-ready-wrap,
+    body.profile-open #mobile-ready-wrap {
+      display: none !important;
+    }
+    #mobile-ready-wrap #mp-ready-group {
+      margin: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    #mobile-ready-wrap #ready-btn {
+      width: 100% !important;
+      height: 100% !important;
+      padding: 4px !important;
+      font-size: 13px !important;
+      border-radius: 8px !important;
+      letter-spacing: 1px !important;
+      box-shadow: 0 0 12px rgba(72,214,47,0.4);
+    }
+    /* 聊天 panel 手機版從右邊滑出，避開上方 topbar */
+    #chat-panel {
+      position: fixed !important;
+      top: calc(env(safe-area-inset-top) + 108px) !important;
+      left: 8px !important;
+      right: 56px !important;
+      bottom: calc(env(safe-area-inset-bottom) + 80px) !important;
+      width: auto !important;
+      height: auto !important;
+      max-width: none !important;
+      max-height: none !important;
+    }
+
+    /* version-tag 在 drawer 裡的絕對定位會跑掉，拉回 flow */
+    #mobile-drawer #version-tag {
+      position: static !important;
+      margin: 0 0 8px 0 !important;
+    }
+
+    /* settings-container（含 FPS 按鈕 + 線上玩家）進 drawer 後復原 display */
+    #mobile-drawer #settings-container {
+      display: flex !important;
+      flex-direction: column !important;  /* 改直排，讓 FPS / ONLINE 跟下方排行榜等寬 */
+      position: static !important;
+      top: auto !important;
+      right: auto !important;
+      width: 100% !important;
+      margin: 0 0 14px 0 !important;
+      gap: 10px !important;
+    }
+    #mobile-drawer #online-panel {
+      position: static !important;
+      width: 100% !important;
+      max-height: 240px !important;
+      margin: 0 !important;
+      box-sizing: border-box;
+    }
+    #mobile-drawer #fps-mode-btn {
+      width: 100% !important;
+      box-sizing: border-box;
+    }
+
+    /* Drawer 標題欄 */
+    #mobile-drawer-title {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 12px);
+      left: 14px;
+      right: 54px;
+      color: var(--I);
+      font-weight: 900;
+      font-size: 18px;
+      letter-spacing: 3px;
+      text-shadow: 0 0 8px rgba(56,189,238,0.6);
+    }
+    #mobile-drawer-close {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 10px);
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      background: transparent;
+      border: 1px solid var(--white);
+      color: var(--white);
+      font-size: 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+  }
+
   </style>
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -531,9 +1573,40 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
 
   <script src="changelog.js"></script>
+
+  <script>
+    // 修復 iOS 動態高度 Bug，強制計算真實可用像素
+    function setAppHeight() {
+      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    }
+    window.addEventListener('resize', setAppHeight);
+    window.addEventListener('orientationchange', setAppHeight);
+    setAppHeight(); // 初始執行
+  </script>
+
 </head>
 <body>
 <div class="viewport" id="viewport">
+
+  <!-- 手機版漢堡按鈕 + Drawer + 頂部資訊列（桌機版預設隱藏，由 CSS @media 控制） -->
+  <button id="mobile-drawer-toggle" aria-label="Menu">☰</button>
+  <button id="mobile-avatar-btn" aria-label="Profile">👤</button>
+  <div id="mobile-drawer-overlay"></div>
+  <div id="mobile-drawer">
+    <div id="mobile-drawer-title">MENU</div>
+    <button id="mobile-drawer-close" aria-label="Close">✕</button>
+  </div>
+  <div id="mobile-profile-modal">
+    <button id="mobile-profile-close" aria-label="Close">✕</button>
+  </div>
+  <div id="mobile-topbar"></div>
+  <div id="mobile-mini-bar"></div>
+  <div id="mobile-info-bar"></div>
+  <div id="mobile-ready-wrap"></div>
+  <div id="mobile-action-row">
+    <div id="mobile-hold-btn">HOLD</div>
+    <div id="mobile-undo-btn">UNDO</div>
+  </div>
 
   <div id="fps-counter" style="position: absolute; top: 15px; left: 20px; font-size: 13px; font-weight: 900; color: var(--S); z-index: 1000; letter-spacing: 1px;">
     FPS <span id="fps-value">0</span>
@@ -592,7 +1665,7 @@
           <div><b style="color:var(--I);">Z / Ctrl</b> 逆時針旋轉</div>
           <div><b style="color:var(--I);">C / Shift</b> 保留 Hold <span style="color:rgba(255,255,255,0.6); font-size:11px;">(每顆限用一次)</span></div>
           <div><b style="color:var(--I);">P / Esc</b> 暫停 / 繼續</div>
-          <div><b style="color:var(--I);">R</b> 重新開始 / 離開房間</div>
+          <div><b style="color:var(--I);">R</b> 重新開始 / 對戰後離開房間</div>
           <div><b style="color:var(--I);">A</b> Undo 反悔上一步</div>
           <div><b style="color:var(--I);">M / N</b> 音樂 / 音效靜音</div>
           <div><b style="color:var(--I);">+ / -</b> 遊戲音量大 / 小</div>
@@ -1063,6 +2136,278 @@
 </div>
 
 <script src="./game.js"></script>
+
+<script>
+  // PWA Service Worker 註冊（延後到 load 後，不影響首次載入）
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      // updateViaCache: 'none' 確保每次都從網路抓最新 sw.js (不被 HTTP cache 卡住)
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+        .then((reg) => {
+          // 強制檢查更新，新 SW 會在背景安裝
+          reg.update().catch(() => {});
+          // 新 SW 安裝完並準備好接管時，重新整理頁面拿新版本
+          reg.addEventListener('updatefound', () => {
+            const sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener('statechange', () => {
+              if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                // 新 SW 已就緒，下次載入會生效；可立即叫它接管
+                sw.postMessage('SKIP_WAITING');
+              }
+            });
+          });
+        })
+        .catch((err) => {
+          console.warn('[SW] register failed:', err);
+        });
+      // SW 切換到新版時自動 reload 一次，拿到新的 SW 邏輯
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    });
+  }
+
+  // 手機版：把側欄 reparent 進 drawer + 綁定開關
+  (function () {
+    const mq = window.matchMedia('(max-width: 820px)');
+    const drawer = document.getElementById('mobile-drawer');
+    const overlay = document.getElementById('mobile-drawer-overlay');
+    const toggleBtn = document.getElementById('mobile-drawer-toggle');
+    const closeBtn = document.getElementById('mobile-drawer-close');
+    console.log('[mobile-drawer] init:', { isMobile: mq.matches, drawer: !!drawer, overlay: !!overlay, toggleBtn: !!toggleBtn });
+    if (!drawer || !overlay || !toggleBtn) return;
+
+    function moveIntoDrawer() {
+      const targetIds = ['settings-container', 'left-wing', 'singleplayer-ui'];
+      const moved = [];
+      targetIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) {
+          console.warn('[mobile-drawer] element NOT FOUND:', id);
+          return;
+        }
+        if (el.parentElement === drawer) return;
+        drawer.appendChild(el);
+        moved.push(id);
+      });
+      // SCORE 區塊從 drawer 拉出來放頂部 topbar（使用者要求 SCORE 留主畫面）
+      const topbar = document.getElementById('mobile-topbar');
+      const score = document.getElementById('singleplayer-score');
+      if (topbar && score && score.parentElement !== topbar) {
+        topbar.appendChild(score);
+        moved.push('singleplayer-score→topbar');
+      }
+      // PLAYER 框 + MULTIPLAYER 框都搬到頭像 modal（不再放 info-bar）
+      const profileModal = document.getElementById('mobile-profile-modal');
+      const playerProfile = document.getElementById('player-profile-section');
+      const networkSection = document.getElementById('network-section');
+      if (profileModal && playerProfile && playerProfile.parentElement !== profileModal) {
+        profileModal.appendChild(playerProfile);
+        moved.push('player-profile-section→profile-modal');
+      }
+      if (profileModal && networkSection && networkSection.parentElement !== profileModal) {
+        profileModal.appendChild(networkSection);
+        moved.push('network-section→profile-modal');
+      }
+      // READY 按鈕從 network-section 拉出來放浮動 wrapper（隨時看得到，不必開 modal）
+      const readyWrap = document.getElementById('mobile-ready-wrap');
+      const mpReadyGroup = document.getElementById('mp-ready-group');
+      if (readyWrap && mpReadyGroup && mpReadyGroup.parentElement !== readyWrap) {
+        readyWrap.appendChild(mpReadyGroup);
+        moved.push('mp-ready-group→mobile-ready-wrap');
+      }
+      // AI / Practice 按鈕 → info-bar 並排
+      const infoBar = document.getElementById('mobile-info-bar');
+      const aiBtn = document.getElementById('ai-btn');
+      const practiceBtn = document.getElementById('practice-btn');
+      if (infoBar) {
+        let btnCol = document.getElementById('mobile-info-bar-btns');
+        if (!btnCol) {
+          btnCol = document.createElement('div');
+          btnCol.id = 'mobile-info-bar-btns';
+          infoBar.appendChild(btnCol);
+        } else if (btnCol.parentElement !== infoBar) {
+          infoBar.appendChild(btnCol);
+        }
+        if (aiBtn && aiBtn.parentElement !== btnCol) {
+          btnCol.appendChild(aiBtn);
+          moved.push('ai-btn→info-bar-btns');
+        }
+        if (practiceBtn && practiceBtn.parentElement !== btnCol) {
+          btnCol.appendChild(practiceBtn);
+          moved.push('practice-btn→info-bar-btns');
+        }
+      }
+      // B-redo v4: 三欄置中 (HOLD 左 / 遊戲場中 / NEXT-QUEUE 右)
+      // 還原任何曾被搬出 game-section 的元素到原位（保護 cache 切換版本時不破壞）
+      const playerSection = document.querySelector('.game-section.player-section');
+      const miniBar = document.getElementById('mobile-mini-bar');
+
+      if (playerSection) {
+        // 把曾被搬到 mini-bar 或 info-bar 的 .side-col / mini canvas 還原回 game-section
+        const sideColsInPlayerSection = playerSection.querySelectorAll('.side-col');
+        let leftCol = sideColsInPlayerSection[0];
+        let rightCol = sideColsInPlayerSection[1];
+
+        // 如果 left side-col 跑去 info-bar，搬回 game-section 第一順位
+        if (infoBar && infoBar.querySelector('.side-col') && playerSection) {
+          const strayLeftCol = infoBar.querySelector('.side-col');
+          playerSection.insertBefore(strayLeftCol, playerSection.firstChild);
+          leftCol = strayLeftCol;
+          moved.push('left-side-col←info-bar back to game-section');
+        }
+        // 如果 mini canvas 還在 mini-bar 內，搬回對應的 side-col
+        if (miniBar && miniBar.children.length) {
+          // 重新查一次（leftCol 可能剛被搬回）
+          const cols = playerSection.querySelectorAll('.side-col');
+          leftCol = cols[0];
+          rightCol = cols[1];
+          Array.from(miniBar.children).forEach((wrapper) => {
+            const canvas = wrapper.querySelector('canvas');
+            if (!canvas || !leftCol || !rightCol) return;
+            const id = canvas.id;
+            if (id === 'hold-canvas') {
+              leftCol.insertBefore(wrapper, leftCol.firstChild);
+            } else if (id === 'next-canvas' || id === 'queue-canvas') {
+              rightCol.appendChild(wrapper);
+            }
+          });
+        }
+      }
+      console.log('[mobile-drawer] reparented:', moved);
+    }
+
+    if (mq.matches) {
+      // 等 DOMContentLoaded 確保所有元素已就位（避免 game.js 還在 init 期間 reparent 出錯）
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', moveIntoDrawer);
+      } else {
+        moveIntoDrawer();
+      }
+    }
+
+    function openDrawer() { document.body.classList.add('drawer-open'); }
+    function closeDrawer() { document.body.classList.remove('drawer-open'); }
+
+    toggleBtn.addEventListener('click', openDrawer);
+    overlay.addEventListener('click', closeDrawer);
+    if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+
+    // === 頭像 + Profile Modal ===
+    const avatarBtn = document.getElementById('mobile-avatar-btn');
+    const profileModal = document.getElementById('mobile-profile-modal');
+    const profileCloseBtn = document.getElementById('mobile-profile-close');
+    const displayUsername = document.getElementById('display-username');
+    function openProfile() { document.body.classList.add('profile-open'); }
+    function closeProfile() { document.body.classList.remove('profile-open'); }
+    if (avatarBtn) avatarBtn.addEventListener('click', openProfile);
+    if (profileCloseBtn) profileCloseBtn.addEventListener('click', closeProfile);
+    if (profileModal) {
+      profileModal.addEventListener('click', (e) => {
+        // 點 modal 背景（不是內容）關閉
+        if (e.target === profileModal) closeProfile();
+      });
+    }
+    // 同步頭像顯示：登入後顯示 username 第一個字、否則 👤
+    function syncAvatarLabel() {
+      if (!avatarBtn) return;
+      const loggedIn = displayUsername && displayUsername.textContent && displayUsername.textContent.trim() && displayUsername.textContent.trim() !== '---';
+      if (loggedIn) {
+        avatarBtn.textContent = displayUsername.textContent.trim().charAt(0).toUpperCase();
+      } else {
+        avatarBtn.textContent = '👤';
+      }
+    }
+    if (displayUsername) {
+      const obs = new MutationObserver(syncAvatarLabel);
+      obs.observe(displayUsername, { childList: true, characterData: true, subtree: true });
+    }
+    syncAvatarLabel();
+    // drawer 內任何按鈕被點到時，順手關掉 profile modal（避免兩個都開著）
+    if (profileModal) {
+      profileModal.addEventListener('click', (e) => {
+        const t = e.target;
+        if (t && t.id && /-btn$/.test(t.id) && t.id !== 'mobile-profile-close') {
+          setTimeout(closeProfile, 50);
+        }
+      });
+    }
+
+    // 在 drawer 內點擊 modal 觸發按鈕（如「完整規則」）後自動關閉，
+    // 讓 modal 浮層可以蓋滿整個畫面
+    drawer.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.id && /-btn$/.test(t.id) && t.id !== 'mobile-drawer-close') {
+        // 部分按鈕本身會打開 modal；關抽屜不影響其後續事件（事件冒泡已觸發）
+        // 延遲關閉避免影響原按鈕邏輯
+        setTimeout(closeDrawer, 50);
+      }
+    });
+
+    // B-redo-5: 多人模式偵測（MutationObserver 監聽 .battle-layout 的 is-multiplayer class）
+    if (mq.matches) {
+      const battleLayout = document.querySelector('.battle-layout');
+      const infoBar = document.getElementById('mobile-info-bar');
+      const vsTimer = document.getElementById('vs-timer');
+      const oppGame = document.getElementById('opp-game');
+      const oppGameOriginalParent = oppGame ? oppGame.parentElement : null;
+      const vsTimerOriginalParent = vsTimer ? vsTimer.parentElement : null;
+
+      // 抓取 scoreboard
+      const scoreboard = document.getElementById('scoreboard');
+      const scoreboardOrigParent = scoreboard ? scoreboard.parentElement : null;
+
+      // 對手 KO / SENT 顯示的 .mp-only 包裝 div
+      const oppKoEl = document.getElementById('opp-ko-display');
+      const oppLinesEl = document.getElementById('opp-lines-sent-display');
+      const oppKoWrap = oppKoEl ? oppKoEl.closest('.mp-only') : null;
+      const oppLinesWrap = oppLinesEl ? oppLinesEl.closest('.mp-only') : null;
+      const oppKoOrigParent = oppKoWrap ? oppKoWrap.parentElement : null;
+      const oppLinesOrigParent = oppLinesWrap ? oppLinesWrap.parentElement : null;
+
+      let oppStatsWrap = null;
+      if (infoBar) {
+        oppStatsWrap = document.createElement('div');
+        oppStatsWrap.id = 'mobile-info-bar-opp-stats';
+        infoBar.insertBefore(oppStatsWrap, infoBar.firstChild);
+      }
+
+      function syncMpMode() {
+        if (!battleLayout) return;
+        const isMp = battleLayout.classList.contains('is-multiplayer');
+        document.body.classList.toggle('mp-mode', isMp);
+
+        if (isMp && infoBar) {
+          if (vsTimer && vsTimer.parentElement !== infoBar) infoBar.appendChild(vsTimer);
+          if (oppGame && oppGame.parentElement !== document.body) document.body.appendChild(oppGame);
+          if (oppStatsWrap) {
+            if (oppKoWrap && oppKoWrap.parentElement !== oppStatsWrap) oppStatsWrap.appendChild(oppKoWrap);
+            if (oppLinesWrap && oppLinesWrap.parentElement !== oppStatsWrap) oppStatsWrap.appendChild(oppLinesWrap);
+          }
+          // 進入對戰模式時，把 scoreboard 提到最外層的 body，避免被藏在 Modal 裡
+          if (scoreboard && scoreboard.parentElement !== document.body) document.body.appendChild(scoreboard);
+        } else {
+          if (vsTimer && vsTimerOriginalParent && vsTimer.parentElement !== vsTimerOriginalParent) vsTimerOriginalParent.appendChild(vsTimer);
+          if (oppGame && oppGameOriginalParent && oppGame.parentElement !== oppGameOriginalParent) oppGameOriginalParent.appendChild(oppGame);
+          if (oppKoWrap && oppKoOrigParent && oppKoWrap.parentElement !== oppKoOrigParent) oppKoOrigParent.appendChild(oppKoWrap);
+          if (oppLinesWrap && oppLinesOrigParent && oppLinesWrap.parentElement !== oppLinesOrigParent) oppLinesOrigParent.appendChild(oppLinesWrap);
+          // 退出時，把 scoreboard 還原回去
+          if (scoreboard && scoreboardOrigParent && scoreboard.parentElement !== scoreboardOrigParent) scoreboardOrigParent.appendChild(scoreboard);
+        }
+      }
+
+      if (battleLayout) {
+        const obs = new MutationObserver(syncMpMode);
+        obs.observe(battleLayout, { attributes: true, attributeFilter: ['class'] });
+        syncMpMode();  // 初始化
+      }
+    }
+  })();
+</script>
 
 </body>
 </html>
