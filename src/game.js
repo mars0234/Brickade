@@ -37,6 +37,26 @@
     }
   }
 
+  // --- 效能優化：方塊影像快取 (離線渲染) ---
+  const cellCache = {};
+  function getCachedCell(color, size) {
+    const key = `${color}_${size}`;
+    if (cellCache[key]) return cellCache[key]; // 如果畫過了，直接拿現成的
+    
+    // 沒畫過就開一張新的小畫布畫出來
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const cx = c.getContext('2d', { alpha: false });
+    cx.fillStyle = color;
+    cx.fillRect(0, 0, size, size);
+    cx.strokeStyle = BG; // 使用你原本設定的 #06004f
+    cx.lineWidth = 4;
+    cx.strokeRect(0, 0, size, size);
+    
+    cellCache[key] = c; // 存進快取
+    return c;
+  }
+
   const canvas = document.getElementById('game');
   canvas.width = CANVAS_W * DPR;
   canvas.height = CANVAS_H * DPR;
@@ -143,6 +163,10 @@
 
   let board, queue, current, holdType, holdUsed, score, lines, level, gameOver, isPaused;
   let gravityTimer, lastTime, clearFx, lockTimer, lockResets;
+  let currentGravityInterval = 1000; // 記錄當前重力速度
+  // --- 進階視覺補幀變數 ---
+  let visualRotationAngle = 0;                // 旋轉
+  let visualBoardOffsetY = 0;                 // 盤面上下偏移
   let moveCooldown = 0;
   let dasTimer = 0;
   let arrTimer = 0;
@@ -172,17 +196,32 @@
   let visualCol = 0;
   let visualGhostRow = 0; // 幽靈方塊專用的視覺 Y 座標
   let lastVisualRow = 0;  // 紀錄上一幀的視覺高度，用來畫垂直動態殘影
-  let dropTrails = []; // 用來儲存硬降光柱的殘影陣列
 
   // --- 高幀率模式狀態控制 ---
-  let isHighFpsMode = localStorage.getItem('tetrisHighFpsMode') !== 'false'; // 預設開啟
+  // 兩段式：true = 高幀率 (鎖 120Hz 穩定) / false = 鎖 60FPS
+  let isHighFpsMode = localStorage.getItem('tetrisHighFpsMode') !== 'false';
+  // 從舊版 tetrisFpsMode 三段式設定遷移回來
+  const _legacyFpsMode = localStorage.getItem('tetrisFpsMode');
+  if (_legacyFpsMode === 'low') isHighFpsMode = false;
+  else if (_legacyFpsMode === 'high' || _legacyFpsMode === 'stable') isHighFpsMode = true;
+  if (_legacyFpsMode) localStorage.removeItem('tetrisFpsMode');
+  localStorage.setItem('tetrisHighFpsMode', String(isHighFpsMode));
+
+  // 目標幀間距：高幀率 120Hz / 鎖 60FPS
+  // 註：在 180Hz 螢幕上用 naive 的 "delta < interval 就 skip" 會被 VSync 折半 (180→90)，
+  //     因為 11ms 才過 8.33ms 的門檻，每兩個 rAF 才算一幀。
+  //     改用 rolling deadline 累進式判斷，讓 3 個 rAF 過 2 個 → 180×2/3 = 真正的 120Hz。
+  const HIGH_FRAME_INTERVAL = 1000 / 120; // 8.333ms
+  const LOW_FRAME_INTERVAL  = 1000 / 60;  // 16.666ms
+  let fpsFrameInterval = isHighFpsMode ? HIGH_FRAME_INTERVAL : LOW_FRAME_INTERVAL;
+  let nextRenderDeadline = 0;
 
   const fpsBtn = document.getElementById('fps-mode-btn');
 
   function updateFpsBtnUI() {
     const isInBattle = document.getElementById('layout').contains(fpsBtn.parentElement);
     const targetWidth = isInBattle ? '160px' : '220px';
-    const targetPadding = isInBattle ? '10px 0' : '10px'; 
+    const targetPadding = isInBattle ? '10px 0' : '10px';
 
     if (isHighFpsMode) {
       fpsBtn.textContent = '✨ 高幀率模式';
@@ -194,15 +233,15 @@
       fpsBtn.style.color = 'var(--white)';
       fpsBtn.style.borderColor = 'var(--white)';
       fpsBtn.style.boxShadow = 'none';
-      
+
       if (current) {
         visualCol = current.col;
         visualRow = current.row;
         visualGhostRow = ghostRow();
       }
     }
-    
-    fpsBtn.style.width = targetWidth; 
+
+    fpsBtn.style.width = targetWidth;
     fpsBtn.style.padding = targetPadding;
     fpsBtn.style.textAlign = 'center';
     fpsBtn.style.background = 'transparent';
@@ -210,7 +249,9 @@
 
   fpsBtn.addEventListener('click', () => {
     isHighFpsMode = !isHighFpsMode;
-    localStorage.setItem('tetrisHighFpsMode', isHighFpsMode);
+    fpsFrameInterval = isHighFpsMode ? HIGH_FRAME_INTERVAL : LOW_FRAME_INTERVAL;
+    nextRenderDeadline = 0; // 重置避免切換瞬間爆幀
+    localStorage.setItem('tetrisHighFpsMode', String(isHighFpsMode));
     updateFpsBtnUI();
     playSound('move');
   });
@@ -412,6 +453,11 @@
   let piecePool = [];
   let myPieceIndex = 0;
   let aiPieceIndex = 0;
+  // --- 效能優化：幽靈方塊快取 ---
+  let cachedGhostRow = 0;
+  let lastGhostCol = -1;
+  let lastGhostRot = -1;
+  let lastGhostPieceType = '';
   // --- 垃圾行系統變數 ---
   let activeGarbage = 0; // 準備湧入的垃圾 (危險：紅色)
   let nextGarbage = 0;   // 剛收到的垃圾，還在寬限期 (警告：黃色)
@@ -472,6 +518,7 @@
   const aiWorker = new Worker('ai_worker.js');
   let isAiReady = false;
   let isAiThinking = false; // 防呆鎖：確保 AI 一次只思考一步
+  let lastAiThinkTime = 0;  // 上一次呼叫 WASM 大腦的時間，用來限制神模式 CPU 負擔
 
   aiWorker.onmessage = function(e) {
     if (e.data.type === 'READY') {
@@ -556,23 +603,24 @@
     }
     draw(ctx) {
       ctx.save();
-      // 確保透明度不會變成負數而報錯
       ctx.globalAlpha = Math.max(0, this.life);
-      const scale = 1 + (1 - this.life) * 0.5; // 隨時間稍微放大
       ctx.translate(this.x, this.y);
-      ctx.scale(scale, scale);
-      ctx.font = `900 ${this.size}px Arial`;
+      
+      const fontStr = `900 ${this.size}px Arial`;
+      if (ctx.font !== fontStr) ctx.font = fontStr; 
+      
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      
-      // 畫黑邊框增加對比度與立體感
-      ctx.lineWidth = 6;
+
+      // 保持細線黑邊框，增加立體感且不吃效能
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
       ctx.strokeStyle = '#000000';
       ctx.strokeText(this.text, 0, 0);
       
-      // 畫彩色文字主體
       ctx.fillStyle = this.color;
       ctx.fillText(this.text, 0, 0);
+      
       ctx.restore();
     }
   }
@@ -913,6 +961,7 @@
     // AI 模式：同步清空 AI 盤面，讓雙方都從乾淨狀態開始
     if (isAIMode) {
       aiBoard = createBoard();
+      _aiBoardDirty = true;
       aiQueue = []; aiCurrent = null;
       aiScore = 0; aiLines = 0; aiLevel = 1;
       aiGameOver = false; aiThinkTimer = 0;
@@ -1236,7 +1285,7 @@
     if (settingsContainer && layout) {
       layout.appendChild(settingsContainer); 
       settingsContainer.style.top = '-60px';   
-      // 🌟 右側距離改為 175px (160px的按鈕 + 15px的完美間距)
+      // 右側距離為 175px (160px的按鈕 + 15px的完美間距)
       settingsContainer.style.right = '175px'; 
       settingsContainer.style.width = '160px'; 
       if (fpsBtn) {
@@ -1549,7 +1598,7 @@
       }
       else {
         // === 🎮 遊戲進行階段 ===
-        // 🌟 防護罩：如果傳來資料的這條線不是「現任 (conn)」，直接無視它！
+        // 如果傳來資料的這條線不是「現任 (conn)」，直接無視它
         if (connection !== conn) return; 
 
         if (data.type === 'READY') {
@@ -1712,7 +1761,7 @@
       }
     });
 
-    // 🌟 監聽錯誤事件，發生錯誤也要清空 conn
+    // 監聽錯誤事件，發生錯誤也要清空 conn
     connection.on('error', (err) => {
       console.log("連線發生錯誤:", err);
       if (conn === connection) conn = null;
@@ -2564,20 +2613,27 @@
       return; // 炸彈畫完就結束，不畫方形邊框
     }
 
-    // --- 原本的普通方塊繪製邏輯（熱路徑：避免 save/restore）---
+    // --- 高效能方塊繪製邏輯 ---
     const needAlpha = alpha !== 1;
     if (needAlpha) target.globalAlpha = alpha;
+    
     if (ghost) {
       target.strokeStyle = color;
       target.lineWidth = 2;
       target.strokeRect(x + inset + 3, y + inset + 3, size * scale - 6, size * scale - 6);
+    } else if (scale === 1 && color !== '#ff1111') {
+      // 如果沒有被縮放，也不是特殊炸彈，直接貼上預先畫好的圖片
+      const cachedImg = getCachedCell(color, size);
+      target.drawImage(cachedImg, x + inset, y + inset);
     } else {
+      // 只有在特殊形變時才動用昂貴的向量運算
       target.fillStyle = color;
       target.fillRect(x + inset, y + inset, size * scale, size * scale);
       target.strokeStyle = BG;
       target.lineWidth = 4;
       target.strokeRect(x + inset, y + inset, size * scale, size * scale);
     }
+    
     if (needAlpha) target.globalAlpha = 1;
   }
 
@@ -2751,13 +2807,27 @@
 
     // 如果有震動幅度，隨機偏移畫布 (Screen Shake)
     if (shakeMag > 0) {
-      const dx = (Math.random() - 0.5) * shakeMag;
-      const dy = (Math.random() - 0.5) * shakeMag;
+      // 將時間每 30 毫秒切成一個區塊（把震動頻率鎖死在約 33Hz）
+      const tick = Math.floor(performance.now() / 30);
+      
+      // 利用 tick 產生偽隨機數 (Pseudo-random)，確保在這 30ms 內偏移量保持固定
+      const randomX = Math.abs(Math.sin(tick * 12.9898)); // 產生 0 ~ 1 之間的亂數
+      const randomY = Math.abs(Math.sin(tick * 78.233));  // 產生 0 ~ 1 之間的亂數
+
+      const dx = (randomX - 0.5) * shakeMag;
+      const dy = (randomY - 0.5) * shakeMag;
       ctx.translate(dx, dy);
     }
 
-    // 畫主要盤面的迴圈，從 20 開始畫
-    for (let r = VISIBLE_ROWS; r < ROWS; r++) { 
+    // 套用垃圾行的視覺偏移，讓整個盤面、方塊、特效一起滑順上下移
+    ctx.translate(0, visualBoardOffsetY);
+
+    // 計算需要額外往上畫幾行，填補畫面被垃圾行往下壓時露出的隱藏區
+    const extraRows = Math.ceil(Math.max(0, visualBoardOffsetY) / SIZE);
+    const startRow = Math.max(0, VISIBLE_ROWS - extraRows);
+
+    // 畫主要盤面的迴圈，動態往上延伸顯示範圍
+    for (let r = startRow; r < ROWS; r++) { 
       for (let c = 0; c < COLS; c++) {
         const cell = board[r][c];
         if (!cell) continue;
@@ -2788,35 +2858,24 @@
     if (!gameOver && current) {
 
       if (visualGhostRow !== current.row) drawPiece(current, visualGhostRow, current.col, 0.6, true);
-      
-      // 繪製硬降的電漿光柱 (Light Pillar)
-      if (isHighFpsMode && dropTrails.length > 0) {
-          ctx.save();
-          ctx.globalCompositeOperation = 'screen'; // 使用螢幕混合模式，產生發光效果
-          for (let i = 0; i < dropTrails.length; i++) {
-              let trail = dropTrails[i];
-              ctx.fillStyle = COLORS[trail.type];
-              ctx.globalAlpha = trail.life * 0.4; // 殘影透明度
-
-              let startY = (trail.startRow - VISIBLE_ROWS) * SIZE;
-              let endY = (trail.endRow - VISIBLE_ROWS) * SIZE;
-              let height = endY - startY;
-
-              for (let r = 0; r < trail.matrix.length; r++) {
-                  for (let c = 0; c < trail.matrix[r].length; c++) {
-                      if (trail.matrix[r][c]) {
-                          let bx = (trail.col + c) * SIZE;
-                          // 畫出直達底部的光柱，稍微縮小寬度避免吃線
-                          ctx.fillRect(bx + 4, startY + (r * SIZE) + (SIZE / 2), SIZE - 8, height);
-                      }
-                  }
-              }
-          }
-          ctx.restore();
-      }
 
       // 正在掉落的實體方塊，套用平滑視覺座標
+      // 獨立保護區塊，只讓這顆方塊旋轉跟擠壓，不影響其他畫面
+      ctx.save();
+      
+      // 算出這顆方塊在畫面上的精準「絕對中心點座標」
+      const pieceSize = current.matrix.length * SIZE;
+      const centerX = visualCol * SIZE + pieceSize / 2;
+      const centerY = (visualRow - VISIBLE_ROWS) * SIZE + pieceSize / 2;
+
+      // 移動到中心點 -> 旋轉 -> 移回原點
+      ctx.translate(centerX, centerY);
+      ctx.rotate(visualRotationAngle * Math.PI / 180);
+      ctx.translate(-centerX, -centerY);
+
       drawPiece(current, visualRow, visualCol); 
+      
+      ctx.restore(); // 恢復正常畫布狀態，免得後面的東西跟著變形
     }
 
     // --- 繪製我方垃圾行警告條 (黃色寬限 / 紅色危險) ---
@@ -2934,39 +2993,105 @@
   }
 
   // --- 繪製對手盤面 ---
-  let _oppDrawHash = '';
+  // 效能優化：用 primitive 欄位比對取代每幀組 300+ 字元 hash 字串，降低 GC 壓力
+  let _oppPrev_bStr = '';
+  let _oppPrev_cKey = -1;
+  let _oppPrev_h = '';
+  let _oppPrev_hu = 0;
+  let _oppPrev_g = 0;
+  let _oppPrev_ng = 0;
+  let _oppPrev_countdown = -1;
+  let _oppPrev_isPaused = 0;
+  let _oppPrev_gameOver = 0;
+  let _oppPrev_matchResult = '';
+  let _oppPrev_oppKOActive = 0;
+  let _oppPrev_gameStarted = 0;
+  let _oppPrev_oppIsReady = 0;
+  let _oppPrev_isMultiplayer = 0;
+  let _oppPrev_ftLen = 0;
   function drawOpponent() {
     if (!oppCtx) return;
 
-    // 用 oppState 字串 + 所有會影響畫面的狀態組成 hash，不變就 skip
-    const hashKey = (oppState ? (oppState.b || '') + '|' + JSON.stringify(oppState.c || 0) + '|' + (oppState.h || '') + '|' + (oppState.hu ? 1 : 0) + '|' + (oppState.g || 0) + '|' + (oppState.ng || 0) : '0')
-      + '|' + countdownValue + '|' + (isPaused ? 1 : 0) + '|' + (gameOver ? 1 : 0) + '|' + (matchResult || '') + '|' + (oppKOTimer > 0 ? 1 : 0) + '|' + (gameStarted ? 1 : 0) + '|' + (oppIsReady ? 1 : 0) + '|' + (isMultiplayer ? 1 : 0) + '|' + oppFloatingTexts.length;
-    if (hashKey === _oppDrawHash && oppFloatingTexts.length === 0) return;
-    _oppDrawHash = hashKey;
+    // 輕量 early-exit：全部欄位都沒變 + 沒有飄浮文字動畫 → 直接跳過整個繪製
+    const oppC = oppState && oppState.c;
+    const cKey = oppC ? (oppC.rot * 100000 + oppC.r * 100 + oppC.c * 10 + oppC.t.charCodeAt(0)) : -1;
+    const bStr = (oppState && oppState.b) || '';
+    const h = (oppState && oppState.h) || '';
+    const hu = (oppState && oppState.hu) ? 1 : 0;
+    const g = (oppState && oppState.g) || 0;
+    const ng = (oppState && oppState.ng) || 0;
+    const isPausedI = isPaused ? 1 : 0;
+    const gameOverI = gameOver ? 1 : 0;
+    const matchResultI = matchResult || '';
+    const koActive = (typeof oppKOTimer !== 'undefined' && oppKOTimer > 0) ? 1 : 0;
+    const gsI = gameStarted ? 1 : 0;
+    const orI = oppIsReady ? 1 : 0;
+    const mpI = isMultiplayer ? 1 : 0;
+    const ftLen = oppFloatingTexts.length;
 
-    // 一次性畫好完整的漂亮網格背景！
-    oppCtx.drawImage(gridCanvas, 0, 0, oppCanvas.width, oppCanvas.height);
+    if (cKey === _oppPrev_cKey && bStr === _oppPrev_bStr && h === _oppPrev_h
+        && hu === _oppPrev_hu && g === _oppPrev_g && ng === _oppPrev_ng
+        && countdownValue === _oppPrev_countdown && isPausedI === _oppPrev_isPaused
+        && gameOverI === _oppPrev_gameOver && matchResultI === _oppPrev_matchResult
+        && koActive === _oppPrev_oppKOActive && gsI === _oppPrev_gameStarted
+        && orI === _oppPrev_oppIsReady && mpI === _oppPrev_isMultiplayer
+        && ftLen === 0 && _oppPrev_ftLen === 0) {
+      return;
+    }
+
+    _oppPrev_cKey = cKey;
+    _oppPrev_bStr = bStr;
+    _oppPrev_h = h;
+    _oppPrev_hu = hu;
+    _oppPrev_g = g;
+    _oppPrev_ng = ng;
+    _oppPrev_countdown = countdownValue;
+    _oppPrev_isPaused = isPausedI;
+    _oppPrev_gameOver = gameOverI;
+    _oppPrev_matchResult = matchResultI;
+    _oppPrev_oppKOActive = koActive;
+    _oppPrev_gameStarted = gsI;
+    _oppPrev_oppIsReady = orI;
+    _oppPrev_isMultiplayer = mpI;
+    _oppPrev_ftLen = ftLen;
+
+    // 宣告隱藏的快取畫布
+    if (typeof window._oppStaticCanvas === 'undefined') {
+        window._oppStaticCanvas = document.createElement('canvas');
+        window._oppStaticCanvas.width = 340;
+        window._oppStaticCanvas.height = 680;
+        window._oppStaticCtx = window._oppStaticCanvas.getContext('2d', { alpha: false });
+        window._lastOppBStr = '';
+        window._lastOppCounting = null;
+    }
 
     if (!oppState) {
+        oppCtx.drawImage(gridCanvas, 0, 0);
     } else {
       const isCountingDown = (countdownValue > 0 && !current);
       const oppSize = 34;
       const bStr = oppState.b;
-      
-      if (bStr) {
-        let charIndex = 0;
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) {
-            const char = bStr[charIndex++];
-            if (r < VISIBLE_ROWS) continue; // 隱藏區不畫
 
-            // 只要畫有方塊的地方就好，不用再浪費效能畫空網格了！
-            if (char !== '.' && !isCountingDown) {
-              drawCell(oppCtx, c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, COLORS[char]);
-            }
+      // 如果盤面沒變，直接用畫好的整張圖貼上
+      if (bStr !== window._lastOppBStr || isCountingDown !== window._lastOppCounting) {
+          window._oppStaticCtx.drawImage(gridCanvas, 0, 0); // 畫網格
+          if (bStr && !isCountingDown) {
+              let charIndex = 0;
+              for (let r = 0; r < ROWS; r++) {
+                  for (let c = 0; c < COLS; c++) {
+                      const char = bStr[charIndex++];
+                      if (r < VISIBLE_ROWS) continue;
+                      if (char !== '.') {
+                          drawCell(window._oppStaticCtx, c * oppSize, (r - VISIBLE_ROWS) * oppSize, oppSize, COLORS[char]);
+                      }
+                  }
+              }
           }
-        }
+          window._lastOppBStr = bStr;
+          window._lastOppCounting = isCountingDown;
       }
+      
+      oppCtx.drawImage(window._oppStaticCanvas, 0, 0);
 
       if (!isCountingDown) {
         const curr = oppState.c;
@@ -3074,6 +3199,9 @@
     visualCol = current.col; // 視覺 X 對齊
     visualGhostRow = ghostRow();
     lastVisualRow = current.row; // 重置殘影起點，防止新方塊產生拖尾
+    // 確保新方塊產生時，底部的幽靈方塊一定會強制重新偵測地形
+    lastGhostCol = -1;
+
     ensureQueue();
     holdUsed = false;
 
@@ -3221,6 +3349,9 @@
         visualCol = current.col;
         visualGhostRow = ghostRow();
 
+        // 觸發旋轉殘影 (O 方塊其實看不出來，但為了邏輯統一還是加上)
+        visualRotationAngle = (dir === 1) ? -90 : 90;
+
         sendState();
         return true;
       }
@@ -3242,6 +3373,9 @@
         visualRow = nr; 
         visualCol = nc; 
         visualGhostRow = ghostRow();
+
+        // 觸發旋轉殘影 (順時針給 -90 度，逆時針給 90 度，讓它彈回來)
+        visualRotationAngle = (dir === 1) ? -90 : 90;
         
         lastMoveType = 'rotate'; // <--- 紀錄最後動作是旋轉
         lastKickIndex = i;       // <--- 紀錄是第幾個踢牆測試成功
@@ -3284,27 +3418,12 @@
     if (!current || gameOver || clearFx || isKOed || isPaused || countdownValue > 0) return;
     let cells = 0;
 
-    // 紀錄硬降前的視覺高度，作為光柱的起點
-    let startRow = visualRow;
-
     while (valid(current.matrix, current.row + 1, current.col)) {
       current.row += 1;
       cells++;
     }
     score += cells * 2;
     updateHUD();
-
-    // 高幀率模式：生成硬降殘影光柱
-    if (isHighFpsMode && current.row > startRow) {
-       dropTrails.push({
-          type: current.type,
-          matrix: current.matrix,
-          col: current.col,
-          startRow: startRow,
-          endRow: current.row,
-          life: 1.0 // 殘影生命週期 (1.0 = 100% 亮度)
-       });
-    }
 
     // --- Hard Drop 底部爆炸特效 ---
     for (let r = 0; r < current.matrix.length; r++) {
@@ -3701,10 +3820,13 @@
 
     if (!aiCurrent.target) {
       if (!aiCurrent._hesitating) {
-        const maxH = Math.max(...Array.from({length: COLS}, (_, c) => {
-          for (let r = 0; r < ROWS; r++) { if (aiBoard[r][c]) return ROWS - r; }
-          return 0;
-        }));
+        // 純 loop 求最高列，避免 Array.from + spread 每次產生一次性陣列
+        let maxH = 0;
+        for (let c = 0; c < COLS; c++) {
+          for (let r = 0; r < ROWS; r++) {
+            if (aiBoard[r][c]) { const h = ROWS - r; if (h > maxH) maxH = h; break; }
+          }
+        }
         const pressureBonus = Math.max(0, (maxH - 10) * 50);
         
         // 🪀 套用橡皮筋：領先時發呆機率變高、想更久；落後時變專心
@@ -3726,12 +3848,18 @@
       }
 
       // 準備餵給 C++ 的資料
-      let boardStr = ""; 
+      // 使用陣列快取來組裝字串，消除記憶體垃圾
+      if (typeof window._aiWasmBuffer === 'undefined') {
+          window._aiWasmBuffer = new Array(ROWS * COLS); 
+      }
+      
+      let _idx = 0;
       for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; c++) {
-              boardStr += aiBoard[r][c] ? '1' : '.'; 
+              window._aiWasmBuffer[_idx++] = aiBoard[r][c] ? '1' : '.'; 
           }
       }
+      let boardStr = window._aiWasmBuffer.join('');
       
       let currentPiece = aiCurrent.type;
       let holdPiece = aiHoldType ? aiHoldType : "NONE";
@@ -3745,6 +3873,7 @@
       if (!isAiThinking && isAiReady) {
         // 準備好資料丟給背景 Worker
         isAiThinking = true;
+        lastAiThinkTime = performance.now();
         aiWorker.postMessage({
           type: 'THINK',
           payload: {
@@ -3756,9 +3885,9 @@
             keepEmpty: keepEmpty
           }
         });
-        
+
         // 任務丟出去後立刻 return，不要讓主執行緒等待！
-        return; 
+        return;
       } else if (isAiThinking) {
         // 如果 AI 還在背景苦思冥想，我們就直接跳過這一幀，讓畫面繼續流暢繪製
         return;
@@ -3777,6 +3906,8 @@
     // 確保上限「絕對大於」AI 移動所需的最低時間 (給予 1.5 倍的緩衝空間)
     const maxTimeDebt = Math.max(100, fingerDelay * 1.5);
     if (aiThinkTimer > maxTimeDebt) aiThinkTimer = maxTimeDebt;
+
+    let needsSync = false; // 效能優化：紀錄這幀是否有任何改變
 
     while (aiThinkTimer >= fingerDelay) {
       // 扣除時間，進入下一步
@@ -3819,15 +3950,23 @@
 
       if (!moved) {
         aiExecuteMove(target);
-        break; // 已經撞到底部鎖定了，直接跳出 while 迴圈，不要浪費多餘的時間去干擾下一顆方塊
+        needsSync = true;
+        break; // 已經撞到底部鎖定了，直接跳出 while 迴圈
       } else {
-        aiSyncOppState();
+        needsSync = true; // 有移動，標記需要同步
       }
     }
+
+    // 效能優化：將原本一幀可能呼叫 3~4 次的高負擔同步，壓縮到迴圈外只呼叫 1 次！
+    if (needsSync) {
+        aiSyncOppState();
+    }
+  
   }
 
   function aiLockPiece() {
     if (!aiCurrent) return;
+    _aiBoardDirty = true; // 鎖定會改變盤面，標記快取失效
     for (let r = 0; r < aiCurrent.matrix.length; r++) {
       for (let c = 0; c < aiCurrent.matrix[r].length; c++) {
         if (!aiCurrent.matrix[r][c]) continue;
@@ -4001,6 +4140,7 @@
           newBoard.unshift(Array(COLS).fill(null));
         }
         aiBoard = newBoard;
+        _aiBoardDirty = true; // 盤面換了，壓縮快取失效
         aiActiveGarbage = 0;
         aiNextGarbage = 0;
         aiCombo = -1; // 復活後斷連擊
@@ -4016,30 +4156,55 @@
     }
   }
 
+  const _aiBoardBuffer = new Array(400); // 宣告全域快取陣列
+  let _aiBoardDirty = true;              // 盤面是否需要重算壓縮字串 (lock/garbage/reset 時才需要)
+  let _cachedAiBoardStr = '';            // 上一次計算出來的壓縮盤面字串，穩定值可讓 drawOpponent 直接 === 跳過
   // 更新 oppState 讓對手畫面正確渲染 AI 的盤面
+  // 效能：重用同一個 oppState 物件、.c 子物件、.q 陣列，避免每幀產生 GC 垃圾造成卡頓
   function aiSyncOppState() {
-    let compressed = '';
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        compressed += aiBoard[r][c] ? aiBoard[r][c] : '.';
+    // 只有盤面真的變動才重算字串 (AI 移動方塊不會影響 aiBoard，只有 lock/garbage 才會)
+    if (_aiBoardDirty) {
+      let idx = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          _aiBoardBuffer[idx++] = aiBoard[r][c] ? aiBoard[r][c] : '.';
+        }
       }
+      _cachedAiBoardStr = _aiBoardBuffer.join('');
+      _aiBoardDirty = false;
     }
-    oppState = {
-      b: compressed,
-      s: aiScore,
-      g: aiActiveGarbage,
-      ng: aiNextGarbage,
-      // 觀戰端用 oppState.k 顯示對方的 KO 數；AI 的「擊殺次數」就是我方被 KO 的次數
-      k: oppKOs,
-      ls: oppLinesSent,
-      lp: 0,
-      isGuest: true,
-      c: aiCurrent ? { t: aiCurrent.type, r: aiCurrent.row, c: aiCurrent.col, rot: aiCurrent.rot } : null,
-      // 把 AI 的 Hold 與預覽陣列裝進狀態機
-      h: aiHoldType,
-      hu: typeof aiHoldUsed !== 'undefined' ? aiHoldUsed : false,
-      q: aiQueue.slice(0, 5)
-    };
+
+    // 初次建立 oppState 時才分配物件；之後所有呼叫都直接覆寫欄位，零 GC 垃圾
+    if (!oppState) {
+      oppState = { c: null, q: [] };
+    }
+    oppState.b = _cachedAiBoardStr;
+    oppState.s = aiScore;
+    oppState.g = aiActiveGarbage;
+    oppState.ng = aiNextGarbage;
+    // 觀戰端用 oppState.k 顯示對方的 KO 數；AI 的「擊殺次數」就是我方被 KO 的次數
+    oppState.k = oppKOs;
+    oppState.ls = oppLinesSent;
+    oppState.lp = 0;
+    oppState.isGuest = true;
+    oppState.h = aiHoldType;
+    oppState.hu = typeof aiHoldUsed !== 'undefined' ? aiHoldUsed : false;
+
+    if (aiCurrent) {
+      if (!oppState.c) oppState.c = { t: '', r: 0, c: 0, rot: 0 };
+      oppState.c.t = aiCurrent.type;
+      oppState.c.r = aiCurrent.row;
+      oppState.c.c = aiCurrent.col;
+      oppState.c.rot = aiCurrent.rot;
+    } else {
+      oppState.c = null;
+    }
+
+    // 重用 queue 陣列而不是每次 slice 產生新陣列
+    if (!oppState.q) oppState.q = [];
+    oppState.q.length = 0;
+    const qLen = Math.min(aiQueue.length, 5);
+    for (let i = 0; i < qLen; i++) oppState.q.push(aiQueue[i]);
 
     renderOpponentPanels(); // AI 狀態更新時才重畫對手面板
   }
@@ -4057,6 +4222,7 @@
     aiGameOver = true;   // 強制休眠，直到倒數結束才喚醒
     aiCurrent = null;    // 清空手上拿著的方塊
     aiBoard = createBoard(); // 給它一個乾淨的空盤面
+    _aiBoardDirty = true;    // 盤面換成全新的，快取失效
     aiQueue = [];        // 清空 AI 預覽方塊
     aiHoldType = null;   // 清空 AI 保留方塊
     aiHoldUsed = false;
@@ -4067,6 +4233,7 @@
   // AI 正式開始（倒數結束後才呼叫）
   function startAI() {
     aiBoard = createBoard();
+    _aiBoardDirty = true;
     aiQueue = [];
     aiCurrent = null;
     aiHoldType = null;      // 清空 Hold 區
@@ -4436,6 +4603,9 @@
       if (canUndo && previousGameState && previousGameState.pieceCells) {
         previousGameState.pieceCells.forEach(cell => cell.r -= linesAdded);
       }
+      
+      // 視覺畫布往下壓，這樣在 renderLoop 裡就會產生「滑順湧上來」的電梯感
+      visualBoardOffsetY += linesAdded * SIZE; 
 
       playSound('drop');
       shakeMag = 4 + linesAdded; 
@@ -4618,14 +4788,17 @@
   function buildSpectateFrame() {
     let compressedBoard = '';
     if (board) {
+      let idx = 0;
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-          compressedBoard += board[r][c] ? board[r][c] : '.';
+          _myBoardBuffer[idx++] = board[r][c] ? board[r][c] : '.';
         }
       }
+      compressedBoard = _myBoardBuffer.join('');
     } else {
       compressedBoard = '.'.repeat(ROWS * COLS);
     }
+
     const frame = {
       b: compressedBoard,
       s: score || 0,
@@ -5622,6 +5795,7 @@
     if (lat) lat.style.display = 'none';
   }
 
+  const _myBoardBuffer = new Array(400); // 宣告全域快取陣列
   // --- 即時狀態同步發射器 ---
   function sendState() {
     // 即使沒有對手連線，只要有觀戰者就要送 frame
@@ -5632,12 +5806,14 @@
     }
     if (!conn || !conn.open) return;
     try {
-      let compressedBoard = '';
+      let idx = 0;
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-          compressedBoard += board[r][c] ? board[r][c] : '.';
+          _myBoardBuffer[idx++] = board[r][c] ? board[r][c] : '.';
         }
       }
+      let compressedBoard = _myBoardBuffer.join(''); // 效能優化
+
       conn.send({
         type: 'STATE',
         state: {
@@ -5682,6 +5858,8 @@
       const gravitySeconds = Math.pow(0.8 - ((level - 1) * 0.007), level - 1);
       gravityInterval = gravitySeconds * 1000; // 單機模式：越玩越快
     }
+
+    currentGravityInterval = gravityInterval; // 把值交給渲染引擎
 
     // --- 執行下落 ---
     if (gravityInterval < 2) { 
@@ -5766,7 +5944,7 @@
 
     const k = e.code; 
 
-    // 🌟 終極智慧修正：判斷玩家的 Ctrl+C 到底是「複製」還是「Hold」
+    // 判斷玩家的 Ctrl+C 到底是「複製」還是「Hold」
     if (e.ctrlKey || e.metaKey) {
       const allowedWithCtrl = ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight'];
       
@@ -7695,16 +7873,21 @@
   let lastVisualTime = performance.now();
   let lastRenderTime = 0; // 用來控制 60fps 鎖定
   let menuDrawTime = 0;   // 選單狀態用，節流 draw 頻率
+  let lastOppDrawTime = 0; // 對手畫面節流，~60Hz 就夠了
 
   function renderLoop() {
     const now = performance.now();
 
-    // 如果關閉絲滑模式，強制將渲染幀率限制在約 60 FPS (每 16.6ms 畫一次)
-    if (!isHighFpsMode) {
-      if (now - lastRenderTime < 16) {
-        requestAnimationFrame(renderLoop);
-        return;
-      }
+    // Rolling deadline FPS 限制：精準達成目標幀率，避免在 180Hz 螢幕被 VSync 折半成 90Hz
+    if (now < nextRenderDeadline) {
+      requestAnimationFrame(renderLoop);
+      return;
+    }
+    // 嚴重落後 (例如分頁切回來)：重設起點避免爆幀
+    if (nextRenderDeadline < now - fpsFrameInterval) {
+      nextRenderDeadline = now + fpsFrameInterval;
+    } else {
+      nextRenderDeadline += fpsFrameInterval;
     }
     lastRenderTime = now;
 
@@ -7722,39 +7905,72 @@
 
     // --- 高幀數運算區 (僅保留自己畫面的運算，對手畫面不耗費任何效能) ---
     if (isHighFpsMode) {
-      // 更新硬降光柱的生命週期 (約 120ms 完全消散)
-      for (let i = dropTrails.length - 1; i >= 0; i--) {
-          dropTrails[i].life -= visualDelta / 120; 
-          if (dropTrails[i].life <= 0) dropTrails.splice(i, 1);
-      }
-      
-      // 效能安全閥：限制最多 8 條光柱，防止記憶體溢出
-      if (dropTrails.length > 8) dropTrails.shift();
+
+      // --- 進階視覺的「極速恢復動畫」(每幀都會自動彈回原狀) ---
+        const fxLerp = 1 - Math.pow(0.05, visualDelta / 16.66);
+        visualRotationAngle += (0 - visualRotationAngle) * fxLerp;
+        
+        // 垃圾行的平滑回歸 (比較慢一點，像電梯上升)
+        visualBoardOffsetY += (0 - visualBoardOffsetY) * 0.2;
 
       if (current) {
-        let diffY = current.row - visualRow;
+        // 計算「真實的連續物理目標」
+        let targetVisualRow = current.row;
+
+        // 拔除按鍵限制，讓軟降也能享受小數點預判！
+        if (valid(current.matrix, current.row + 1, current.col)) {
+            let progress = gravityTimer / currentGravityInterval;
+            targetVisualRow += progress; 
+        }
+
+        let diffY = targetVisualRow - visualRow;
         
-        // 硬降瞬間貼地，軟降 70% 奶油滑移
-        if (diffY > 2) visualRow = current.row;
-        else visualRow += diffY * 0.7; 
+        if (diffY > 2) {
+          // 瞬間貼地
+          visualRow = current.row;
+        } else {
+          // 用 Time-based LERP 緊緊咬住軟降的快速掉落
+          const dropLerp = 1 - Math.pow(0.01, visualDelta / 16.66); 
+          visualRow += diffY * dropLerp; 
+        }
         
-        // 左右保持 100% 物理精準
+        // 左右維持絕對零延遲，保持清脆手感
         visualCol = current.col; 
-        visualGhostRow = ghostRow();
-      }
-      
-      if (typeof clearFx !== 'undefined' && clearFx) {
-        clearFx.visualElapsed += visualDelta;
+        // 只在方塊 X 座標、旋轉或種類改變時，才重新計算物理碰撞
+        if (current.col !== lastGhostCol || current.rot !== lastGhostRot || current.type !== lastGhostPieceType) {
+            cachedGhostRow = ghostRow();
+            lastGhostCol = current.col;
+            lastGhostRot = current.rot;
+            lastGhostPieceType = current.type;
+        }
+        visualGhostRow = cachedGhostRow;
       }
     } else {
-      // 關閉模式下：強制同步所有座標，清空光柱
-      dropTrails = []; 
-      
+      // 關閉高幀率模式下：強制同步所有座標，回歸最原始的「一格一格」掉落動畫
       if (current) {
         visualCol = current.col;
-        visualRow = current.row;
-        visualGhostRow = ghostRow();
+        
+        // 直接鎖死邏輯整數座標，完全捨棄小數點預判，找回經典手感！
+        visualRow = current.row; 
+        
+        // 保持幽靈方塊的快取效能 (這段一定要留著，保護 CPU)
+        if (current.col !== lastGhostCol || current.rot !== lastGhostRot || current.type !== lastGhostPieceType) {
+            cachedGhostRow = ghostRow();
+            lastGhostCol = current.col;
+            lastGhostRot = current.rot;
+            lastGhostPieceType = current.type;
+        }
+        visualGhostRow = cachedGhostRow;
       }
+      
+      // 確保切換回 60FPS 時，旋轉與盤面震動特效瞬間歸零
+      visualRotationAngle = 0; 
+      visualBoardOffsetY = 0;  
+    }
+
+    // 不管有沒有開啟高幀率，消行閃爍特效的時間都必須往前推進，防止特效卡死
+    if (typeof clearFx !== 'undefined' && clearFx) {
+      clearFx.visualElapsed += visualDelta;
     }
 
     // 特效更新不受模式影響，保持基本運作
@@ -7769,6 +7985,10 @@
       p.update(visualDelta);
       if (p.life <= 0) particles.splice(i, 1); 
     }
+
+    // 效能安全閥：確保畫面上最多只有 8 個文字特效，舊的強制剔除
+    if (myFloatingTexts.length > 8) myFloatingTexts.shift();
+    if (oppFloatingTexts.length > 8) oppFloatingTexts.shift();
 
     for (let i = myFloatingTexts.length - 1; i >= 0; i--) {
       const ft = myFloatingTexts[i];
@@ -7803,8 +8023,12 @@
     draw();
     // 只有在對戰、待處理邀請、或剛要進對戰倒數時才畫對手畫面
     // Phase 2：觀戰對戰模式時也要畫對手
+    // 效能優化：對手盤面節流到 ~60Hz，180Hz 絲滑對遠端畫面感受不出來但成本是 3 倍
     if (isMultiplayer || pendingConn || (conn && !isPracticeMode) || isSpectatingBattle) {
-      drawOpponent();
+      if (now - lastOppDrawTime >= 15) {
+        drawOpponent();
+        lastOppDrawTime = now;
+      }
     }
 
     requestAnimationFrame(renderLoop);

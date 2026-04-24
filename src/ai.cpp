@@ -256,6 +256,7 @@ private:
                 if (!isValid(matrix, r, c, node.board)) continue;
                 while (isValid(matrix, r + 1, c, node.board)) r++;
 
+                // 效能優化：確認這步合法後，才進行 SearchNode 的複製
                 SearchNode nextNode = node;
                 
                 for (int i = 0; i < 16; i++) {
@@ -265,29 +266,28 @@ private:
                     }
                 }
 
+                // 效能優化：原地消行 (In-place clear)
                 int linesCleared = 0;
-                int tempBoard[ROWS][COLS] = {0};
-                for (int br = 0; br < ROWS; br++) {
+                int dst = ROWS - 1;
+                for (int src = ROWS - 1; src >= 0; src--) {
                     bool full = true;
                     for (int bc = 0; bc < COLS; bc++) {
-                        if (nextNode.board[br][bc] == 0) { full = false; break; }
+                        if (nextNode.board[src][bc] == 0) { full = false; break; }
                     }
-                    if (full) linesCleared++;
+                    if (full) {
+                        linesCleared++;
+                    } else {
+                        // 如果有被消除的行，才需要把上面的行「往下搬」
+                        if (dst != src) {
+                            for (int bc = 0; bc < COLS; bc++) nextNode.board[dst][bc] = nextNode.board[src][bc];
+                        }
+                        dst--;
+                    }
                 }
-
-                if (linesCleared > 0) {
-                    int dst = ROWS - 1;
-                    for (int src = ROWS - 1; src >= 0; src--) {
-                        bool full = true;
-                        for (int bc = 0; bc < COLS; bc++) {
-                            if (nextNode.board[src][bc] == 0) { full = false; break; }
-                        }
-                        if (!full) {
-                            for (int bc = 0; bc < COLS; bc++) tempBoard[dst][bc] = nextNode.board[src][bc];
-                            dst--;
-                        }
-                    }
-                    std::copy(&tempBoard[0][0], &tempBoard[0][0] + ROWS * COLS, &nextNode.board[0][0]);
+                // 把最頂部的空缺補上 0
+                while (dst >= 0) {
+                    for (int bc = 0; bc < COLS; bc++) nextNode.board[dst][bc] = 0;
+                    dst--;
                 }
 
                 if (linesCleared > 0) nextNode.comboState++;
@@ -398,12 +398,17 @@ public:
                 }
             }
 
-            std::sort(nextBeam.begin(), nextBeam.end(), [](const SearchNode& a, const SearchNode& b) {
-                return a.score > b.score;
-            });
-
+            // 效能優化 ：不要排整個陣列，只排前 BEAM_WIDTH 個，排完就把後面的垃圾丟掉
             if (nextBeam.size() > BEAM_WIDTH) {
+                std::partial_sort(nextBeam.begin(), nextBeam.begin() + BEAM_WIDTH, nextBeam.end(), 
+                    [](const SearchNode& a, const SearchNode& b) {
+                        return a.score > b.score;
+                    });
                 nextBeam.resize(BEAM_WIDTH);
+            } else {
+                std::sort(nextBeam.begin(), nextBeam.end(), [](const SearchNode& a, const SearchNode& b) {
+                    return a.score > b.score;
+                });
             }
 
             currentBeam = nextBeam;
