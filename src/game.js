@@ -409,14 +409,24 @@
     bgm: './Game 8-Bit On.mp3',
     battleBgm: './Return To The 8-Bit Past.mp3'
   };
-  // 單人模式背景音樂 
+  // 單人模式背景音樂
   const bgm = new Audio(AUDIO_PATHS.bgm);
-  bgm.loop = true; // 設定循環播放
   bgm.volume = masterVolume * 0.15; // 背景音樂建議稍微小聲一點
   // 雙人對戰模式背景音樂
   const battleBgm = new Audio(AUDIO_PATHS.battleBgm);
-  battleBgm.loop = true; // 設定循環播放
   battleBgm.volume = masterVolume * 0.15;
+  // iOS Safari/WKWebView 的 audio.loop=true 在播到結尾要重頭時，會發生
+  // 「短暫卡頓 + 從頭重播」的視聽 bug（PWA 裡尤其明顯）。改用手動 ended
+  // 監聽，自己接管 loop，可避開這個原生實作問題。
+  function setupSeamlessLoop(audio) {
+    audio.loop = false;
+    audio.addEventListener('ended', () => {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    });
+  }
+  setupSeamlessLoop(bgm);
+  setupSeamlessLoop(battleBgm);
   let bgmStarted = false; // 紀錄是否已經解鎖自動播放
   const particles = []; // 儲存所有粒子的陣列
   const myFloatingTexts = [];  // 儲存自己畫面上的特效
@@ -1281,21 +1291,24 @@
     // --- 高幀率按鈕移到 Leave Room 左邊 ---
     const settingsContainer = document.getElementById('settings-container');
     const fpsBtn = document.getElementById('fps-mode-btn');
+    // 手機版時 settings-container 應該永遠待在 mobile-drawer 內（含其中的 ONLINE 框），
+    // 不要搬到 battle-layout，否則離開房間後它會直接露在畫面上和遊戲元素重疊
+    const isMobileLayoutEnter = window.matchMedia('(max-width: 820px)').matches;
 
-    if (settingsContainer && layout) {
-      layout.appendChild(settingsContainer); 
-      settingsContainer.style.top = '-60px';   
+    if (settingsContainer && layout && !isMobileLayoutEnter) {
+      layout.appendChild(settingsContainer);
+      settingsContainer.style.top = '-60px';
       // 右側距離為 175px (160px的按鈕 + 15px的完美間距)
-      settingsContainer.style.right = '175px'; 
-      settingsContainer.style.width = '160px'; 
+      settingsContainer.style.right = '175px';
+      settingsContainer.style.width = '160px';
       if (fpsBtn) {
-        fpsBtn.style.width = '160px';          
-        fpsBtn.style.padding = '10px 0';       
+        fpsBtn.style.width = '160px';
+        fpsBtn.style.padding = '10px 0';
         fpsBtn.style.textAlign = 'center';
-        fpsBtn.style.fontSize = '14px';        
-        fpsBtn.style.borderRadius = '25px';    
+        fpsBtn.style.fontSize = '14px';
+        fpsBtn.style.borderRadius = '25px';
         fpsBtn.style.background = 'transparent';
-        fpsBtn.style.backdropFilter = 'blur(4px)';       
+        fpsBtn.style.backdropFilter = 'blur(4px)';
       }
     }
 
@@ -1334,6 +1347,34 @@
     // 必須先把 isMultiplayer / isAIMode 重置，updateMyActivity 會觸發 Firebase 名單重算；若此時這兩個旗標還是 true，其他玩家觀戰此人的按鈕會被鎖在「對戰中無法觀戰」狀態
     isMultiplayer = false; isAIMode = false; iAmReady = false; oppIsReady = false;
     updateMyActivity('IDLE'); // 退出房間回到閒置大廳
+
+    // 清空對戰殘留盤面，回到 PRESS ENTER 起始畫面（與 exitSpectateMode 對齊）
+    if (typeof createBoard === 'function') board = createBoard();
+    current = null;
+    holdType = null;
+    holdUsed = false;
+    queue = [];
+    score = 0;
+    lines = 0;
+    level = 1;
+    combo = -1;
+    b2b = 0;
+    activeGarbage = 0;
+    nextGarbage = 0;
+    gameStarted = false;
+    gameOver = false;
+    isPaused = false;
+    countdownValue = 0;
+    matchResult = null;
+    isKOed = false;
+    clearFx = null;
+    if (scoreEl) scoreEl.textContent = '0';
+    if (linesEl) linesEl.textContent = '0';
+    if (levelEl) levelEl.textContent = '1';
+    const hsEl_exitMP = document.getElementById('high-score');
+    if (hsEl_exitMP) hsEl_exitMP.textContent = highScore || 0;
+    // 強制刷新 HOLD / NEXT / QUEUE 側邊面板，清掉對戰時留下的方塊
+    try { if (typeof renderPanels === 'function') renderPanels(); } catch(e) {}
 
     // --- 退出對戰：將聊天室搬回原本的右下角 ---
     const chatIcon = document.getElementById('chat-icon-wrapper');
@@ -1409,20 +1450,24 @@
     // --- 恢復按鈕位置：搬回右側面板區域 ---
     const settingsContainer = document.getElementById('settings-container');
     const fpsBtn = document.getElementById('fps-mode-btn');
+    // 手機版時 settings-container 應該留在 mobile-drawer 內，不要搬回 viewport，
+    // 否則會觸發 `body > .viewport > #settings-container { display:none }` 規則，
+    // 連帶把裡面的 #online-panel 也吃掉，造成離開房間後 ONLINE 框不見
+    const isMobileLayout = window.matchMedia('(max-width: 820px)').matches;
 
-    if (settingsContainer && viewport) {
-      viewport.appendChild(settingsContainer); 
-      settingsContainer.style.top = '20px';     
-      settingsContainer.style.right = '20px';   
-      settingsContainer.style.width = '220px';  
+    if (settingsContainer && viewport && !isMobileLayout) {
+      viewport.appendChild(settingsContainer);
+      settingsContainer.style.top = '20px';
+      settingsContainer.style.right = '20px';
+      settingsContainer.style.width = '220px';
       if (fpsBtn) {
-        fpsBtn.style.width = '220px'; 
-        fpsBtn.style.padding = '10px';  
+        fpsBtn.style.width = '220px';
+        fpsBtn.style.padding = '10px';
         fpsBtn.style.textAlign = 'center';
         fpsBtn.style.fontSize = '14px';
-        fpsBtn.style.borderRadius = '8px';    
+        fpsBtn.style.borderRadius = '8px';
         fpsBtn.style.background = 'transparent';
-        fpsBtn.style.backdropFilter = 'none'; 
+        fpsBtn.style.backdropFilter = 'none';
       }
     }
 
@@ -5532,7 +5577,9 @@
     // --- 搬移高幀率按鈕到 layout ---
     const settingsContainer = document.getElementById('settings-container');
     const fpsBtn = document.getElementById('fps-mode-btn');
-    if (settingsContainer && layout) {
+    // 同 enterMultiplayerMode：手機版 settings-container 留在 drawer，不要搬到 layout
+    const isMobileLayoutSpec = window.matchMedia('(max-width: 820px)').matches;
+    if (settingsContainer && layout && !isMobileLayoutSpec) {
       layout.appendChild(settingsContainer);
       settingsContainer.style.top = '-60px';
       settingsContainer.style.right = '175px';
@@ -5667,7 +5714,9 @@
     // --- 搬回高幀率按鈕（完全仿 exitMultiplayerMode 的還原寫法）---
     const settingsContainer = document.getElementById('settings-container');
     const fpsBtn = document.getElementById('fps-mode-btn');
-    if (settingsContainer && viewport) {
+    // 同 exitMultiplayerMode：手機版不要搬回 viewport（會觸發 display:none 規則隱藏 ONLINE 框）
+    const isMobileLayoutSpecExit = window.matchMedia('(max-width: 820px)').matches;
+    if (settingsContainer && viewport && !isMobileLayoutSpecExit) {
       viewport.appendChild(settingsContainer);
       settingsContainer.style.top = '20px';
       settingsContainer.style.right = '20px';
@@ -6193,6 +6242,8 @@
     const buttonHandler = (fn) => (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // 觀戰時所有手機操作（含 HOLD / UNDO）都應該無效
+      if (typeof isSpectating !== 'undefined' && isSpectating) return;
       try { fn(); } catch (err) { console.warn('[touch button]', err); }
     };
     if (holdBtn) {
@@ -6260,6 +6311,13 @@
 
     touchSurface.addEventListener('touchstart', (e) => {
       if (active) return;
+      // 觀戰中：把離開觀戰按鈕的觸控放行（不 preventDefault，讓 click 能正常觸發），
+      // 其餘觸控全部當沒發生（避免觀戰者影響本機方塊）
+      if (typeof isSpectating !== 'undefined' && isSpectating) {
+        if (e.target && e.target.closest && e.target.closest('#spectate-leave-overlay')) return;
+        e.preventDefault();
+        return;
+      }
       // 新手勢開始 → 中斷之前還沒跑完的軟降，讓玩家可以即時介入
       stopSoftDrop();
       const t = e.changedTouches[0];
