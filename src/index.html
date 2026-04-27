@@ -590,6 +590,9 @@
       padding: 0 !important;
       height: 100vh !important;
       height: 100dvh !important;
+      /* PWA 時 --app-height 會被鎖到 screen.height；讓 viewport 與 battle-layout 共享同一基準，
+         避免「按鈕依實際視窗、畫布依 app-height」兩套座標錯位 */
+      height: var(--app-height, 100dvh) !important;
     }
 
     /* 主 layout：從 absolute-center 改成 flow 置中 */
@@ -969,29 +972,35 @@
       align-items: center !important;
     }
 
-    /* 1. 調整主遊戲畫布：將寬度扣除量從 136px 增加到 144px (左右各多留 4px 的發光邊線空間) */
+    /* 調整主遊戲畫布 */
     .game-section.player-section #game {
-      width: min(calc(100vw - 144px), calc((var(--app-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 260px) * 0.5)) !important;
+      width: min(
+        calc(100vw - 144px),
+        calc((var(--app-height, 100dvh) - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 34px) - 260px) * 0.5)
+      ) !important;
       height: auto !important;
       aspect-ratio: 340 / 680 !important;
-      max-height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 260px) !important;
+      max-height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top, 47px) - env(safe-area-inset-bottom, 34px) - 260px) !important;
       max-width: calc(100vw - 144px) !important;
       display: block !important;
     }
 
-    /* 2. 重新分配極限安全邊界 (維持不變) */
+    /* 重新分配極限安全邊界 */
     .battle-layout {
-      height: auto !important; 
+      height: auto !important;
       min-height: var(--app-height, 100dvh) !important;
       max-height: none !important;
-      padding: calc(env(safe-area-inset-top) + 190px) 0 calc(env(safe-area-inset-bottom) + 72px) !important;
+      /* 頂部退讓 5px (190->185)，底部退讓 7px (72->65)，讓放飛自我的畫布絕對不會碰到按鈕 */
+      padding: calc(env(safe-area-inset-top, 47px) + 185px) 0 calc(env(safe-area-inset-bottom, 34px) + 65px) !important;
     }
 
-    /* 3. 將虛擬按鈕再往下壓：從 8px 壓到 3px，更貼近螢幕底端 */
+    /* 將虛擬按鈕往下壓 */
     #mobile-action-row {
       display: flex !important;
-      position: fixed;
-      bottom: calc(env(safe-area-inset-bottom) + 3px); 
+      /* absolute 鎖在 .viewport（已 position:relative）→ 與畫布共用 --app-height 基準 */
+      position: absolute;
+      /* iOS 冷啟動的繪圖區會比 screen.height 短 10~30px；把按鈕往上抬 18px 留安全邊界 */
+      bottom: calc(env(safe-area-inset-bottom, 34px) + 18px);
       left: 50%;
       transform: translateX(-50%);
       gap: 12px;
@@ -1004,15 +1013,16 @@
       pointer-events: auto;
       display: flex !important;
       position: static;
-      width: 100px;
-      height: 52px;
+      /* 縮小尺寸：100x52 → 92x44，總共讓出 8px 高 + 給點呼吸空間 */
+      width: 92px;
+      height: 44px;
       align-items: center;
       justify-content: center;
       color: var(--white);
       font-weight: 900;
-      font-size: 16px;
-      letter-spacing: 4px;
-      border-radius: 12px;
+      font-size: 15px;
+      letter-spacing: 3px;
+      border-radius: 10px;
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -1575,14 +1585,24 @@
   <script src="changelog.js"></script>
 
   <script>
-    // 修復 iOS 動態高度 Bug，強制計算真實可用像素
-    function setAppHeight() {
-      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-    }
-    window.addEventListener('resize', setAppHeight);
-    window.addEventListener('orientationchange', setAppHeight);
-    setAppHeight(); // 初始執行
-  </script>
+  // PWA 高度穩定化：只在 standalone 模式把 --app-height 鎖到 screen.height
+  // 理由：搭配 apple-mobile-web-app-status-bar-style: black-translucent，
+  // PWA 的實際可視區就等於實體螢幕高度，而 screen.height 是裝置屬性、
+  // 第一行 JS 就可讀、iOS 不會在冷啟動時給錯誤值，所以首次開啟即完美。
+  (function () {
+    const isStandalone = matchMedia('(display-mode: standalone)').matches
+                      || navigator.standalone === true;
+    if (!isStandalone) return; // 瀏覽器完全不碰，讓 CSS 100dvh 自己適應 URL bar
+
+    const apply = () => {
+      const h = screen.height;
+      if (h > 0) document.documentElement.style.setProperty('--app-height', `${h}px`);
+    };
+    apply();
+    // 轉向後螢幕長寬互換，需重新套用
+    window.addEventListener('orientationchange', () => setTimeout(apply, 250));
+  })();
+</script>
 
 </head>
 <body>
