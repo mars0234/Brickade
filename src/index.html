@@ -1891,6 +1891,26 @@
             </div>
           </div>
 
+          <!-- Combo Room 設定面板（進 Combo Room 才顯示，取代排行榜） -->
+          <div class="info-panel hidden" id="combo-room-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
+            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🟪 COMBO ROOM</h2>
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">📐 場地寬度</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;" id="combo-width-group">
+                <button class="ai-option-btn" data-width="2">2-Wide</button>
+                <button class="ai-option-btn" data-width="3">3-Wide</button>
+                <button class="ai-option-btn selected" data-width="4">4-Wide</button>
+              </div>
+              <div style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:10px; line-height:1.5;">
+                ⚠️ 場地越窄，I 方塊越容易卡住。建議從 4-Wide 開始練。
+              </div>
+            </div>
+            <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(177,68,247,0.1); border-radius:6px;">
+              📜 規則：掉落速度固定，盡量拉高 COMBO。<br>
+              不計排名、不上傳最高分。
+            </div>
+          </div>
+
           <!-- AI 設定面板（進 AI 模式才顯示，取代排行榜） -->
           <div class="info-panel hidden" id="ai-config-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
             <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
@@ -2086,6 +2106,8 @@
         </div>
 
         <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
+
+        <button id="combo-room-btn" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:transparent; color:var(--T); border:2px solid var(--T); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟪 進入 COMBO ROOM</button>
 
         <div class="info-panel" id="controls-section" style="font-size: 14px;">
             <h2 style="text-align:center; color:var(--I); margin:0 0 12px 0;">CONTROLS</h2>

@@ -10,7 +10,8 @@
     I:'#38bdee', J:'#2a7fff', L:'#ff9800', O:'#f7dd16',
     S:'#48d62f', T:'#b144f7', Z:'#ff0d62',
     G:'#666666', // 新垃圾行的灰色
-    B:'#ff1111'  // 炸彈的亮紅色
+    B:'#ff1111', // 炸彈的亮紅色
+    W:'#3a2d6e'  // Combo Room 的牆壁（中度紫，與背景區分、又不搶玩家視線）
   };
 
   // --- 高 DPI (Retina / iPhone) 顯示支援：把 canvas 內部解析度提升到 DPR 倍，
@@ -444,6 +445,8 @@
   let gameStarted = false; // 控制遊戲是否已經開始
   let isMultiplayer = false; // 是否處於連線模式
   let isPracticeMode = false; // 是否處於練習模式
+  let isNarrowMode = false;   // 是否處於 N-Wide Combo Room
+  let narrowWidth = 4;        // Combo Room 寬度（2/3/4 格可選，預設 4）
   let iAmReady = false;      // 我是否已準備
   let oppIsReady = false;    // 對手是否已準備
   let countdownValue = 0;    // 倒數計時數值 (3, 2, 1)
@@ -1166,6 +1169,20 @@
 
   // 進入雙人模式的畫面切換邏輯
   function enterMultiplayerMode() {
+    // 進入對戰（PVP / AI）前，先強制離開 Combo Room，避免牆壁殘留到對戰盤面
+    if (isNarrowMode) {
+      isNarrowMode = false;
+      const cbBtn = document.getElementById('combo-room-btn');
+      if (cbBtn) {
+        cbBtn.textContent = '🟪 進入 COMBO ROOM';
+        cbBtn.style.background = 'transparent';
+        cbBtn.style.color = 'var(--T)';
+        cbBtn.style.borderColor = 'var(--T)';
+      }
+      const cbPanel = document.getElementById('combo-room-panel');
+      if (cbPanel) cbPanel.classList.add('hidden');
+    }
+
     updateMyActivity(isAIMode ? 'AI_BATTLE' : 'MULTIPLAYER'); // 切換為對戰狀態
     isMultiplayer = true;
     if (typeof bgm !== 'undefined') {
@@ -2106,7 +2123,40 @@
   }
 
   function clone(m) { return m.map(row => row.slice()); }
-  function createBoard() { return Array.from({length: ROWS}, () => Array(COLS).fill(null)); }
+
+  // Combo Room：把寬度以外的左右側欄位填上 'W' 牆壁
+  // 牆壁是不可消除的標記：但因為它「永遠是滿的」，玩家只要把中間 N 格填滿，
+  // 整行就會被當成滿行消掉，再 unshift 新空行時會自動補回新的牆壁。
+  function getWallBounds() {
+    const left = Math.floor((COLS - narrowWidth) / 2);
+    return { left, right: left + narrowWidth };
+  }
+  function isWallCol(c) {
+    if (!isNarrowMode) return false;
+    const { left, right } = getWallBounds();
+    return c < left || c >= right;
+  }
+  function applyWalls(row) {
+    if (!isNarrowMode) return row;
+    const { left, right } = getWallBounds();
+    for (let c = 0; c < COLS; c++) {
+      if (c < left || c >= right) row[c] = 'W';
+    }
+    return row;
+  }
+  function emptyRow() { return applyWalls(Array(COLS).fill(null)); }
+
+  // Combo Room：把整張盤面（含網格、方塊）視覺平移，使「窄場中心」對齊到「畫布中心」
+  // 例：3-Wide 場地的中心是 col 4.5（active 3-5），畫布中心是 col 5，差 0.5 格 → 平移 +17px
+  function getNarrowOffsetX() {
+    if (!isNarrowMode) return 0;
+    const { left } = getWallBounds();
+    const activeCenter = left + narrowWidth / 2;
+    const canvasCenter = COLS / 2;
+    return (canvasCenter - activeCenter) * SIZE;
+  }
+
+  function createBoard() { return Array.from({length: ROWS}, () => emptyRow()); }
 
   // --- 偽隨機數生成器 (PRNG) ---
   function rng() {
@@ -2152,11 +2202,28 @@
   function aiEnsureQueue() { while (aiQueue.length < 5) aiQueue.push(aiPullBag()); }
 
   function makePiece(type) {
-    const matrix = clone(PIECES[type][0]);
+    // Combo Room：2/3-Wide 場地下，I 方塊強制以直立姿態出生（rot=3，I 在 4x4 矩陣的 col 1）
+    // 否則橫向 I 寬度 4 會 TOP OUT
+    const forceVerticalI = isNarrowMode && narrowWidth < 4 && type === 'I';
+    const initialRot = forceVerticalI ? 3 : 0;
+    const matrix = clone(PIECES[type][initialRot]);
     const width = matrix[0].length;
     // 將方塊出生在隱藏區的最底部 (畫面正上方)
     const startRow = type === 'I' ? 18 : 19;
-    return { type, matrix, rot: 0, row: startRow, col: Math.floor(COLS / 2) - Math.ceil(width / 2), lowestRow: startRow, startScore: score};
+    // Combo Room 模式下，把方塊生在窄場正中央，避免與牆重疊
+    let centerCol;
+    if (isNarrowMode) {
+      const { left } = getWallBounds();
+      if (forceVerticalI) {
+        // 直立 I 在矩陣 col 1，把它對齊到窄場的中央格
+        centerCol = left + Math.floor(narrowWidth / 2) - 1;
+      } else {
+        centerCol = left + Math.floor((narrowWidth - width) / 2);
+      }
+    } else {
+      centerCol = Math.floor(COLS / 2) - Math.ceil(width / 2);
+    }
+    return { type, matrix, rot: initialRot, row: startRow, col: centerCol, lowestRow: startRow, startScore: score};
   }
 
   // --- 更新畫面分數與存取最高分 ---
@@ -2165,8 +2232,8 @@
     linesEl.textContent = String(lines);
     levelEl.textContent = String(level);
     
-    // 只有在「單人模式」且「非練習模式」，才計算並上傳最高分
-    if (!isMultiplayer && !isPracticeMode && currentPlayer !== 'Admin_Mars') {
+    // 只有在「單人模式」且「非練習模式」且「非 Combo Room」，才計算並上傳最高分
+    if (!isMultiplayer && !isPracticeMode && !isNarrowMode && currentPlayer !== 'Admin_Mars') {
       if (score > highScore) {
         highScore = score;
         
@@ -2847,6 +2914,14 @@
 
   function draw() {
     ctx.save(); // 儲存畫布狀態
+    // Combo Room：先用牆色填滿整張畫布，再平移讓窄場視覺置中
+    // 平移後，畫布邊緣超出原本網格的部分會以牆色填滿，仍保持「左右對稱牆壁」的觀感
+    if (isNarrowMode) {
+      ctx.fillStyle = COLORS.W;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      const offsetX = getNarrowOffsetX();
+      if (offsetX !== 0) ctx.translate(offsetX, 0);
+    }
     drawGrid();
     particles.forEach(p => p.draw(ctx));
 
@@ -3277,10 +3352,14 @@
 
     // --- IRS (Initial Rotation System) 預先旋轉 ---
     let irsDir = 0;
-    if (keysDown.has('ArrowUp') || keysDown.has('KeyX')) {
-      irsDir = 1; // 預先順時針
-    } else if (keysDown.has('KeyZ') || keysDown.has('ControlLeft') || keysDown.has('ControlRight')) {
-      irsDir = -1; // 預先逆時針
+    // Combo Room：2/3-Wide 的 I 方塊鎖死直立姿態，IRS 也禁止
+    const lockIRotation = isNarrowMode && narrowWidth < 4 && current.type === 'I';
+    if (!lockIRotation) {
+      if (keysDown.has('ArrowUp') || keysDown.has('KeyX')) {
+        irsDir = 1; // 預先順時針
+      } else if (keysDown.has('KeyZ') || keysDown.has('ControlLeft') || keysDown.has('ControlRight')) {
+        irsDir = -1; // 預先逆時針
+      }
     }
 
     if (irsDir !== 0) {
@@ -3383,6 +3462,8 @@
 
   function tryRotate(dir) {
     if (!current || gameOver || clearFx || isKOed || isPaused || countdownValue > 0) return false;
+    // Combo Room：2/3-Wide 場地下，I 方塊鎖死在直立姿態（不論橫躺都會卡牆，旋轉只會中斷 combo）
+    if (isNarrowMode && narrowWidth < 4 && current.type === 'I') return false;
     const from = current.rot;
     const to = (from + (dir === 1 ? 1 : 3)) % 4;
     const rotated = clone(PIECES[current.type][to]);
@@ -4363,7 +4444,7 @@
 
     if (linesCleared > 0) {
       lines += linesCleared;
-      if (!isMultiplayer && !isPracticeMode) level = Math.floor(lines / 10) + 1;
+      if (!isMultiplayer && !isPracticeMode && !isNarrowMode) level = Math.floor(lines / 10) + 1;
     }
 
     // 依照 Tetris Battle 官方圖表設定基礎分數與攻擊力
@@ -4683,13 +4764,14 @@
     
     // 在頂部補齊空行
     while (newBoard.length < ROWS) {
-      newBoard.unshift(Array(COLS).fill(null));
+      newBoard.unshift(emptyRow());
     }
     board = newBoard;
 
     let isPerfectClear = true;
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
+        if (isWallCol(c)) continue; // Combo Room：牆壁不算殘留物
         if (board[r][c]) { isPerfectClear = false; break; }
       }
       if (!isPerfectClear) break;
@@ -6141,7 +6223,7 @@
     // 遊戲流程控制 (開始、重啟)
     if (k === 'Enter' || k === 'NumpadEnter' || k === 'KeyR') {
       if (!isMultiplayer) { 
-        if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
+        if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && !isNarrowMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
            db.collection('users').doc(currentUserUID).set({
              username: currentPlayer,
              highScore: highScore,
@@ -7854,13 +7936,14 @@
         practiceBtn.style.background = 'var(--S)';
         practiceBtn.style.color = 'var(--bg)';
         practiceBtn.style.borderColor = 'var(--S)';
-        if (myNameDisplay) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+        // Combo Room 進行中時，名稱優先顯示 Combo Room 標示
+        if (myNameDisplay && !isNarrowMode) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
       } else {
         practiceBtn.textContent = '🟨 進入練習模式';
         practiceBtn.style.background = 'transparent';
         practiceBtn.style.color = 'var(--O)';
         practiceBtn.style.borderColor = 'var(--O)';
-        if (myNameDisplay) myNameDisplay.innerHTML = 'You';
+        if (myNameDisplay && !isNarrowMode) myNameDisplay.innerHTML = 'You';
       }
 
       // 如果遊戲正在進行中，強制重新開始以套用設定
@@ -7870,6 +7953,84 @@
       }
     });
   }
+
+  // === COMBO ROOM 切換邏輯 ===
+  const comboRoomBtn = document.getElementById('combo-room-btn');
+  const comboRoomPanel = document.getElementById('combo-room-panel');
+  const comboLeaderboardContainer = document.getElementById('leaderboard-container');
+
+  function setComboRoomBtnState(active) {
+    if (!comboRoomBtn) return;
+    if (active) {
+      comboRoomBtn.textContent = '🟩 離開 COMBO ROOM';
+      comboRoomBtn.style.background = 'var(--T)';
+      comboRoomBtn.style.color = 'var(--white)';
+      comboRoomBtn.style.borderColor = 'var(--T)';
+    } else {
+      comboRoomBtn.textContent = '🟪 進入 COMBO ROOM';
+      comboRoomBtn.style.background = 'transparent';
+      comboRoomBtn.style.color = 'var(--T)';
+      comboRoomBtn.style.borderColor = 'var(--T)';
+    }
+  }
+
+  if (comboRoomBtn) {
+    comboRoomBtn.addEventListener('click', () => {
+      if (isMultiplayer) return; // 對戰中（含 AI 對戰）不允許切換
+
+      isNarrowMode = !isNarrowMode;
+
+      if (isNarrowMode) {
+        setComboRoomBtnState(true);
+        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'none';
+        if (comboRoomPanel) comboRoomPanel.classList.remove('hidden');
+        if (myNameDisplay) myNameDisplay.innerHTML = `You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(${narrowWidth}-Wide Combo Room，不計排名)</span>`;
+      } else {
+        setComboRoomBtnState(false);
+        if (comboRoomPanel) comboRoomPanel.classList.add('hidden');
+        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'flex';
+        if (myNameDisplay) {
+          // 還原名稱顯示：若同時也在練習模式，保留練習模式的標示
+          if (isPracticeMode) {
+            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+          } else {
+            myNameDisplay.innerHTML = 'You';
+          }
+        }
+      }
+
+      // 套用新的場地寬度：若遊戲進行中強制重啟，否則只重畫盤面預覽
+      if (gameStarted || countdownValue > 0) {
+        gameOver = true;
+        startCountdown();
+      } else {
+        board = createBoard();
+        if (typeof draw === 'function') draw();
+      }
+    });
+  }
+
+  // === COMBO ROOM 寬度按鈕 ===
+  document.querySelectorAll('#combo-width-group .ai-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const w = parseInt(btn.dataset.width);
+      if (!w) return;
+      document.querySelectorAll('#combo-width-group .ai-option-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      narrowWidth = w;
+      // 若已在 Combo Room，更新名稱並套用新寬度
+      if (isNarrowMode) {
+        if (myNameDisplay) myNameDisplay.innerHTML = `You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(${narrowWidth}-Wide Combo Room，不計排名)</span>`;
+        if (gameStarted || countdownValue > 0) {
+          gameOver = true;
+          startCountdown();
+        } else {
+          board = createBoard();
+          if (typeof draw === 'function') draw();
+        }
+      }
+    });
+  });
 
   // 當玩家直接關閉網頁分頁或重整時，瞬間通知對手
   window.addEventListener('beforeunload', () => {
