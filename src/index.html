@@ -1892,21 +1892,61 @@
           </div>
 
           <!-- Combo Room 設定面板（進 Combo Room 才顯示，取代排行榜） -->
-          <div class="info-panel hidden" id="combo-room-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
-            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🟪 COMBO ROOM</h2>
+          <div class="info-panel hidden" id="combo-room-panel" style="border-color:var(--Z); box-shadow:0 0 10px rgba(255,13,98,0.3);">
+            <h2 style="text-align:center; color:var(--Z); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--Z); letter-spacing:2px;">⚡ COMBO ROOM</h2>
             <div style="margin-bottom:14px;">
               <div class="ai-setting-label">📐 場地寬度</div>
-              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;" id="combo-width-group">
-                <button class="ai-option-btn" data-width="2">2-Wide</button>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="combo-width-group">
                 <button class="ai-option-btn" data-width="3">3-Wide</button>
                 <button class="ai-option-btn selected" data-width="4">4-Wide</button>
               </div>
               <div style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:10px; line-height:1.5;">
-                ⚠️ 場地越窄，I 方塊越容易卡住。建議從 4-Wide 開始練。
+                ⚠️ 3-Wide 的 I 方塊會自動鎖死直立姿態。
               </div>
             </div>
-            <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(177,68,247,0.1); border-radius:6px;">
+            <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(255,13,98,0.1); border-radius:6px;">
               📜 規則：掉落速度固定，盡量拉高 COMBO。<br>
+              不計排名、不上傳最高分。
+            </div>
+          </div>
+
+          <!-- 自由排版設定面板（進自由排版才顯示，取代排行榜） -->
+          <div class="info-panel hidden" id="free-mode-panel" style="border-color:var(--I); box-shadow:0 0 10px rgba(56,189,238,0.3);">
+            <h2 style="text-align:center; color:var(--I); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--I); letter-spacing:2px;">🧩 FREE PLACEMENT</h2>
+
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">⬇️ 自然落下</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="free-gravity-group">
+                <button class="ai-option-btn" data-gravity="off">關（手動）</button>
+                <button class="ai-option-btn selected" data-gravity="on">開（固定速度）</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label">🎴 NEXT / QUEUE</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="free-queue-group">
+                <button class="ai-option-btn" data-queue="off">關閉（純手選）</button>
+                <button class="ai-option-btn selected" data-queue="on">隨機產生</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:12px; padding:8px 10px; background:rgba(56,189,238,0.08); border-radius:6px; font-size:12px; line-height:1.6;">
+              <div style="color:rgba(255,255,255,0.85); font-weight:900; margin-bottom:6px; letter-spacing:1px;">⌨️ 數字鍵 → 方塊</div>
+              <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; text-align:center;">
+                <div><div style="color:#38bdee; font-weight:900; font-size:14px;">1</div><div style="color:#38bdee; font-size:11px;">I</div></div>
+                <div><div style="color:#2a7fff; font-weight:900; font-size:14px;">2</div><div style="color:#2a7fff; font-size:11px;">J</div></div>
+                <div><div style="color:#ff9800; font-weight:900; font-size:14px;">3</div><div style="color:#ff9800; font-size:11px;">L</div></div>
+                <div><div style="color:#f7dd16; font-weight:900; font-size:14px;">4</div><div style="color:#f7dd16; font-size:11px;">O</div></div>
+                <div><div style="color:#48d62f; font-weight:900; font-size:14px;">5</div><div style="color:#48d62f; font-size:11px;">S</div></div>
+                <div><div style="color:#b144f7; font-weight:900; font-size:14px;">6</div><div style="color:#b144f7; font-size:11px;">T</div></div>
+                <div><div style="color:#ff0d62; font-weight:900; font-size:14px;">7</div><div style="color:#ff0d62; font-size:11px;">Z</div></div>
+              </div>
+            </div>
+
+            <button id="free-clear-btn" title="清空整個遊戲場，玩家可以重新擺放方塊（Score / Lines / Combo 也會歸零）" style="width:100%; padding:9px; margin-bottom:10px; background:transparent; color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:13px; cursor:pointer; border-radius:6px; letter-spacing:2px; box-shadow:0 0 6px rgba(255,13,98,0.3);">🧹 CLEAR ALL</button>
+
+            <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(56,189,238,0.1); border-radius:6px;">
+              📜 規則：10 格滿寬場地，自由練習擺位。<br>
               不計排名、不上傳最高分。
             </div>
           </div>
@@ -2073,8 +2113,8 @@
       </div>
       
       <div class="side-col">
-        <div><div class="mini-title">NEXT</div><canvas id="next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
-        <div><div class="mini-title">QUEUE</div><canvas id="queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
+        <div id="next-wrapper"><div class="mini-title">NEXT</div><canvas id="next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
+        <div id="queue-wrapper"><div class="mini-title">QUEUE</div><canvas id="queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
       </div>
     </div>
 
@@ -2107,7 +2147,9 @@
 
         <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
 
-        <button id="combo-room-btn" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:transparent; color:var(--T); border:2px solid var(--T); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟪 進入 COMBO ROOM</button>
+        <button id="combo-room-btn" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18)); color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25); text-shadow:0 0 6px rgba(255,13,98,0.7);">⚡ 進入 COMBO ROOM</button>
+
+        <button id="free-mode-btn" title="自由排版：1-7 數字鍵選方塊、可關閉重力或 NEXT/QUEUE，純手動擺位練習" style="width:100%; padding:10px; background:transparent; color:var(--I); border:2px solid var(--I); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 8px rgba(56,189,238,0.4);">🧩 進入自由排版</button>
 
         <div class="info-panel" id="controls-section" style="font-size: 14px;">
             <h2 style="text-align:center; color:var(--I); margin:0 0 12px 0;">CONTROLS</h2>

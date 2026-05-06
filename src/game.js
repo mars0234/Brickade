@@ -446,7 +446,15 @@
   let isMultiplayer = false; // 是否處於連線模式
   let isPracticeMode = false; // 是否處於練習模式
   let isNarrowMode = false;   // 是否處於 N-Wide Combo Room
-  let narrowWidth = 4;        // Combo Room 寬度（2/3/4 格可選，預設 4）
+  let narrowWidth = 4;        // Combo Room 寬度（3/4 格可選，預設 4）
+  let isFreeMode = false;     // Combo Room 子模式：自由排版（數字鍵 1-7 選方塊）
+  let freeGravity = true;     // 自由排版時是否啟用重力（false = 方塊不會自動落下）
+  let freeQueueEnabled = true; // 自由排版時是否仍隨機產生 NEXT/QUEUE
+  // 數字鍵對應的方塊類型（1=I, 2=J, 3=L, 4=O, 5=S, 6=T, 7=Z）
+  const FREE_PIECE_KEYS = {
+    'Digit1':'I','Digit2':'J','Digit3':'L','Digit4':'O','Digit5':'S','Digit6':'T','Digit7':'Z',
+    'Numpad1':'I','Numpad2':'J','Numpad3':'L','Numpad4':'O','Numpad5':'S','Numpad6':'T','Numpad7':'Z'
+  };
   let iAmReady = false;      // 我是否已準備
   let oppIsReady = false;    // 對手是否已準備
   let countdownValue = 0;    // 倒數計時數值 (3, 2, 1)
@@ -1169,18 +1177,46 @@
 
   // 進入雙人模式的畫面切換邏輯
   function enterMultiplayerMode() {
-    // 進入對戰（PVP / AI）前，先強制離開 Combo Room，避免牆壁殘留到對戰盤面
-    if (isNarrowMode) {
+    // 進入對戰（PVP / AI）前，強制退出 Combo Room / Free Mode，避免設定殘留到對戰
+    if (isNarrowMode || isFreeMode) {
+      const wasNarrow = isNarrowMode;
+      const wasFree = isFreeMode;
       isNarrowMode = false;
-      const cbBtn = document.getElementById('combo-room-btn');
-      if (cbBtn) {
-        cbBtn.textContent = '🟪 進入 COMBO ROOM';
-        cbBtn.style.background = 'transparent';
-        cbBtn.style.color = 'var(--T)';
-        cbBtn.style.borderColor = 'var(--T)';
+      isFreeMode = false;
+
+      if (wasNarrow) {
+        const cbBtn = document.getElementById('combo-room-btn');
+        if (cbBtn) {
+          cbBtn.textContent = '⚡ 進入 COMBO ROOM';
+          cbBtn.style.background = 'linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18))';
+          cbBtn.style.color = 'var(--Z)';
+          cbBtn.style.borderColor = 'var(--Z)';
+          cbBtn.style.boxShadow = '0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25)';
+          cbBtn.style.textShadow = '0 0 6px rgba(255,13,98,0.7)';
+        }
+        const cbPanel = document.getElementById('combo-room-panel');
+        if (cbPanel) cbPanel.classList.add('hidden');
       }
-      const cbPanel = document.getElementById('combo-room-panel');
-      if (cbPanel) cbPanel.classList.add('hidden');
+
+      if (wasFree) {
+        const fmBtn = document.getElementById('free-mode-btn');
+        if (fmBtn) {
+          fmBtn.textContent = '🧩 進入自由排版';
+          fmBtn.style.background = 'transparent';
+          fmBtn.style.color = 'var(--I)';
+          fmBtn.style.borderColor = 'var(--I)';
+        }
+        const fmPanel = document.getElementById('free-mode-panel');
+        if (fmPanel) fmPanel.classList.add('hidden');
+      }
+
+      // 還原排行榜 + NEXT/QUEUE 顯示
+      const lb = document.getElementById('leaderboard-container');
+      if (lb) lb.style.display = 'flex';
+      const nextWrapper = document.getElementById('next-wrapper');
+      const queueWrapper = document.getElementById('queue-wrapper');
+      if (nextWrapper) nextWrapper.style.visibility = 'visible';
+      if (queueWrapper) queueWrapper.style.visibility = 'visible';
     }
 
     updateMyActivity(isAIMode ? 'AI_BATTLE' : 'MULTIPLAYER'); // 切換為對戰狀態
@@ -2232,8 +2268,8 @@
     linesEl.textContent = String(lines);
     levelEl.textContent = String(level);
     
-    // 只有在「單人模式」且「非練習模式」且「非 Combo Room」，才計算並上傳最高分
-    if (!isMultiplayer && !isPracticeMode && !isNarrowMode && currentPlayer !== 'Admin_Mars') {
+    // 只有在「單人模式」且「非練習模式」且「非 Combo Room / Free Mode」，才計算並上傳最高分
+    if (!isMultiplayer && !isPracticeMode && !isNarrowMode && !isFreeMode && currentPlayer !== 'Admin_Mars') {
       if (score > highScore) {
         highScore = score;
         
@@ -2351,13 +2387,13 @@
       gameOver = true;
       updateMyActivity('IDLE'); // 單機死掉後，狀態變回大廳閒置
       playSound('lose'); 
-      if (!isPracticeMode && isCloudDataLoaded && currentUserUID && currentPlayer && currentPlayer !== 'Admin_Mars') {
+      if (!isPracticeMode && !isNarrowMode && !isFreeMode && isCloudDataLoaded && currentUserUID && currentPlayer && currentPlayer !== 'Admin_Mars') {
         db.collection('users').doc(currentUserUID).set({
           username: currentPlayer,
           highScore: highScore,
           lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true }).catch(err => {
-          console.error("雲端存檔失敗:", err.message); 
+          console.error("雲端存檔失敗:", err.message);
         });
       }
     }
@@ -3312,7 +3348,41 @@
     oppFloatingTexts.forEach(ft => ft.draw(oppCtx));
   }
 
+  // 自由排版模式：直接生出指定類型的方塊（取代當前 current）
+  // 注意：不要清掉 canUndo / previousGameState — 那是上一顆「已鎖定」方塊的反悔快照，
+  // 換手中的方塊不應該影響它，否則玩家換了方塊就無法 Undo 已放下的那顆。
+  function spawnPieceByType(type) {
+    if (!isFreeMode) return;
+    if (gameOver || isPaused || countdownValue > 0 || isKOed || clearFx) return;
+    current = makePiece(type);
+    visualRow = current.row;
+    visualCol = current.col;
+    visualGhostRow = ghostRow();
+    lastVisualRow = current.row;
+    lastGhostCol = -1;
+    holdUsed = false;
+    lockTimer = 0;
+    lockResets = 0;
+    gravityTimer = 0;
+    playSound('move');
+    renderPanels();
+    if (!valid(current.matrix, current.row, current.col)) triggerGameOver(true);
+  }
+
   function spawn(isFromHold = false) {
+    // 自由排版 + 關閉 NEXT/QUEUE：不自動生方塊，讓玩家按數字鍵手動選
+    if (isFreeMode && !freeQueueEnabled) {
+      current = null;
+      visualGhostRow = 0;
+      lastGhostCol = -1;
+      holdUsed = false;
+      lockTimer = 0;
+      lockResets = 0;
+      gravityTimer = 0;
+      renderPanels();
+      sendState();
+      return;
+    }
     ensureQueue();
     current = makePiece(queue.shift());
     visualRow = current.row; // 視覺 Y 對齊
@@ -4444,7 +4514,7 @@
 
     if (linesCleared > 0) {
       lines += linesCleared;
-      if (!isMultiplayer && !isPracticeMode && !isNarrowMode) level = Math.floor(lines / 10) + 1;
+      if (!isMultiplayer && !isPracticeMode && !isNarrowMode && !isFreeMode) level = Math.floor(lines / 10) + 1;
     }
 
     // 依照 Tetris Battle 官方圖表設定基礎分數與攻擊力
@@ -5983,11 +6053,16 @@
 
     // --- 官方重力公式 (分流單機與連線) ---
     let gravityInterval;
-    if (isMultiplayer || isPracticeMode) {
-      gravityInterval = 1000; // 對戰模式：重力鎖定為極慢 (1秒1格)，純靠手動下落
+    if (isMultiplayer || isPracticeMode || isNarrowMode || isFreeMode) {
+      gravityInterval = 1000; // 對戰 / 練習 / Combo Room / Free Mode：重力鎖定為極慢 (1秒1格)
     } else {
       const gravitySeconds = Math.pow(0.8 - ((level - 1) * 0.007), level - 1);
       gravityInterval = gravitySeconds * 1000; // 單機模式：越玩越快
+    }
+
+    // 自由排版 + 關閉「自然落下」：重力直接跳到永不掉，玩家自己用方向鍵控制
+    if (isFreeMode && !freeGravity) {
+      gravityInterval = Infinity;
     }
 
     currentGravityInterval = gravityInterval; // 把值交給渲染引擎
@@ -6095,10 +6170,8 @@
       e.preventDefault();
     }
 
-    // Emoji 嘲諷快捷鍵 (支援主鍵盤 1~4 與九宮格數字鍵)
-    if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4'].includes(k)) {
-      if (!isMultiplayer) return;
-
+    // Emoji 嘲諷快捷鍵 (僅限對戰模式；單機模式下 1-4 留給自由排版的數字鍵)
+    if (isMultiplayer && ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4'].includes(k)) {
       const now = Date.now();
       if (now - lastEmojiTime < 1000) return;
       lastEmojiTime = now;
@@ -6111,7 +6184,7 @@
 
       // 在對手的畫面上噴出 Emoji
       oppFloatingTexts.push(new FloatingText(emoji, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ffffff', 55));
-      playSound('move'); 
+      playSound('move');
 
       // 發送給對手
       if (conn && conn.open) conn.send({ type: 'EMOJI', emoji: emoji });
@@ -6213,6 +6286,13 @@
 
     keysDown.add(k);
 
+    // 自由排版模式：數字鍵 1-7 直接生出指定方塊
+    if (isFreeMode && FREE_PIECE_KEYS[k] && gameStarted && !gameOver) {
+      e.preventDefault();
+      spawnPieceByType(FREE_PIECE_KEYS[k]);
+      return;
+    }
+
     // 旋轉與掉落
     if (k === 'ArrowUp' || k === 'KeyX') tryRotate(1);
     else if (k === 'KeyZ' || k === 'ControlLeft' || k === 'ControlRight') tryRotate(-1);
@@ -6223,7 +6303,7 @@
     // 遊戲流程控制 (開始、重啟)
     if (k === 'Enter' || k === 'NumpadEnter' || k === 'KeyR') {
       if (!isMultiplayer) { 
-        if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && !isNarrowMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
+        if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && !isNarrowMode && !isFreeMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
            db.collection('users').doc(currentUserUID).set({
              username: currentPlayer,
              highScore: highScore,
@@ -7963,14 +8043,18 @@
     if (!comboRoomBtn) return;
     if (active) {
       comboRoomBtn.textContent = '🟩 離開 COMBO ROOM';
-      comboRoomBtn.style.background = 'var(--T)';
+      comboRoomBtn.style.background = 'var(--Z)';
       comboRoomBtn.style.color = 'var(--white)';
-      comboRoomBtn.style.borderColor = 'var(--T)';
+      comboRoomBtn.style.borderColor = 'var(--Z)';
+      comboRoomBtn.style.boxShadow = '0 0 16px rgba(255,13,98,0.85), inset 0 0 10px rgba(255,255,255,0.25)';
+      comboRoomBtn.style.textShadow = '0 0 6px rgba(0,0,0,0.5)';
     } else {
-      comboRoomBtn.textContent = '🟪 進入 COMBO ROOM';
-      comboRoomBtn.style.background = 'transparent';
-      comboRoomBtn.style.color = 'var(--T)';
-      comboRoomBtn.style.borderColor = 'var(--T)';
+      comboRoomBtn.textContent = '⚡ 進入 COMBO ROOM';
+      comboRoomBtn.style.background = 'linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18))';
+      comboRoomBtn.style.color = 'var(--Z)';
+      comboRoomBtn.style.borderColor = 'var(--Z)';
+      comboRoomBtn.style.boxShadow = '0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25)';
+      comboRoomBtn.style.textShadow = '0 0 6px rgba(255,13,98,0.7)';
     }
   }
 
@@ -7981,6 +8065,8 @@
       isNarrowMode = !isNarrowMode;
 
       if (isNarrowMode) {
+        // 互斥：進 Combo Room 時自動退出自由排版
+        if (typeof exitFreeMode === 'function') exitFreeMode();
         setComboRoomBtnState(true);
         if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'none';
         if (comboRoomPanel) comboRoomPanel.classList.remove('hidden');
@@ -8031,6 +8117,154 @@
       }
     });
   });
+
+  // === 自由排版模式（獨立於 Combo Room） ===
+  function applyQueueVisibility() {
+    const nextWrapper = document.getElementById('next-wrapper');
+    const queueWrapper = document.getElementById('queue-wrapper');
+    const hide = isFreeMode && !freeQueueEnabled;
+    if (nextWrapper) nextWrapper.style.visibility = hide ? 'hidden' : 'visible';
+    if (queueWrapper) queueWrapper.style.visibility = hide ? 'hidden' : 'visible';
+  }
+
+  function maybeRestartGame() {
+    if (gameStarted || countdownValue > 0) {
+      gameOver = true;
+      startCountdown();
+    } else {
+      board = createBoard();
+      if (typeof draw === 'function') draw();
+    }
+  }
+
+  const freeModeBtn = document.getElementById('free-mode-btn');
+  const freeModePanel = document.getElementById('free-mode-panel');
+
+  function setFreeModeBtnState(active) {
+    if (!freeModeBtn) return;
+    if (active) {
+      freeModeBtn.textContent = '🟩 離開自由排版';
+      freeModeBtn.style.background = 'var(--I)';
+      freeModeBtn.style.color = 'var(--bg)';
+      freeModeBtn.style.borderColor = 'var(--I)';
+    } else {
+      freeModeBtn.textContent = '🧩 進入自由排版';
+      freeModeBtn.style.background = 'transparent';
+      freeModeBtn.style.color = 'var(--I)';
+      freeModeBtn.style.borderColor = 'var(--I)';
+    }
+  }
+
+  // 強制離開 Combo Room（給「進 Free Mode 時自動退 Combo」用）
+  function exitNarrowMode() {
+    if (!isNarrowMode) return;
+    isNarrowMode = false;
+    setComboRoomBtnState(false);
+    if (comboRoomPanel) comboRoomPanel.classList.add('hidden');
+  }
+
+  // 強制離開 Free Mode（給「進 Combo Room 時自動退 Free」用）
+  function exitFreeMode() {
+    if (!isFreeMode) return;
+    isFreeMode = false;
+    setFreeModeBtnState(false);
+    if (freeModePanel) freeModePanel.classList.add('hidden');
+    applyQueueVisibility();
+  }
+
+  if (freeModeBtn) {
+    freeModeBtn.addEventListener('click', () => {
+      if (isMultiplayer) return; // 對戰中不允許切換
+
+      isFreeMode = !isFreeMode;
+
+      if (isFreeMode) {
+        exitNarrowMode(); // 互斥：進 Free Mode 自動退 Combo Room
+        setFreeModeBtnState(true);
+        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'none';
+        if (freeModePanel) freeModePanel.classList.remove('hidden');
+        if (myNameDisplay) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(自由排版，不計排名)</span>';
+      } else {
+        setFreeModeBtnState(false);
+        if (freeModePanel) freeModePanel.classList.add('hidden');
+        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'flex';
+        if (myNameDisplay) {
+          if (isPracticeMode) {
+            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+          } else {
+            myNameDisplay.innerHTML = 'You';
+          }
+        }
+      }
+      applyQueueVisibility();
+      maybeRestartGame();
+    });
+  }
+
+  document.querySelectorAll('#free-gravity-group .ai-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#free-gravity-group .ai-option-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      freeGravity = btn.dataset.gravity === 'on';
+      // 重力切換不需重啟遊戲，下一幀就會生效
+    });
+  });
+
+  document.querySelectorAll('#free-queue-group .ai-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#free-queue-group .ai-option-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      freeQueueEnabled = btn.dataset.queue === 'on';
+      applyQueueVisibility();
+      if (isFreeMode) maybeRestartGame();
+    });
+  });
+
+  // === Clear All：把場地清空，分數歸零，方塊池重置 ===
+  const freeClearBtn = document.getElementById('free-clear-btn');
+  if (freeClearBtn) {
+    freeClearBtn.addEventListener('click', () => {
+      if (!isFreeMode) return;
+      if (countdownValue > 0) return; // 倒數中先不動
+      // 清空盤面與計分
+      board = createBoard();
+      score = 0;
+      lines = 0;
+      combo = -1;
+      b2b = 0;
+      maxCombo = 0;
+      piecesPlaced = 0;
+      visualBoardOffsetY = 0;
+      activeGarbage = 0;
+      nextGarbage = 0;
+      clearFx = null;
+      shakeMag = 0;
+      // 取消反悔快照（場地都清了，舊快照沒意義）
+      canUndo = false;
+      previousGameState = null;
+      // 重置方塊池與 Hold；queue 視「隨機產生」開關決定要不要補
+      piecePool = [];
+      myPieceIndex = 0;
+      queue = [];
+      holdType = null;
+      holdUsed = false;
+      // 重新生第一顆：依 Free Mode 設定（queue 關 → current = null 等玩家按數字鍵）
+      if (gameStarted && !gameOver) {
+        current = null;
+        spawn();
+      } else {
+        current = null;
+      }
+      lockTimer = 0;
+      lockResets = 0;
+      gravityTimer = 0;
+      // 立即更新 HUD 與盤面
+      updateHUD();
+      renderPanels();
+      if (typeof draw === 'function') draw();
+      playSound('move');
+    });
+  }
 
   // 當玩家直接關閉網頁分頁或重整時，瞬間通知對手
   window.addEventListener('beforeunload', () => {
