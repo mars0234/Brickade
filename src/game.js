@@ -426,9 +426,12 @@
   // 行動裝置另一個雷：邊播邊載時 buffer 一斷會誤觸發 ended，導致「播一半重頭」。
   // 解法：ended 觸發時加 sanity check，只有真的播到接近結尾才當作 loop。
   // buffer underrun (waiting/stalled) 則保留 currentTime 重播。
-  function setupSeamlessLoop(audio) {
+  function setupSeamlessLoop(audio, shouldPlay) {
     audio.loop = false;
     audio.addEventListener('ended', () => {
+      // 行動裝置 (尤其 iOS Safari) 在 audio.pause() 之後仍可能因 buffer 收尾而觸發 ended，
+      // 若無條件 audio.play() 會把已經停掉的 BGM 重新拉起來，導致單人模式下 bgm 與 battleBgm 疊在一起。
+      if (typeof shouldPlay === 'function' && !shouldPlay()) return;
       const dur = audio.duration;
       const cur = audio.currentTime;
       // 只有真的播到結尾(誤差 1 秒內)才當作 loop；否則是 buffer 斷掉的假 ended，續播即可
@@ -442,12 +445,13 @@
       // buffer underrun，等系統自動恢復；不要 reset currentTime
     });
     audio.addEventListener('stalled', () => {
-      // 連線中斷，嘗試續播但保留 currentTime
+      // 連線中斷，嘗試續播但保留 currentTime；同樣要看模式才續播，否則手機切回單人時又會被 stalled 拉起
+      if (typeof shouldPlay === 'function' && !shouldPlay()) return;
       audio.play().catch(() => {});
     });
   }
-  setupSeamlessLoop(bgm);
-  setupSeamlessLoop(battleBgm);
+  setupSeamlessLoop(bgm, () => !isMultiplayer && !isBgmMuted);
+  setupSeamlessLoop(battleBgm, () => isMultiplayer && !isBgmMuted);
   // 行動裝置切到背景或螢幕鎖定時 audio 會被系統暫停，回到前景時自動續播
   // 重點：保留 currentTime，不要重設為 0
   document.addEventListener('visibilitychange', () => {
@@ -488,6 +492,10 @@
   };
   let iAmReady = false;      // 我是否已準備
   let oppIsReady = false;    // 對手是否已準備
+  // 對戰模式：'BOMB' = 垃圾洞口是炸彈、引爆消行 (原本玩法)；'CLASSIC' = 垃圾洞口是空格、填滿消除 (Tetris Battle 經典)
+  // 雙方模式必須一致，Ready 才會解鎖；對戰開始後鎖定不可改
+  let battleMode = 'BOMB';
+  let oppBattleMode = null; // 對手選的模式，null 表示還沒收到
   let countdownValue = 0;    // 倒數計時數值 (3, 2, 1)
   let matchResult = null; // 用來紀錄 'WIN', 'LOSE' 或 'DRAW'
   let myWins = 0;
@@ -682,7 +690,7 @@
     if (!conn || !conn.open) return;
     const matchesEl = document.getElementById('display-matches');
     const winRateEl = document.getElementById('display-winrate');
-    
+
     conn.send({
       type: 'PROFILE',
       profile: {
@@ -694,6 +702,9 @@
         streak: myWinStreak || 0   // 把我的連勝次數發給對手
       }
     });
+    // 連 PROFILE 一起把目前選的對戰模式廣播給對手，
+    // 確保剛接上線的人馬上看得到雙方選的模式
+    conn.send({ type: 'MODE_SELECT', mode: battleMode });
   }
 
   // 動態門牌系統
@@ -932,7 +943,7 @@
     }
   }
 
-  // READY / 投降 按鍵邏輯
+  // READY / 投降 / 取消 READY 按鍵邏輯
   if (readyBtn) {
     readyBtn.addEventListener('click', () => {
       if (!isMultiplayer) return;
@@ -946,16 +957,38 @@
         return;
       }
 
-      // 如果已經按了準備，就不要重複執行
-      if (iAmReady) return;
-      
-      // 按下 READY 後，立刻把按鈕變灰，讓玩家知道有點到了
+      // 倒數中 (STARTING...) 或對戰中：按鈕本來就 disabled，這裡只是雙重防呆
+      if (countdownValue > 0 || (gameStarted && !gameOver)) return;
+
+      // 已經按過 READY (狀態 WAITING...) 再點一次 → 取消 READY，讓玩家可以改模式重來
+      if (iAmReady) {
+        if (isAIMode) return; // AI 模式對手就是 AI，不開放取消
+        iAmReady = false;
+        oppIsReady = false; // 對手如果也已 READY，重置以避免取消後又馬上 checkBothReady 開局
+        if (conn && conn.open) conn.send({ type: 'CANCEL_READY' });
+        playSound('move');
+        showToast('↩️ 已取消 READY，可重新選擇模式', 1500);
+        refreshReadyButtonLock();
+        return;
+      }
+
+      // 防呆：模式不一致的話禁止 READY (鍵盤快捷鍵也吃這個檢查，避免繞過 disabled 按鈕)
+      if (!isAIMode && (oppBattleMode === null || oppBattleMode !== battleMode)) {
+        playSound('move');
+        showToast(oppBattleMode === null ? '⏳ 請等待對手選擇對戰模式' : '⚠️ 雙方模式不一致，無法開始', 1500);
+        return;
+      }
+
+      // 按下 READY → 進入「等對手」狀態：按鈕保持可點，文字改成「✕ 取消 READY」讓玩家可反悔
       iAmReady = true;
-      readyBtn.textContent = 'WAITING...';
-      readyBtn.style.background = 'gray';
-      readyBtn.style.color = 'white';
-      readyBtn.disabled = true;
-      
+      readyBtn.textContent = '✕ 取消 READY';
+      readyBtn.style.background = 'var(--Z)';
+      readyBtn.style.color = 'var(--white)';
+      readyBtn.style.borderColor = 'var(--white)';
+      readyBtn.style.cursor = 'pointer';
+      readyBtn.style.opacity = '1';
+      readyBtn.disabled = false;
+
       mySeed = Math.floor(Math.random() * 1000000); // 產生我方種子
 
       // AI 模式的處理 (AI 直接準備完畢)
@@ -970,6 +1003,108 @@
       checkBothReady();
     });
   }
+
+  // === 對戰模式選擇 ===
+  // 點按鈕：更新本地狀態 + 廣播給對手 + 重新計算 Ready 是否解鎖
+  // 鎖定條件：對戰中 (gameStarted && !gameOver) 或倒數中；對戰結束 (gameOver=true) 後玩家可以重新選模式
+  function setBattleMode(newMode, broadcast) {
+    if (newMode !== 'BOMB' && newMode !== 'CLASSIC') return;
+    if (countdownValue > 0) return;          // 倒數中不能改
+    if (gameStarted && !gameOver) return;    // 對戰進行中不能改 (gameOver 後就解鎖)
+    if (iAmReady) return;                    // 已按 READY 鎖死，避免改完之後狀態不一致
+    battleMode = newMode;
+    updateBattleModeUI();
+    if (broadcast && conn && conn.open) {
+      conn.send({ type: 'MODE_SELECT', mode: battleMode });
+    }
+  }
+
+  // 重繪 BOMB / CLASSIC 兩顆按鈕的選中狀態 + 對手選擇 badge + 同步狀態文字 + Ready 鎖定
+  function updateBattleModeUI() {
+    const bombBtn = document.getElementById('mode-bomb-btn');
+    const classicBtn = document.getElementById('mode-classic-btn');
+    const status = document.getElementById('mode-sync-status');
+    if (!bombBtn || !classicBtn) return;
+
+    [bombBtn, classicBtn].forEach(btn => {
+      const mode = btn.dataset.mode;
+      btn.classList.toggle('selected', mode === battleMode);
+      const myBadge = btn.querySelector('.pick-badge.my');
+      const oppBadge = btn.querySelector('.pick-badge.opp');
+      if (myBadge) myBadge.classList.toggle('hidden', mode !== battleMode);
+      if (oppBadge) oppBadge.classList.toggle('hidden', mode !== oppBattleMode);
+    });
+
+    if (status) {
+      status.classList.remove('match', 'mismatch');
+      if (oppBattleMode === null) {
+        status.textContent = '⏳ 等待對手選擇模式...';
+      } else if (oppBattleMode === battleMode) {
+        status.textContent = '✅ 模式一致，可以按下 READY 開始';
+        status.classList.add('match');
+      } else {
+        const oppName = oppBattleMode === 'BOMB' ? '💣 BOMB' : '🧱 CLASSIC';
+        status.textContent = `⚠️ 對手選擇了 ${oppName}，模式不同無法開始`;
+        status.classList.add('mismatch');
+      }
+    }
+
+    refreshReadyButtonLock();
+  }
+
+  // 同步 READY 按鈕外觀：依照 iAmReady / 模式一致性決定樣式 (不動 SURRENDER / STARTING 狀態)
+  function refreshReadyButtonLock() {
+    const rBtn = document.getElementById('ready-btn');
+    if (!rBtn) return;
+    if (!isMultiplayer || isAIMode) return; // AI 模式不需要這個鎖
+    if (rBtn.textContent.includes('SURRENDER') || rBtn.textContent.includes('STARTING')) return;
+
+    // 已按 READY → 顯示「✕ 取消 READY」紅色可點，讓玩家可以反悔重選模式
+    if (iAmReady) {
+      rBtn.disabled = false;
+      rBtn.textContent = '✕ 取消 READY';
+      rBtn.style.background = 'var(--Z)';
+      rBtn.style.color = 'var(--white)';
+      rBtn.style.borderColor = 'var(--white)';
+      rBtn.style.cursor = 'pointer';
+      rBtn.style.opacity = '1';
+      return;
+    }
+
+    const modesMatch = oppBattleMode !== null && oppBattleMode === battleMode;
+    if (modesMatch) {
+      rBtn.disabled = false;
+      rBtn.textContent = 'READY';
+      rBtn.style.background = 'var(--S)';
+      rBtn.style.color = 'var(--bg)';
+      rBtn.style.cursor = 'pointer';
+      rBtn.style.opacity = '1';
+    } else {
+      rBtn.disabled = true;
+      rBtn.textContent = oppBattleMode === null ? '等待對手...' : '模式不一致';
+      rBtn.style.background = 'rgba(120,120,120,0.4)';
+      rBtn.style.color = 'rgba(255,255,255,0.6)';
+      rBtn.style.cursor = 'not-allowed';
+      rBtn.style.opacity = '0.7';
+    }
+  }
+
+  // 把按鈕綁好；首次載入時也呼叫一次 updateBattleModeUI 讓初始狀態正確
+  ['mode-bomb-btn', 'mode-classic-btn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        // 對戰進行中或倒數中或已 READY 不能改；對戰結束 (gameOver) 解鎖讓玩家重選下一局模式
+        if (countdownValue > 0) return;
+        if (gameStarted && !gameOver) return;
+        if (iAmReady) return;
+        const newMode = btn.dataset.mode;
+        if (newMode === battleMode) return;  // 已經是這個模式就不重發
+        playSound('move');
+        setBattleMode(newMode, true);
+      });
+    }
+  });
 
   // 檢查雙方準備邏輯 (合併種子)
   function checkBothReady() {
@@ -1266,6 +1401,22 @@
     }
     initMenu();
 
+    // PvP 對戰：把排行榜換成對戰模式選擇面板，重置對手模式狀態 (避免上一場殘留)
+    // AI 模式有自己的設定面板，不共用這個
+    const lbContainerForMP = document.getElementById('leaderboard-container');
+    const battleModePanel = document.getElementById('battle-mode-panel');
+    if (!isAIMode) {
+      oppBattleMode = null;
+      // 不重置 battleMode，讓玩家可以保留上一場選的模式偏好
+      if (lbContainerForMP) lbContainerForMP.style.display = 'none';
+      if (battleModePanel) battleModePanel.classList.remove('hidden');
+      updateBattleModeUI();
+    } else {
+      // AI 對戰固定使用 BOMB 模式，不出現選單
+      battleMode = 'BOMB';
+      if (battleModePanel) battleModePanel.classList.add('hidden');
+    }
+
     // --- 進入對戰：將聊天室搬進 layout 並對齊計時器左邊 ---
     const chatIcon = document.getElementById('chat-icon-wrapper');
     const chatPanel = document.getElementById('chat-panel');
@@ -1496,11 +1647,15 @@
     const aiBtnEl = document.getElementById('ai-btn');
     if (aiBtnEl) aiBtnEl.classList.remove('hidden');
 
-    // 恢復排行榜，隱藏 AI 設定面板
+    // 恢復排行榜，隱藏 AI 設定面板與對戰模式選擇面板
     const leaderboardContainer = document.getElementById('leaderboard-container');
     const aiConfigPanel = document.getElementById('ai-config-panel');
+    const battleModePanelExit = document.getElementById('battle-mode-panel');
     if (leaderboardContainer) leaderboardContainer.style.display = 'flex';
     if (aiConfigPanel) aiConfigPanel.classList.add('hidden');
+    if (battleModePanelExit) battleModePanelExit.classList.add('hidden');
+    // 對手已斷線，把對手選擇清空，下次連到新對手時 UI 才不會殘留前一場的狀態
+    oppBattleMode = null;
 
     // 隱藏離開房間按鈕
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
@@ -1743,6 +1898,19 @@
 
         if (data.type === 'READY') {
            oppIsReady = true; oppSeed = data.seed; checkBothReady();
+        } else if (data.type === 'CANCEL_READY') {
+           // 對手取消了 READY：把對手狀態還原。如果對戰已經開始或正在倒數就忽略 (太晚了)。
+           if (countdownValue > 0 || (gameStarted && !gameOver)) return;
+           oppIsReady = false;
+           showToast('↩️ 對手取消了 READY', 1500);
+           refreshReadyButtonLock();
+        } else if (data.type === 'MODE_SELECT') {
+           // 對手切換對戰模式：更新對手選擇、刷新 UI 與 Ready 按鈕鎖定狀態
+           const m = data.mode;
+           if (m === 'BOMB' || m === 'CLASSIC') {
+             oppBattleMode = m;
+             updateBattleModeUI();
+           }
         } else if (data.type === 'SURRENDER') {
            if (!gameOver) handleSurrender(true);
         } else if (data.type === 'STATE') {
@@ -2749,7 +2917,11 @@
         readyBtn.style.borderColor = 'var(--white)'; // 恢復邊框
         readyBtn.style.cursor = 'pointer';           // 恢復滑鼠手勢
         readyBtn.disabled = false;
+        readyBtn.style.opacity = '1';
       }
+      // 重新跑一次 mode 同步檢查：如果雙方上一局所選模式仍一致，READY 維持綠色可按；
+      // 若中途有人改過模式而尚未一致，則重新鎖回灰色「模式不一致」
+      if (!isAIMode) refreshReadyButtonLock();
 
     } else {
       // 單人模式時間到的處理
@@ -4786,17 +4958,23 @@
       }
     }
 
-    // 尋找一般的滿行 (排除垃圾行)
+    // 尋找滿行
+    // BOMB 模式：含 G 的行不算一般消行 (因為 G 行洞口是炸彈，正常情況不會被填滿；唯一移除方式是引爆)
+    // CLASSIC 模式：G 行 (灰垃圾行) 被填滿後就可以一般消除，比照 Tetris Battle 行為
+    // 兩個模式都禁止把含 'B' 炸彈的行當一般消行 (那要靠 detonatedRows 引爆)
     const fullRows = [];
     for (let r = 0; r < ROWS; r++) {
       let full = true;
-      let isGarbage = false;
+      let hasGarbage = false;
+      let hasBomb = false;
       for (let c = 0; c < COLS; c++) {
         if (!board[r][c]) { full = false; break; }
-        if (board[r][c] === 'G' || board[r][c] === 'B') isGarbage = true;
+        if (board[r][c] === 'G') hasGarbage = true;
+        else if (board[r][c] === 'B') hasBomb = true;
       }
-      // 只有完全沒有 G 和 B 的滿行，才算一般消行
-      if (full && !isGarbage) fullRows.push(r);
+      if (!full || hasBomb) continue;
+      // 經典模式允許 G 行被一般消除；炸彈模式維持原本「乾淨行才算消行」的規則
+      if (battleMode === 'CLASSIC' || !hasGarbage) fullRows.push(r);
     }
 
     // 合併所有要消除的行 (一般消行 + 炸彈行)
@@ -4817,33 +4995,54 @@
     }
   }
 
-  // --- 將垃圾行從底部推入盤面 (2-2-2 凌亂垃圾機制) ---
+  // --- 將垃圾行從底部推入盤面 ---
+  // BOMB 模式：每行洞口放一顆 'B' 炸彈，玩家落在炸彈正上方就引爆消行；連 2 行同洞就換洞 (2-2-2 凌亂機制)
+  // CLASSIC 模式 (Tetris Battle 經典)：每行洞口是空格 (null)，可以塞方塊填滿後一般消除；
+  //   一次倒下的所有垃圾共用同一個洞口，下次再倒下垃圾才換新洞 (對齊 Tetris Battle 行為)
   function applyGarbage() {
     if (activeGarbage <= 0) return;
-    
+
     const linesToAdd = activeGarbage;
     let linesAdded = 0;
 
-    for (let i = 0; i < linesToAdd; i++) {
-      // 如果同一個洞口已經連續 2 行，強制換一個新的
-      if (consecutiveGarbageHoles >= 2 || lastGarbageHole === -1) {
-        let newHole;
-        do {
-          newHole = Math.floor(Math.random() * COLS);
-        } while (newHole === lastGarbageHole);
-        lastGarbageHole = newHole;
-        consecutiveGarbageHoles = 0; // 換新洞口後，重置計數
+    if (battleMode === 'CLASSIC') {
+      // 經典模式：本批次的所有垃圾行共用同一個洞，且不要跟上一批次相同 (盡量)
+      let newHole;
+      do {
+        newHole = Math.floor(Math.random() * COLS);
+      } while (linesToAdd > 0 && newHole === lastGarbageHole && COLS > 1);
+      lastGarbageHole = newHole;
+      consecutiveGarbageHoles = 0;
+
+      for (let i = 0; i < linesToAdd; i++) {
+        board.shift();
+        const newRow = Array(COLS).fill('G');
+        newRow[newHole] = null; // 洞口是空格，玩家可以把方塊填進去消除
+        board.push(newRow);
+        linesAdded++;
       }
+    } else {
+      // BOMB 模式：保留原本 2-2-2 凌亂洞口的炸彈機制
+      for (let i = 0; i < linesToAdd; i++) {
+        if (consecutiveGarbageHoles >= 2 || lastGarbageHole === -1) {
+          let newHole;
+          do {
+            newHole = Math.floor(Math.random() * COLS);
+          } while (newHole === lastGarbageHole);
+          lastGarbageHole = newHole;
+          consecutiveGarbageHoles = 0; // 換新洞口後，重置計數
+        }
 
-      board.shift(); 
-      const newRow = Array(COLS).fill('G'); 
-      newRow[lastGarbageHole] = 'B'; 
-      board.push(newRow);
+        board.shift();
+        const newRow = Array(COLS).fill('G');
+        newRow[lastGarbageHole] = 'B';
+        board.push(newRow);
 
-      linesAdded++;
-      consecutiveGarbageHoles++; // 每推入一行，連續次數 +1
+        linesAdded++;
+        consecutiveGarbageHoles++; // 每推入一行，連續次數 +1
+      }
     }
-    
+
     if (linesAdded > 0) {
       // 如果垃圾把盤面往上頂，同步修正我們剛才記住的方塊座標
       if (canUndo && previousGameState && previousGameState.pieceCells) {
@@ -8611,8 +8810,16 @@
     }
 
     // 繪製畫面
+    // 一旦有飄浮文字 (emoji / combo / KO / 大招提示) 或粒子在跑，就不要節流，
+    // 否則 lobby / 倒數 / 對戰結束 等狀態下，emoji 會被節流到 15-20 FPS 看起來一頓一頓的，
+    // 不像對戰中的 combo 動畫那樣絲滑。
+    const hasAnyFx = myFloatingTexts.length > 0
+                  || oppFloatingTexts.length > 0
+                  || particles.length > 0
+                  || (typeof oppKOTimer !== 'undefined' && oppKOTimer > 0);
+
     // 選單狀態：節流到 ~15 FPS（PRESS ENTER 是靜態的，不需要 120Hz 重繪）
-    if (!gameStarted) {
+    if (!gameStarted && !hasAnyFx) {
       if (now - menuDrawTime < 66) {
         requestAnimationFrame(renderLoop);
         return;
@@ -8621,7 +8828,7 @@
     }
 
     // 遊戲結束 / 暫停 / 倒數 畫面幾乎靜態，節流到 ~20 FPS
-    else if (gameOver || isPaused || countdownValue > 0) {
+    else if ((gameOver || isPaused || countdownValue > 0) && !hasAnyFx) {
       if (now - menuDrawTime < 50) {
         requestAnimationFrame(renderLoop);
         return;
@@ -8633,8 +8840,10 @@
     // 只有在對戰、待處理邀請、或剛要進對戰倒數時才畫對手畫面
     // Phase 2：觀戰對戰模式時也要畫對手
     // 效能優化：對手盤面節流到 ~60Hz，180Hz 絲滑對遠端畫面感受不出來但成本是 3 倍
+    // 但 emoji / KO 等飄浮文字動畫一旦活著就要逐幀重繪，否則手機上會看到一格一格跳的卡頓感
     if (isMultiplayer || pendingConn || (conn && !isPracticeMode) || isSpectatingBattle) {
-      if (now - lastOppDrawTime >= 15) {
+      const hasOppAnim = oppFloatingTexts.length > 0 || (typeof oppKOTimer !== 'undefined' && oppKOTimer > 0);
+      if (hasOppAnim || now - lastOppDrawTime >= 15) {
         drawOpponent();
         lastOppDrawTime = now;
       }

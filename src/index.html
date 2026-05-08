@@ -604,6 +604,38 @@
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
   }
 
+  /* PLAYER 框 (#player-profile-section) 的 ID 特異度 (1,0,0) 大於 .rank-frame (0,1,0)，
+     原本的 !important 邊框與 box-shadow 會壓掉 .rank-frame 的牌位顏色，導致只剩 4 角寶石有顏色。
+     這裡用 ID + class 並列拉高特異度，讓 PLAYER 框也能像對戰時的對手框一樣，整框依牌位發亮。 */
+  #player-profile-section.rank-frame {
+    border-color: var(--tier-color, #CD7F32) !important;
+    border-top-color: var(--tier-color, #CD7F32) !important;
+    border-left-color: var(--tier-color, #CD7F32) !important;
+    border-right-color: var(--tier-color, #CD7F32) !important;
+    border-bottom-color: var(--tier-color, #CD7F32) !important;
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+      inset 0 0 0 4px var(--tier-color, #CD7F32),
+      inset 0 0 0 5px rgba(0, 0, 0, 0.4),
+      inset 0 0 0 7px var(--tier-inner, transparent),
+      inset 0 0 22px rgba(255, 255, 255, 0.05),
+      0 0 16px var(--tier-glow, rgba(205, 127, 50, 0.55)),
+      0 0 38px var(--tier-glow, rgba(205, 127, 50, 0.30)),
+      0 4px 18px rgba(0, 0, 0, 0.45) !important;
+  }
+  /* 菁英牌位的雙色內邊在 PLAYER 框也要套用 */
+  #player-profile-section.rank-frame.tier-elite {
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+      inset 0 0 0 4px #00FFFF,
+      inset 0 0 0 5px rgba(0, 0, 0, 0.4),
+      inset 0 0 0 7px #FF00FF,
+      inset 0 0 22px rgba(255, 255, 255, 0.08),
+      0 0 18px #00FFFF,
+      0 0 38px rgba(255, 0, 255, 0.55),
+      0 4px 18px rgba(0, 0, 0, 0.45) !important;
+  }
+
   /* === 倒數 3 秒華麗動畫 (套用 .rank-charging) ===
      全程只動 transform / opacity / filter / background-position → GPU 加速、不引發重新繪製 */
 
@@ -777,6 +809,85 @@
     background: var(--I);
     color: var(--bg);
     box-shadow: 0 0 8px rgba(56,189,238,0.5);
+  }
+
+  /* === 對戰模式選擇按鈕 (#battle-mode-panel) === */
+  .mode-buttons-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 6px 8px;
+    background: rgba(0,0,0,0.35);
+    border: 2px solid rgba(255,255,255,0.18);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    font-family: inherit;
+  }
+  .mode-btn:hover {
+    border-color: var(--O);
+    background: rgba(247,171,50,0.08);
+  }
+  .mode-btn.selected {
+    border-color: var(--S);
+    background: rgba(72,214,47,0.12);
+    box-shadow: 0 0 10px rgba(72,214,47,0.35), inset 0 0 10px rgba(72,214,47,0.15);
+  }
+  .mode-btn-icon {
+    font-size: 28px;
+    line-height: 1;
+  }
+  .mode-btn-name {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: var(--white);
+  }
+  .mode-btn-desc {
+    font-size: 11px;
+    color: rgba(255,255,255,0.65);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .mode-pick-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-height: 18px;
+  }
+  .pick-badge {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    line-height: 1;
+  }
+  .pick-badge.my {
+    background: var(--S);
+    color: var(--bg);
+  }
+  .pick-badge.opp {
+    background: var(--Z);
+    color: var(--white);
+  }
+
+  /* 模式同步狀態：根據是否一致動態調整顏色 */
+  #mode-sync-status.match {
+    background: rgba(72,214,47,0.15) !important;
+    color: var(--S) !important;
+  }
+  #mode-sync-status.mismatch {
+    background: rgba(255,13,98,0.15) !important;
+    color: var(--Z) !important;
   }
 
   @media (max-height: 760px){
@@ -2282,6 +2393,37 @@
               <h2 style="text-align:center; color:#00FFFF; margin:0 0 10px 0; font-size:24px;">TOP 3 AI KILLER</h2>
               <div style="text-align:center; font-size:12px; color:rgba(255,255,255,0.6); margin-top:-6px; margin-bottom:8px;">限定高手模式 (不含AI自爆)</div>
               <div id="ai-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
+            </div>
+          </div>
+
+          <!-- 對戰模式選擇面板（進入真人對戰才顯示，取代排行榜） -->
+          <div class="info-panel hidden" id="battle-mode-panel" style="border-color:var(--O); box-shadow:0 0 10px rgba(247,171,50,0.3);">
+            <h2 style="text-align:center; color:var(--O); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--O); letter-spacing:2px;">⚔️ MATCH MODE</h2>
+            <div class="mode-buttons-row">
+              <button class="mode-btn selected" data-mode="BOMB" id="mode-bomb-btn">
+                <span class="mode-btn-icon">💣</span>
+                <span class="mode-btn-name">BOMB</span>
+                <span class="mode-btn-desc">炸彈引爆消行</span>
+                <span class="mode-pick-row">
+                  <span class="pick-badge my">✓ 你</span>
+                  <span class="pick-badge opp hidden">對手</span>
+                </span>
+              </button>
+              <button class="mode-btn" data-mode="CLASSIC" id="mode-classic-btn">
+                <span class="mode-btn-icon">🧱</span>
+                <span class="mode-btn-name">CLASSIC</span>
+                <span class="mode-btn-desc">原版垃圾行</span>
+                <span class="mode-pick-row">
+                  <span class="pick-badge my hidden">✓ 你</span>
+                  <span class="pick-badge opp hidden">對手</span>
+                </span>
+              </button>
+            </div>
+            <div id="mode-sync-status" style="margin-top:10px; padding:8px; text-align:center; font-size:12px; font-weight:900; letter-spacing:1px; border-radius:6px; background:rgba(255,171,50,0.1); color:var(--O);">⏳ 等待對手選擇模式...</div>
+            <div style="margin-top:10px; padding:8px; font-size:12px; color:rgba(255,255,255,0.7); line-height:1.5;">
+              📜 雙方需選擇 <b style="color:var(--S);">相同模式</b>，才能按下 READY 開始遊戲。<br>
+              💣 BOMB：垃圾洞口是炸彈，落上方引爆。<br>
+              🧱 CLASSIC：垃圾洞口是空格，填滿即可消除。
             </div>
           </div>
 
