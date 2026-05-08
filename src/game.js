@@ -413,21 +413,52 @@
   // 單人模式背景音樂
   const bgm = new Audio(AUDIO_PATHS.bgm);
   bgm.volume = masterVolume * 0.15; // 背景音樂建議稍微小聲一點
+  bgm.preload = 'auto';
+  bgm.load();
   // 雙人對戰模式背景音樂
   const battleBgm = new Audio(AUDIO_PATHS.battleBgm);
   battleBgm.volume = masterVolume * 0.15;
+  battleBgm.preload = 'auto';
+  battleBgm.load();
   // iOS Safari/WKWebView 的 audio.loop=true 在播到結尾要重頭時，會發生
   // 「短暫卡頓 + 從頭重播」的視聽 bug（PWA 裡尤其明顯）。改用手動 ended
   // 監聽，自己接管 loop，可避開這個原生實作問題。
+  // 行動裝置另一個雷：邊播邊載時 buffer 一斷會誤觸發 ended，導致「播一半重頭」。
+  // 解法：ended 觸發時加 sanity check，只有真的播到接近結尾才當作 loop。
+  // buffer underrun (waiting/stalled) 則保留 currentTime 重播。
   function setupSeamlessLoop(audio) {
     audio.loop = false;
     audio.addEventListener('ended', () => {
-      audio.currentTime = 0;
+      const dur = audio.duration;
+      const cur = audio.currentTime;
+      // 只有真的播到結尾(誤差 1 秒內)才當作 loop；否則是 buffer 斷掉的假 ended，續播即可
+      const isRealEnd = !isFinite(dur) || dur <= 0 || (dur - cur) < 1;
+      if (isRealEnd) {
+        audio.currentTime = 0;
+      }
+      audio.play().catch(() => {});
+    });
+    audio.addEventListener('waiting', () => {
+      // buffer underrun，等系統自動恢復；不要 reset currentTime
+    });
+    audio.addEventListener('stalled', () => {
+      // 連線中斷，嘗試續播但保留 currentTime
       audio.play().catch(() => {});
     });
   }
   setupSeamlessLoop(bgm);
   setupSeamlessLoop(battleBgm);
+  // 行動裝置切到背景或螢幕鎖定時 audio 會被系統暫停，回到前景時自動續播
+  // 重點：保留 currentTime，不要重設為 0
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (isBgmMuted || !bgmStarted) return;
+    if (isMultiplayer && gameStarted && battleBgm.paused) {
+      battleBgm.play().catch(() => {});
+    } else if (!isMultiplayer && bgm.paused) {
+      bgm.play().catch(() => {});
+    }
+  });
   let bgmStarted = false; // 紀錄是否已經解鎖自動播放
   const particles = []; // 儲存所有粒子的陣列
   const myFloatingTexts = [];  // 儲存自己畫面上的特效
@@ -1089,6 +1120,14 @@
     countdownValue = 3;
     playSound('move');
 
+    // 倒數 3 秒只給對手框觸發華麗動畫；PLAYER 框保持靜態避免分心
+    if (typeof triggerRankCharge === 'function' && isMultiplayer) {
+      const oppForCharge = document.getElementById('opp-panel');
+      if (oppForCharge && oppForCharge.classList.contains('rank-frame')) {
+        triggerRankCharge(oppForCharge, 3000);
+      }
+    }
+
     // 如果是單機模式，而且音樂「還沒在播放」，才呼叫播放
         if (!isMultiplayer && !isBgmMuted) {
           if (typeof bgm !== 'undefined' && bgm.paused) {
@@ -1473,10 +1512,13 @@
 
     const oppTitleEl = document.getElementById('opp-name-display');
     if (oppTitleEl) {
-       oppTitleEl.innerHTML = 'OPPONENT'; 
+       oppTitleEl.innerHTML = 'OPPONENT';
        oppTitleEl.style.color = 'var(--Z)';
        oppTitleEl.style.textShadow = '0 0 10px var(--Z)';
     }
+    // 清掉對手遊戲區的牌位框（下一場連線到別的對手前不要殘留前一個段位）
+    const oppPanelExit = document.getElementById('opp-panel');
+    if (oppPanelExit) clearRankFrame(oppPanelExit);
 
     // 退出對戰時，確保火焰被清空，恢復預設的 You
     const myTitleEl = document.getElementById('my-name-display');
@@ -1787,6 +1829,14 @@
            oppState.isGuest = p.name === 'Guest';
            oppState.name = p.name || 'OPPONENT';
            oppState.uid = p.uid || null;
+           // 替整個對手遊戲區套上對應段位的牌位框
+           const oppPanelEl = document.getElementById('opp-panel');
+           if (oppPanelEl && !oppState.isGuest) {
+             const oppRank = getRankInfo(oppState.lp);
+             applyRankFrame(oppPanelEl, oppState.lp, oppRank.name, { bottomText: `${oppState.lp} LP` });
+             // 套上牌位框可能微幅改變視覺需求，重新跑 fitLayout 確保兩邊畫布等大
+             if (typeof fitLayout === 'function') setTimeout(fitLayout, 0);
+           }
            // Phase 2：廣播對手 profile 給所有觀戰者
            if (spectatorConns && spectatorConns.size > 0) {
              try { broadcastEffectToSpectators('OPP_PROFILE', { profile: p }); } catch(e) {}
@@ -5689,6 +5739,11 @@
             if (!oppState) oppState = {};
             oppState.name = p.name || 'OPPONENT';
             oppState.lp = p.lp || 0;
+            // 觀戰模式也替對手遊戲區套上牌位框
+            const oppPanelSpec = document.getElementById('opp-panel');
+            if (oppPanelSpec && typeof applyRankFrame === 'function' && p.name !== 'Guest') {
+              applyRankFrame(oppPanelSpec, oppState.lp, getRankInfo(oppState.lp).name, { bottomText: `${oppState.lp} LP` });
+            }
           }
           break;
         default:
@@ -5839,6 +5894,12 @@
   function exitSpectateBattleLayout() {
     if (!isSpectatingBattle) return;
     isSpectatingBattle = false;
+
+    // 觀戰結束清掉對手遊戲區的牌位框
+    const oppPanelSpecExit = document.getElementById('opp-panel');
+    if (oppPanelSpecExit && typeof clearRankFrame === 'function') {
+      clearRankFrame(oppPanelSpecExit);
+    }
 
     const layout = document.getElementById('layout');
     if (layout) layout.classList.remove('is-multiplayer');
@@ -7603,25 +7664,113 @@
   }
 
   // === 段位規則單一資料源 (getRankInfo 與段位說明 Modal 都讀這個) ===
+  // tierClass / symbol / cornerSym / hasBottomPlate 給 CSS 牌位框使用
   const RANK_RULES = {
     tiers: [
-      { name: '銅牌', min: 0,    color: '#CD7F32' },
-      { name: '銀牌', min: 200,  color: '#C0C0C0' },
-      { name: '金牌', min: 400,  color: '#FFD700' },
-      { name: '白金', min: 600,  color: '#00FF7F' },
-      { name: '鑽石', min: 800,  color: '#b9f2ff' },
-      { name: '大師', min: 1000, color: '#FF00FF' },
-      { name: '菁英', min: 1200, color: '#00FFFF' },
+      { name: '銅牌', min: 0,    color: '#CD7F32', tierClass: 'tier-bronze',   symbol: '◆',  plateDecor: ''   },
+      { name: '銀牌', min: 200,  color: '#C0C0C0', tierClass: 'tier-silver',   symbol: '◈',  plateDecor: ''   },
+      { name: '金牌', min: 400,  color: '#FFD700', tierClass: 'tier-gold',     symbol: '★',  plateDecor: '★'  },
+      { name: '白金', min: 600,  color: '#00FF7F', tierClass: 'tier-platinum', symbol: '❖',  plateDecor: '❖'  },
+      { name: '鑽石', min: 800,  color: '#b9f2ff', tierClass: 'tier-diamond',  symbol: '✦',  plateDecor: '✦'  },
+      { name: '大師', min: 1000, color: '#FF00FF', tierClass: 'tier-master',   symbol: '♛',  plateDecor: '♛'  },
+      { name: '菁英', min: 1200, color: '#00FFFF', tierClass: 'tier-elite',    symbol: '♚',  plateDecor: '♚'  },
     ]
   };
+  const ALL_TIER_CLASSES = RANK_RULES.tiers.map(t => t.tierClass);
 
-  // === 共用段位計算函數 (傳入 LP，回傳 { name, color }) ===
+  // === 共用段位計算函數 (傳入 LP，回傳完整 tier 物件，向後相容) ===
   function getRankInfo(lp) {
     const tiers = RANK_RULES.tiers;
     for (let i = tiers.length - 1; i >= 0; i--) {
-      if (lp >= tiers[i].min) return { name: tiers[i].name, color: tiers[i].color };
+      if (lp >= tiers[i].min) return tiers[i];
     }
     return tiers[0];
+  }
+
+  // === 套用牌位框：替 element 加上對應段位 class，並補齊 4 角寶石 + 頂部牌子 + 翅膀 ===
+  // opts.bottomText: 底部副牌子要顯示的文字 (例如 "444 LP")，未指定則用段位符號裝飾
+  function applyRankFrame(element, lp, labelText, opts) {
+    if (!element) return;
+    opts = opts || {};
+    const tier = getRankInfo(lp || 0);
+    element.classList.add('rank-frame');
+    ALL_TIER_CLASSES.forEach(c => element.classList.remove(c));
+    element.classList.add(tier.tierClass);
+
+    // 4 角寶石
+    ['tl','tr','bl','br'].forEach(pos => {
+      let corner = element.querySelector(':scope > .rank-corner.' + pos);
+      if (!corner) {
+        corner = document.createElement('span');
+        corner.className = 'rank-corner ' + pos;
+        element.appendChild(corner);
+      }
+      corner.textContent = tier.symbol;
+    });
+
+    // 頂部 nameplate (大牌子)：段位名稱 + 兩側裝飾符號
+    let plate = element.querySelector(':scope > .rank-plate');
+    if (labelText === null) {
+      if (plate) plate.remove();
+    } else {
+      if (!plate) {
+        plate = document.createElement('span');
+        plate.className = 'rank-plate';
+        element.appendChild(plate);
+      }
+      const text = (labelText !== undefined ? labelText : tier.name);
+      const decor = tier.plateDecor;
+      plate.innerHTML = decor
+        ? `<span class="rank-plate-icon">${decor}</span> ${text} <span class="rank-plate-icon">${decor}</span>`
+        : text;
+    }
+
+    // 兩側翅膀飾條 (CSS 自己決定哪些段位開啟 display:block)
+    ['rank-wing-l','rank-wing-r'].forEach(cls => {
+      let wing = element.querySelector(':scope > .' + cls);
+      if (!wing) {
+        wing = document.createElement('span');
+        wing.className = cls;
+        element.appendChild(wing);
+      }
+    });
+
+    // 底部副牌子
+    let bottomPlate = element.querySelector(':scope > .rank-plate-bottom');
+    if (!bottomPlate) {
+      bottomPlate = document.createElement('span');
+      bottomPlate.className = 'rank-plate-bottom';
+      element.appendChild(bottomPlate);
+    }
+    bottomPlate.textContent = (opts.bottomText !== undefined)
+      ? opts.bottomText
+      : `${tier.symbol} ${tier.symbol} ${tier.symbol}`;
+  }
+
+  // 移除牌位框：清掉 class 與所有裝飾節點
+  function clearRankFrame(element) {
+    if (!element) return;
+    element.classList.remove('rank-frame', 'rank-charging');
+    ALL_TIER_CLASSES.forEach(c => element.classList.remove(c));
+    element.querySelectorAll(
+      ':scope > .rank-corner, :scope > .rank-plate, :scope > .rank-plate-bottom, :scope > .rank-wing-l, :scope > .rank-wing-r'
+    ).forEach(n => n.remove());
+  }
+
+  // 觸發 3 秒華麗動畫 (倒數時用)：加 .rank-charging，倒數結束自動移除
+  // 用 setTimeout 而不用 CSS 自然結束，因為使用者可能反覆按 R/Enter 重啟，需保證一定會清除
+  const _rankChargeTimers = new WeakMap();
+  function triggerRankCharge(element, durationMs) {
+    if (!element || !element.classList.contains('rank-frame')) return;
+    durationMs = durationMs || 3000;
+    element.classList.add('rank-charging');
+    const prevTimer = _rankChargeTimers.get(element);
+    if (prevTimer) clearTimeout(prevTimer);
+    const timer = setTimeout(() => {
+      element.classList.remove('rank-charging');
+      _rankChargeTimers.delete(element);
+    }, durationMs);
+    _rankChargeTimers.set(element, timer);
   }
 
   // 根據 user doc 更新生涯平均統計 UI (放在 PLAYER 面板)
@@ -7652,6 +7801,9 @@
     rankEl.innerHTML = `${rankName} <span style="font-size:12px">(${lp} LP)</span>`;
     rankEl.style.color = color;
     rankEl.style.textShadow = `0 0 5px ${color}`;
+    // 替 PLAYER 框套上對應段位的牌位框，底部副牌子顯示 LP 值
+    const profileEl = document.getElementById('player-profile-section');
+    if (profileEl) applyRankFrame(profileEl, lp, rankName, { bottomText: `${lp} LP` });
   }
 
   // === 段位說明 Modal ===
@@ -7833,6 +7985,10 @@
 
       const adminPanel = document.getElementById('admin-panel');
       if (adminPanel) adminPanel.classList.add('hidden');
+
+      // 登出時清掉 PLAYER 框的牌位框，避免登入畫面殘留前一個玩家的段位光暈
+      const profileEl = document.getElementById('player-profile-section');
+      if (profileEl) clearRankFrame(profileEl);
 
       if (myIdEl) myIdEl.textContent = 'Loading...';
       initNetwork();

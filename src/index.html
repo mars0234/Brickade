@@ -260,8 +260,15 @@
     line-height: 1.2;      /* 設定行高，避免兩行貼太近 */
   }
 
-  /* 遊戲主畫布 */
+  /* 遊戲主畫布
+     game.js 用 DPR 升級了 #game 的內部 buffer (canvas.width/height = 邏輯尺寸 * DPR)
+     讓高解析度螢幕上文字更銳利。對手場 #opp-game 沒做這個升級。
+     必須在 CSS 把兩者「顯示尺寸」都鎖在邏輯的 340 × 680，
+     否則 #game 會被瀏覽器拿 HTML attribute (例 425×850) 當顯示尺寸 → 比 #opp-game 大 25%。
+     行動裝置 mp-mode 等特殊情境另外用 !important 覆蓋。 */
   #game, #opp-game {
+    width: 340px;
+    height: 680px;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     border-radius: 4px;
     background: var(--cell-bg);
@@ -322,6 +329,393 @@
     padding: 15px;
     border-radius: 8px;
     flex-shrink: 0;
+  }
+
+  /* === 段位牌位框 (RANK FRAME) — LOL 華麗風格 ===
+     設計原則：
+     - 完全不動 box 大小：不改 border-width，不用 outline (避免影響 layout)
+     - 多層 inset box-shadow 疊出「厚邊框」視覺，但因為是 shadow 不佔 box 空間
+     - 加上強烈外光暈讓 panel 邊緣發亮
+     - 倒數 3 秒加 .rank-charging：光暈呼吸 / 寶石旋轉 / 牌子閃爍 / conic (鑽石+) */
+  .rank-frame {
+    position: relative;
+    /* 只改 border-color，寬度沿用 panel 原本的 (game-section: 2px / info-panel: 1px) */
+    border-color: var(--tier-color, #CD7F32) !important;
+    border-radius: 12px !important;
+    box-shadow:
+      /* 多層 inset 疊出「厚邊框」視覺 (不影響 box 寬度) */
+      inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+      inset 0 0 0 4px var(--tier-color, #CD7F32),
+      inset 0 0 0 5px rgba(0, 0, 0, 0.4),
+      inset 0 0 0 7px var(--tier-inner, transparent),
+      inset 0 0 22px rgba(255, 255, 255, 0.05),
+      /* 雙層外光暈：近距離強光 + 遠距離柔光 */
+      0 0 16px var(--tier-glow, rgba(205, 127, 50, 0.55)),
+      0 0 38px var(--tier-glow, rgba(205, 127, 50, 0.30)),
+      0 4px 18px rgba(0, 0, 0, 0.45) !important;
+    transition: border-color 0.4s ease;
+  }
+
+  /* === 頂部華麗大牌子 (rank-plate) ===
+     雙層結構：外殼 + 高光帶 (inset)，視覺接近金屬鑲鑽 */
+  .rank-frame .rank-plate {
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 110px;
+    padding: 6px 26px;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-align: center;
+    white-space: nowrap;
+    background:
+      linear-gradient(180deg,
+        rgba(255, 255, 255, 0.45) 0%,
+        rgba(255, 255, 255, 0) 18%,
+        var(--tier-color, #CD7F32) 18%,
+        var(--tier-color, #CD7F32) 55%,
+        var(--tier-color-dark, #6e3b06) 100%);
+    color: var(--bg);
+    border: 1.5px solid var(--tier-color, #CD7F32);
+    border-radius: 4px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.45),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.25),
+      0 0 16px var(--tier-color, #CD7F32),
+      0 0 32px var(--tier-glow, rgba(205, 127, 50, 0.5)),
+      0 2px 6px rgba(0, 0, 0, 0.55);
+    z-index: 7;
+    pointer-events: none;
+    line-height: 1.4;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+  /* 牌子兩端尖角 (用 ::before / ::after 畫出梯形/三角延伸) */
+  .rank-frame .rank-plate::before,
+  .rank-frame .rank-plate::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    background: linear-gradient(180deg, var(--tier-color, #CD7F32), var(--tier-color-dark, #6e3b06));
+    border: 1.5px solid var(--tier-color, #CD7F32);
+    box-shadow: 0 0 10px var(--tier-color, #CD7F32);
+  }
+  .rank-frame .rank-plate::before {
+    left: -8px;
+    clip-path: polygon(100% 0, 0 50%, 100% 100%);
+    border-right: none;
+  }
+  .rank-frame .rank-plate::after {
+    right: -8px;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+    border-left: none;
+  }
+  .rank-frame .rank-plate-icon { margin: 0 5px; font-size: 1.05em; }
+
+  /* === 4 角寶石 ===
+     用 radial-gradient 模擬寶石光澤，外加 Unicode 符號浮在中央 */
+  .rank-frame .rank-corner {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    line-height: 1;
+    z-index: 5;
+    pointer-events: none;
+    color: #fff;
+    text-shadow:
+      0 0 8px var(--tier-color, #CD7F32),
+      0 0 3px var(--tier-color, #CD7F32),
+      0 1px 2px rgba(0, 0, 0, 0.9);
+    background:
+      radial-gradient(circle at 35% 30%,
+        rgba(255, 255, 255, 0.9) 0%,
+        var(--tier-color, #CD7F32) 35%,
+        var(--tier-color-dark, #6e3b06) 100%);
+    border: 1.5px solid var(--tier-color, #CD7F32);
+    border-radius: 50%;
+    box-shadow:
+      inset 0 1px 4px rgba(255, 255, 255, 0.6),
+      inset 0 -1px 3px rgba(0, 0, 0, 0.4),
+      0 0 12px var(--tier-color, #CD7F32),
+      0 2px 4px rgba(0, 0, 0, 0.5);
+    transform-origin: center;
+  }
+  .rank-frame .rank-corner.tl { top: -17px; left: -17px; }
+  .rank-frame .rank-corner.tr { top: -17px; right: -17px; }
+  .rank-frame .rank-corner.bl { bottom: -17px; left: -17px; }
+  .rank-frame .rank-corner.br { bottom: -17px; right: -17px; }
+
+  /* === 側翅膀 (兩條，主+細，僅高段位顯示) === */
+  .rank-frame .rank-wing-l, .rank-frame .rank-wing-r {
+    position: absolute;
+    top: -13px;
+    height: 7px;
+    width: 90px;
+    z-index: 4;
+    pointer-events: none;
+    display: none;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      var(--tier-color, #CD7F32) 25%,
+      var(--tier-color, #CD7F32) 75%,
+      transparent 100%);
+    box-shadow: 0 0 10px var(--tier-color, #CD7F32);
+    border-radius: 4px;
+  }
+  /* 翅膀下方再加一條更細的副線 (純裝飾) */
+  .rank-frame .rank-wing-l::after, .rank-frame .rank-wing-r::after {
+    content: '';
+    position: absolute;
+    left: 12%; right: 12%;
+    top: calc(100% + 3px);
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--tier-color, #CD7F32), transparent);
+    opacity: 0.7;
+    border-radius: 1px;
+  }
+  .rank-frame .rank-wing-l { right: calc(50% + 65px); width: 90px; }
+  .rank-frame .rank-wing-r { left: calc(50% + 65px); width: 90px; }
+  /* PLAYER 框較窄 (260px)，翅膀縮短 + 拉近避免戳出邊界 */
+  .info-panel.rank-frame .rank-wing-l { right: calc(50% + 45px); width: 70px; }
+  .info-panel.rank-frame .rank-wing-r { left:  calc(50% + 45px); width: 70px; }
+
+  /* === 底部 LP 副牌子 (含尖角) === */
+  .rank-frame .rank-plate-bottom {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 18px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    background: linear-gradient(180deg, var(--tier-color-dark, #6e3b06) 0%, var(--tier-color, #CD7F32) 50%, var(--tier-color-dark, #6e3b06) 100%);
+    border: 1px solid var(--tier-color, #CD7F32);
+    border-radius: 3px;
+    color: var(--bg);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 0 10px var(--tier-color, #CD7F32),
+      0 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 5;
+    pointer-events: none;
+    display: none;
+    white-space: nowrap;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3);
+  }
+  .rank-frame .rank-plate-bottom::before,
+  .rank-frame .rank-plate-bottom::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background: var(--tier-color, #CD7F32);
+    box-shadow: 0 0 6px var(--tier-color, #CD7F32);
+  }
+  .rank-frame .rank-plate-bottom::before {
+    left: -5px;
+    clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  }
+  .rank-frame .rank-plate-bottom::after {
+    right: -5px;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+
+  /* === 各段位顏色 + 進階裝飾 === */
+  .rank-frame.tier-bronze {
+    --tier-color: #CD7F32; --tier-color-dark: #6e3b06;
+    --tier-glow: rgba(205, 127, 50, 0.55);
+  }
+  .rank-frame.tier-silver {
+    --tier-color: #C0C0C0; --tier-color-dark: #5e5e5e;
+    --tier-glow: rgba(192, 192, 192, 0.6);
+    --tier-inner: rgba(255, 255, 255, 0.18);
+  }
+  .rank-frame.tier-gold {
+    --tier-color: #FFD700; --tier-color-dark: #806600;
+    --tier-glow: rgba(255, 215, 0, 0.75);
+    --tier-inner: rgba(255, 215, 0, 0.45);
+  }
+  .rank-frame.tier-gold .rank-wing-l,
+  .rank-frame.tier-gold .rank-wing-r { display: block; }
+
+  .rank-frame.tier-platinum {
+    --tier-color: #00FF7F; --tier-color-dark: #00663b;
+    --tier-glow: rgba(0, 255, 127, 0.75);
+    --tier-inner: rgba(0, 255, 127, 0.4);
+  }
+  .rank-frame.tier-platinum .rank-wing-l,
+  .rank-frame.tier-platinum .rank-wing-r,
+  .rank-frame.tier-platinum .rank-plate-bottom { display: block; }
+
+  .rank-frame.tier-diamond {
+    --tier-color: #b9f2ff; --tier-color-dark: #2c7d9d;
+    --tier-glow: rgba(185, 242, 255, 0.9);
+    --tier-inner: rgba(185, 242, 255, 0.55);
+  }
+  .rank-frame.tier-diamond .rank-wing-l,
+  .rank-frame.tier-diamond .rank-wing-r,
+  .rank-frame.tier-diamond .rank-plate-bottom { display: block; }
+  .rank-frame.tier-diamond .rank-plate { color: #003e57; }
+
+  .rank-frame.tier-master {
+    --tier-color: #FF00FF; --tier-color-dark: #6e006e;
+    --tier-glow: rgba(255, 0, 255, 0.9);
+    --tier-inner: #FFD700; /* 內層金線 */
+  }
+  .rank-frame.tier-master .rank-wing-l,
+  .rank-frame.tier-master .rank-wing-r,
+  .rank-frame.tier-master .rank-plate-bottom { display: block; }
+  .rank-frame.tier-master .rank-plate {
+    color: var(--white);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  }
+
+  .rank-frame.tier-elite {
+    --tier-color: #00FFFF; --tier-color-dark: #006666;
+    --tier-glow: rgba(0, 255, 255, 1);
+    --tier-inner: #FF00FF;
+    /* 菁英：cyan/magenta 雙色內邊 + 雙色外光暈 */
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+      inset 0 0 0 4px #00FFFF,
+      inset 0 0 0 5px rgba(0, 0, 0, 0.4),
+      inset 0 0 0 7px #FF00FF,
+      inset 0 0 22px rgba(255, 255, 255, 0.08),
+      0 0 18px #00FFFF,
+      0 0 38px rgba(255, 0, 255, 0.55),
+      0 4px 18px rgba(0, 0, 0, 0.45) !important;
+  }
+  .rank-frame.tier-elite .rank-wing-l,
+  .rank-frame.tier-elite .rank-wing-r,
+  .rank-frame.tier-elite .rank-plate-bottom { display: block; }
+  .rank-frame.tier-elite .rank-plate {
+    background: linear-gradient(135deg, #00FFFF 0%, #FF00FF 50%, #00FFFF 100%);
+    color: var(--white);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  }
+
+  /* === 倒數 3 秒華麗動畫 (套用 .rank-charging) ===
+     全程只動 transform / opacity / filter / background-position → GPU 加速、不引發重新繪製 */
+
+  /* (1) 整框 halo 呼吸：filter brightness + drop-shadow，GPU 加速 */
+  .rank-frame.rank-charging {
+    animation: rank-charge-frame 1s ease-in-out infinite alternate;
+  }
+  /* (2) 光帶橫掃：::before pseudo 蓋一張角度漸層條，用 background-position 滑過 */
+  .rank-frame.rank-charging::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 3;
+    background: linear-gradient(115deg,
+      transparent 0%,
+      transparent 38%,
+      rgba(255, 255, 255, 0.0) 45%,
+      rgba(255, 255, 255, 0.55) 50%,
+      rgba(255, 255, 255, 0.0) 55%,
+      transparent 62%,
+      transparent 100%);
+    background-size: 250% 100%;
+    background-position: 250% 0;
+    /* mask 讓光帶只出現在 panel 邊緣，不亮到中央遊戲畫布
+       相容語法: 同時寫 -webkit-mask + mask + composite */
+    -webkit-mask:
+      linear-gradient(#000, #000) content-box,
+      linear-gradient(#000, #000);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000, #000) content-box,
+      linear-gradient(#000, #000);
+    mask-composite: exclude;
+    padding: 6px;
+    animation: rank-light-sweep 1.6s linear infinite;
+  }
+  /* (3) 寶石旋轉縮放 */
+  .rank-frame.rank-charging .rank-corner {
+    animation: rank-corner-spin 1.6s linear infinite;
+  }
+  /* (4) 牌子 brightness 閃 */
+  .rank-frame.rank-charging .rank-plate {
+    animation: rank-plate-flash 0.7s ease-in-out infinite alternate;
+  }
+  /* (5) 翅膀伸縮 */
+  .rank-frame.rank-charging .rank-wing-l,
+  .rank-frame.rank-charging .rank-wing-r {
+    animation: rank-wing-extend 1s ease-in-out infinite alternate;
+  }
+  /* (6) 鑽石+ 加 conic 旋轉光環 (背景級) */
+  .rank-frame.rank-charging.tier-diamond::after,
+  .rank-frame.rank-charging.tier-master::after,
+  .rank-frame.rank-charging.tier-elite::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    border-radius: 20px;
+    background: conic-gradient(from 0deg,
+      var(--tier-color) 0%,
+      transparent 25%,
+      var(--tier-color) 50%,
+      transparent 75%,
+      var(--tier-color) 100%);
+    opacity: 0.4;
+    z-index: -1;
+    animation: rank-conic-rotate 2s linear infinite;
+    filter: blur(3px);
+  }
+
+  @keyframes rank-charge-frame {
+    from { filter: brightness(1)   drop-shadow(0 0 10px var(--tier-color)); }
+    to   { filter: brightness(1.15) drop-shadow(0 0 24px var(--tier-color)); }
+  }
+  @keyframes rank-light-sweep {
+    from { background-position: 250% 0; }
+    to   { background-position: -150% 0; }
+  }
+  @keyframes rank-corner-spin {
+    0%   { transform: rotate(0deg)   scale(1); }
+    50%  { transform: rotate(180deg) scale(1.25); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+  @keyframes rank-plate-flash {
+    from { filter: brightness(1); }
+    to   { filter: brightness(1.55); }
+  }
+  @keyframes rank-wing-extend {
+    from { transform: scaleX(0.85); opacity: 0.7; }
+    to   { transform: scaleX(1.15); opacity: 1; }
+  }
+  @keyframes rank-conic-rotate {
+    to { transform: rotate(360deg); }
+  }
+
+  /* 行動裝置 mp-mode：對手場已被縮成左上角浮動縮圖，
+     panel 容器本身無視覺意義，把所有牌位框裝飾與光暈藏掉避免畫面殘留 */
+  body.mp-mode #opp-panel.rank-frame {
+    border-color: rgba(255,255,255,0.1) !important;
+    box-shadow: none !important;
+    animation: none !important;
+    background: transparent !important;
+  }
+  body.mp-mode #opp-panel.rank-frame::before,
+  body.mp-mode #opp-panel.rank-frame::after,
+  body.mp-mode #opp-panel.rank-frame > .rank-plate,
+  body.mp-mode #opp-panel.rank-frame > .rank-plate-bottom,
+  body.mp-mode #opp-panel.rank-frame > .rank-corner,
+  body.mp-mode #opp-panel.rank-frame > .rank-wing-l,
+  body.mp-mode #opp-panel.rank-frame > .rank-wing-r {
+    display: none !important;
   }
 
   .hidden { display: none !important; }
@@ -2183,7 +2577,7 @@
         </div>
         
         <div class="board-col">
-          <div class="game-title" id="opp-name-display" style="color:var(--Z); text-align: center; line-height: 1.2;">OPPONENT</div> 
+          <div class="game-title" id="opp-name-display" style="color:var(--Z); text-align: center; line-height: 1.2;">OPPONENT</div>
           <canvas id="opp-game" width="340" height="680"></canvas>
         </div>
         <div class="side-col">
