@@ -410,52 +410,111 @@
     bgm: './Game 8-Bit On.mp3',
     battleBgm: './Return To The 8-Bit Past.mp3'
   };
-  // 單人模式背景音樂
-  const bgm = new Audio(AUDIO_PATHS.bgm);
-  bgm.volume = masterVolume * 0.15; // 背景音樂建議稍微小聲一點
-  bgm.preload = 'auto';
-  bgm.load();
-  // 雙人對戰模式背景音樂
-  const battleBgm = new Audio(AUDIO_PATHS.battleBgm);
-  battleBgm.volume = masterVolume * 0.15;
-  battleBgm.preload = 'auto';
-  battleBgm.load();
-  // iOS Safari/WKWebView 的 audio.loop=true 在播到結尾要重頭時，會發生
-  // 「短暫卡頓 + 從頭重播」的視聽 bug（PWA 裡尤其明顯）。改用手動 ended
-  // 監聽，自己接管 loop，可避開這個原生實作問題。
-  // 行動裝置另一個雷：邊播邊載時 buffer 一斷會誤觸發 ended，導致「播一半重頭」。
-  // 解法：ended 觸發時加 sanity check，只有真的播到接近結尾才當作 loop。
-  // buffer underrun (waiting/stalled) 則保留 currentTime 重播。
-  function setupSeamlessLoop(audio, shouldPlay) {
-    audio.loop = false;
-    audio.addEventListener('ended', () => {
-      // 行動裝置 (尤其 iOS Safari) 在 audio.pause() 之後仍可能因 buffer 收尾而觸發 ended，
-      // 若無條件 audio.play() 會把已經停掉的 BGM 重新拉起來，導致單人模式下 bgm 與 battleBgm 疊在一起。
-      if (typeof shouldPlay === 'function' && !shouldPlay()) return;
-      const dur = audio.duration;
-      const cur = audio.currentTime;
-      // 只有真的播到結尾(誤差 1 秒內)才當作 loop；否則是 buffer 斷掉的假 ended，續播即可
-      const isRealEnd = !isFinite(dur) || dur <= 0 || (dur - cur) < 1;
-      if (isRealEnd) {
-        audio.currentTime = 0;
+
+  // 用 HTMLAudioElement 做 BGM 的 loop (不論 audio.loop=true 或手動 ended 重啟) 在 iOS / Android
+  // 上都會聽到「結尾卡一下 → 從頭重播」的接縫，因為瀏覽器要重新 seek + buffer。
+  // 改用 Web Audio API 的 AudioBufferSourceNode.loop = true，整首已經 decode 在記憶體裡，
+  // loop 是樣本級無縫，這是 web 上唯一真正能做到無接縫 loop 的方式。
+  class SeamlessAudio {
+    constructor(url) {
+      this.url = url;
+      this._buffer = null;
+      this._loadPromise = null;
+      this._source = null;
+      this._gain = audioCtx.createGain();
+      this._gain.connect(audioCtx.destination);
+      this._volume = 1;
+      this._muted = false;
+      this._paused = true;
+      this._gain.gain.value = 0;
+      // 一建構就開始 fetch + decode (對齊原本 preload='auto' + load() 的行為)
+      this._ensureLoaded().catch(() => {});
+    }
+    _ensureLoaded() {
+      if (this._loadPromise) return this._loadPromise;
+      this._loadPromise = fetch(this.url)
+        .then(r => { if (!r.ok) throw new Error('fetch ' + r.status); return r.arrayBuffer(); })
+        .then(ab => new Promise((resolve, reject) => {
+          // decodeAudioData 在舊瀏覽器只接 callback 形式；用 Promise 包一層相容
+          try {
+            const p = audioCtx.decodeAudioData(ab, resolve, reject);
+            if (p && typeof p.then === 'function') p.then(resolve, reject);
+          } catch (e) { reject(e); }
+        }))
+        .then(buf => { this._buffer = buf; return buf; })
+        .catch(err => {
+          console.warn('BGM decode 失敗:', err);
+          this._loadPromise = null;
+          throw err;
+        });
+      return this._loadPromise;
+    }
+    load() { this._ensureLoaded().catch(() => {}); }
+    set preload(_) {}
+    get preload() { return 'auto'; }
+    play() {
+      return this._ensureLoaded().then(() => {
+        if (!this._paused) return;
+        const start = () => { this._paused = false; this._startSource(); };
+        if (audioCtx.state === 'suspended') return audioCtx.resume().then(start);
+        start();
+      });
+    }
+    _startSource() {
+      if (!this._buffer) return;
+      if (this._source) {
+        try { this._source.stop(0); } catch (e) {}
+        try { this._source.disconnect(); } catch (e) {}
       }
-      audio.play().catch(() => {});
-    });
-    audio.addEventListener('waiting', () => {
-      // buffer underrun，等系統自動恢復；不要 reset currentTime
-    });
-    audio.addEventListener('stalled', () => {
-      // 連線中斷，嘗試續播但保留 currentTime；同樣要看模式才續播，否則手機切回單人時又會被 stalled 拉起
-      if (typeof shouldPlay === 'function' && !shouldPlay()) return;
-      audio.play().catch(() => {});
-    });
+      this._source = audioCtx.createBufferSource();
+      this._source.buffer = this._buffer;
+      this._source.loop = true; // ← Web Audio 樣本級 loop，無接縫
+      this._source.connect(this._gain);
+      this._source.start(0);
+    }
+    pause() {
+      if (this._paused) return;
+      this._paused = true;
+      if (this._source) {
+        try { this._source.stop(0); } catch (e) {}
+        try { this._source.disconnect(); } catch (e) {}
+        this._source = null;
+      }
+    }
+    set volume(v) { this._volume = Math.max(0, Math.min(1, v)); this._applyGain(); }
+    get volume() { return this._volume; }
+    set muted(m) { this._muted = !!m; this._applyGain(); }
+    get muted() { return this._muted; }
+    get paused() { return this._paused; }
+    // 沿用原本 `bgm.currentTime = 0` 的呼叫慣例：歸零代表「從頭重播」
+    set currentTime(t) { if (t === 0 && !this._paused) this._startSource(); }
+    get currentTime() { return 0; }
+    _applyGain() {
+      const target = this._muted ? 0 : this._volume;
+      const now = audioCtx.currentTime;
+      try {
+        this._gain.gain.cancelScheduledValues(now);
+        this._gain.gain.setValueAtTime(this._gain.gain.value, now);
+        this._gain.gain.linearRampToValueAtTime(target, now + 0.02); // 短斜坡避免爆音
+      } catch (e) {
+        this._gain.gain.value = target;
+      }
+    }
   }
-  setupSeamlessLoop(bgm, () => !isMultiplayer && !isBgmMuted);
-  setupSeamlessLoop(battleBgm, () => isMultiplayer && !isBgmMuted);
-  // 行動裝置切到背景或螢幕鎖定時 audio 會被系統暫停，回到前景時自動續播
-  // 重點：保留 currentTime，不要重設為 0
+
+  // 單人模式背景音樂
+  const bgm = new SeamlessAudio(AUDIO_PATHS.bgm);
+  bgm.volume = masterVolume * 0.15; // 背景音樂建議稍微小聲一點
+  // 雙人對戰模式背景音樂
+  const battleBgm = new SeamlessAudio(AUDIO_PATHS.battleBgm);
+  battleBgm.volume = masterVolume * 0.15;
+  // 行動裝置切到背景或螢幕鎖定時，AudioContext 會被系統 suspend (Web Audio source 雖未停，
+  // 但完全沒輸出)，回到前景時要先 resume 才會繼續發聲；不需要重設 currentTime，loop 自動接續。
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
     if (isBgmMuted || !bgmStarted) return;
     if (isMultiplayer && gameStarted && battleBgm.paused) {
       battleBgm.play().catch(() => {});
