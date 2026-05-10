@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "JUST FUCKING TETRIS",
-  "short_name": "JFT",
-  "description": "即時對戰俄羅斯方塊",
+  "name": "BRICKADE",
+  "short_name": "Brickade",
+  "description": "即時對戰方塊競技場",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

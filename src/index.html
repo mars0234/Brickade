@@ -3,20 +3,75 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-<title>JUST FUCKING TETRIS</title>
+<title>BRICKADE</title>
 
 <!-- PWA meta -->
 <meta name="theme-color" content="#06004f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="JFT" />
+<meta name="apple-mobile-web-app-title" content="Brickade" />
+
+<!-- SEO -->
+<meta name="description" content="BRICKADE — free online block-stacking battle game. 1v1 WebRTC multiplayer, AI opponents from rookie to god, ranked LP. Plays free in your browser, no install required." />
+<meta name="keywords" content="block stacking, falling block puzzle, online multiplayer, browser game, free game, PvP puzzle, tetromino battle, BRICKADE" />
+<meta name="author" content="Mars Wang" />
+<link rel="canonical" href="https://brickade.web.app/" />
+
+<!-- Open Graph (Facebook / Discord / LinkedIn / Plurk) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="BRICKADE" />
+<meta property="og:title" content="BRICKADE — Real-time block-stacking battle" />
+<meta property="og:description" content="Free online block-stacking battle. 1v1 WebRTC multiplayer, AI opponents, ranked LP. No install — plays in your browser." />
+<meta property="og:url" content="https://brickade.web.app/" />
+<!-- TODO: 在 src/images/ 放一張 1200×630 的 og-image.png（建議用遊戲畫面 + LOGO + 標語）。
+     建立前社群分享預覽會用 favicon fallback 或不顯示縮圖。 -->
+<meta property="og:image" content="https://brickade.web.app/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="BRICKADE block-stacking battle gameplay" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="zh_TW" />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="BRICKADE — Real-time block-stacking battle" />
+<meta name="twitter:description" content="Free online block-stacking battle. 1v1 WebRTC multiplayer, AI opponents, ranked LP. No install — plays in your browser." />
+<meta name="twitter:image" content="https://brickade.web.app/og-image.png" />
+
+<!-- Schema.org structured data (Google rich snippet) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "BRICKADE",
+  "description": "Free online block-stacking battle game. 1v1 WebRTC multiplayer, AI opponents from rookie to god, ranked LP system. Plays in your browser.",
+  "url": "https://brickade.web.app/",
+  "image": "https://brickade.web.app/og-image.png",
+  "author": { "@type": "Person", "name": "Mars Wang" },
+  "applicationCategory": "Game",
+  "operatingSystem": "Web Browser (any)",
+  "genre": ["Puzzle", "Multiplayer", "Competitive"],
+  "playMode": ["SinglePlayer", "MultiPlayer"],
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "availability": "https://schema.org/InStock"
+  },
+  "inLanguage": ["en", "zh-TW"]
+}
+</script>
 
 <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon-16x16.png">
 <link rel="manifest" href="./images/site.webmanifest">
 <link rel="shortcut icon" href="./images/favicon.ico">
+
+<!-- GoatCounter analytics: privacy-friendly, no cookie, ~3KB -->
+<script data-goatcounter="https://brickade.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 
 <style>
   :root{
@@ -139,7 +194,7 @@
   }
 
   /* =========================================
-     全新的 Tetris Battle 佈局 CSS
+     對戰版面 CSS
      ========================================= */
   .viewport {
     position: relative;
@@ -149,7 +204,7 @@
     padding: 24px 40px;
   }
 
-  /* 全場主標題 (TETRIS) */
+  /* 全場主標題 (BRICKADE) */
   .match-title-container {
     position: relative; 
     text-align: center;
@@ -902,6 +957,9 @@
   }
 
   /* 右側上線玩家面板 */
+  /* 進入對戰時，把語言切換鈕也跟著線上玩家清單一起隱藏，避免蓋到對手遊戲框 */
+  body.battle-mode #lang-toggle-btn { display: none !important; }
+
   .online-panel {
     position: absolute;
     right: 20px;
@@ -1842,7 +1900,7 @@
       max-width: 100% !important;
     }
 
-    /* TETRIS 標題在 drawer 內太大佔空間，隱藏 */
+    /* 主標題在 drawer 內太大佔空間，隱藏 */
     #mobile-drawer .match-title-container {
       display: none !important;
     }
@@ -2083,10 +2141,12 @@
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
 
+  <script src="./i18n.js"></script>
   <script src="changelog.js"></script>
 
   <script>
@@ -2133,7 +2193,7 @@
     <div id="mobile-undo-btn">UNDO</div>
   </div>
 
-  <div id="fps-counter" style="position: absolute; top: 15px; left: 20px; font-size: 13px; font-weight: 900; color: var(--S); z-index: 1000; letter-spacing: 1px;">
+  <div id="fps-counter" style="position: absolute; top: 4px; left: 6px; font-size: 11px; font-weight: 900; color: var(--S); z-index: 1000; letter-spacing: 1px;">
     FPS <span id="fps-value">0</span>
   </div>
   
@@ -2147,12 +2207,12 @@
   </div>
 
   <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px; box-sizing: border-box;">
-    <h2 id="history-title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">📜 對戰紀錄</h2>
+    <h2 id="history-title" data-i18n="history.title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">📜 對戰紀錄</h2>
     <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85); flex-shrink: 0;"></div>
     <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center; flex-shrink: 0;">
-      <button class="history-tab" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
-      <button class="history-tab" data-filter="WIN" style="flex:1; padding:6px 0; background:transparent; color:var(--S); font-weight:900; border:2px solid var(--S); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">勝</button>
-      <button class="history-tab" data-filter="LOSE" style="flex:1; padding:6px 0; background:transparent; color:var(--Z); font-weight:900; border:2px solid var(--Z); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">負</button>
+      <button class="history-tab" data-i18n="history.filterAll" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
+      <button class="history-tab" data-i18n="history.filterWin" data-filter="WIN" style="flex:1; padding:6px 0; background:transparent; color:var(--S); font-weight:900; border:2px solid var(--S); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">勝</button>
+      <button class="history-tab" data-i18n="history.filterLose" data-filter="LOSE" style="flex:1; padding:6px 0; background:transparent; color:var(--Z); font-weight:900; border:2px solid var(--Z); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">負</button>
     </div>
     <div id="history-content" style="max-height: 440px; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
     </div>
@@ -2160,7 +2220,7 @@
   </div>
 
   <div id="rank-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 580px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.96); border: 2px solid var(--T); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(177,68,247,0.4); color: var(--white); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box;">
-    <h2 style="margin: 0; color: var(--T); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">🏆 段位規則</h2>
+    <h2 data-i18n="rankModalTitle" style="margin: 0; color: var(--T); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">🏆 段位規則</h2>
     <div id="rank-modal-content" style="max-height: 500px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.6;"></div>
     <button id="close-rank-btn" style="width: 100%; padding: 10px; background: var(--T); color: var(--white); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
   </div>
@@ -2181,160 +2241,167 @@
     <div id="rules-modal-content" style="flex:1; min-height:0; overflow-y:auto; padding-right:8px; font-size:13px; line-height:1.65;">
       <!-- Tab: Operation -->
       <div class="rules-tab-panel" data-panel="operation">
-        <p style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">掌握這些按鍵，你才能在 Tetris 世界隨心所欲。</p>
+        <p data-i18n="rules.intro" style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">掌握這些按鍵，你才能在 BRICKADE 世界隨心所欲。</p>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 18px;">
-          <div><b style="color:var(--I);">← →</b> 左右移動</div>
-          <div><b style="color:var(--I);">↓</b> 軟降 Soft Drop <span style="color:var(--O); font-size:11px;">(+1 分 / 格)</span></div>
-          <div><b style="color:var(--I);">Space</b> 硬降 Hard Drop <span style="color:var(--O); font-size:11px;">(+2 分 / 格)</span></div>
-          <div><b style="color:var(--I);">↑ / X</b> 順時針旋轉</div>
-          <div><b style="color:var(--I);">Z / Ctrl</b> 逆時針旋轉</div>
-          <div><b style="color:var(--I);">C / Shift</b> 保留 Hold <span style="color:rgba(255,255,255,0.6); font-size:11px;">(每顆限用一次)</span></div>
-          <div><b style="color:var(--I);">P / Esc</b> 暫停 / 繼續</div>
-          <div><b style="color:var(--I);">R</b> 重新開始 / 對戰後離開房間</div>
-          <div><b style="color:var(--I);">A</b> Undo 反悔上一步</div>
-          <div><b style="color:var(--I);">M / N</b> 音樂 / 音效靜音</div>
-          <div><b style="color:var(--I);">+ / -</b> 遊戲音量大 / 小</div>
-          <div><b style="color:var(--I);">1 ~ 4</b> 發送表情 <span style="color:rgba(255,255,255,0.6); font-size:11px;">(對戰)</span></div>
-          <div style="grid-column:1 / -1;"><b style="color:var(--Z);">F ×2</b> 連按兩下投降 <span style="color:rgba(255,255,255,0.6); font-size:11px;">(對戰中)</span></div>
+          <div><b style="color:var(--I);">← →</b> <span data-i18n="rules.op.move">左右移動</span></div>
+          <div><b style="color:var(--I);">↓</b> <span data-i18n="rules.op.softDrop">軟降 Soft Drop</span> <span data-i18n="rules.op.softDropBonus" style="color:var(--O); font-size:11px;">(+1 分 / 格)</span></div>
+          <div><b style="color:var(--I);">Space</b> <span data-i18n="rules.op.hardDrop">硬降 Hard Drop</span> <span data-i18n="rules.op.hardDropBonus" style="color:var(--O); font-size:11px;">(+2 分 / 格)</span></div>
+          <div><b style="color:var(--I);">↑ / X</b> <span data-i18n="rules.op.rotateCW">順時針旋轉</span></div>
+          <div><b style="color:var(--I);">Z / Ctrl</b> <span data-i18n="rules.op.rotateCCW">逆時針旋轉</span></div>
+          <div><b style="color:var(--I);">C / Shift</b> <span data-i18n="rules.op.hold">保留 Hold</span> <span data-i18n="rules.op.holdNote" style="color:rgba(255,255,255,0.6); font-size:11px;">(每顆限用一次)</span></div>
+          <div><b style="color:var(--I);">P / Esc</b> <span data-i18n="rules.op.pause">暫停 / 繼續</span></div>
+          <div><b style="color:var(--I);">R</b> <span data-i18n="rules.op.restart">重新開始 / 對戰後離開房間</span></div>
+          <div><b style="color:var(--I);">A</b> <span data-i18n="rules.op.undo">Undo 反悔上一步</span></div>
+          <div><b style="color:var(--I);">M / N</b> <span data-i18n="rules.op.muteToggle">音樂 / 音效靜音</span></div>
+          <div><b style="color:var(--I);">+ / -</b> <span data-i18n="rules.op.volume">遊戲音量大 / 小</span></div>
+          <div><b style="color:var(--I);">1 ~ 4</b> <span data-i18n="rules.op.emote">發送表情</span> <span data-i18n="rules.op.emoteNote" style="color:rgba(255,255,255,0.6); font-size:11px;">(對戰)</span></div>
+          <div style="grid-column:1 / -1;"><b style="color:var(--Z);">F ×2</b> <span data-i18n="rules.op.surrender">連按兩下投降</span> <span data-i18n="rules.op.surrenderNote" style="color:rgba(255,255,255,0.6); font-size:11px;">(對戰中)</span></div>
         </div>
         <div style="margin-top:16px; padding:10px 12px; background:rgba(177,68,247,0.1); border-left:3px solid var(--T); border-radius:4px;">
-          <b style="color:var(--T);">💡 Tip：</b>Hold (C) 是高手的必備工具，存下 I 型方塊等大招會讓你火力翻倍！
+          <b data-i18n="rules.op.tipLabel" style="color:var(--T);">💡 Tip：</b><span data-i18n="rules.op.tipText">Hold (C) 是高手的必備工具，存下 I 型方塊等大招會讓你火力翻倍！</span>
         </div>
       </div>
 
       <!-- Tab: Solo -->
       <div class="rules-tab-panel hidden" data-panel="solo">
-        <p style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">單人模式的核心是 <b style="color:var(--O);">消行 → 得分 → 升級 → 變快</b>。越高級分數倍率越高，但速度也越恐怖。</p>
+        <p data-i18n-html="rules.solo.intro" style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">單人模式的核心是 <b style="color:var(--O);">消行 → 得分 → 升級 → 變快</b>。越高級分數倍率越高，但速度也越恐怖。</p>
 
-        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🎯 消行基礎分 <span style="font-size:11px; color:rgba(255,255,255,0.5); font-weight:400;">(最終分 = 基礎分 × Level)</span></h3>
+        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;"><span data-i18n="rules.solo.scoreHeader">🎯 消行基礎分</span> <span data-i18n="rules.solo.scoreNote" style="font-size:11px; color:rgba(255,255,255,0.5); font-weight:400;">(最終分 = 基礎分 × Level)</span></h3>
         <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12.5px;">
           <thead>
-            <tr style="background:rgba(56,189,238,0.15); color:var(--I);"><th style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(56,189,238,0.3);">技巧</th><th style="padding:7px 10px; text-align:right; border-bottom:1px solid rgba(56,189,238,0.3);">基礎分</th></tr>
+            <tr style="background:rgba(56,189,238,0.15); color:var(--I);"><th data-i18n="rules.solo.colTechnique" style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(56,189,238,0.3);">技巧</th><th data-i18n="rules.solo.colBaseScore" style="padding:7px 10px; text-align:right; border-bottom:1px solid rgba(56,189,238,0.3);">基礎分</th></tr>
           </thead>
           <tbody>
-            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Single（單列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">100</td></tr>
-            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Double（雙列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">300</td></tr>
-            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Triple（三列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">500</td></tr>
-            <tr style="background:rgba(56,189,238,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>Tetris（四列）</b> 🏆</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>800</b></td></tr>
-            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin <span style="color:rgba(255,255,255,0.5); font-size:11px;">(無消行)</span></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">100</td></tr>
+            <tr><td data-i18n="rules.solo.rowSingle" style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Single（單列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">100</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td data-i18n="rules.solo.rowDouble" style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Double（雙列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">300</td></tr>
+            <tr><td data-i18n="rules.solo.rowTriple" style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Triple（三列）</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06);">500</td></tr>
+            <tr style="background:rgba(56,189,238,0.08);"><td data-i18n-html="rules.solo.rowQuad" style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I); font-weight:bold;">Quad（四列） 🏆</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>800</b></td></tr>
+            <tr><td data-i18n="rules.solo.rowMiniTSpin" style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin (無消行)</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">100</td></tr>
             <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin Single</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">200</td></tr>
             <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin Double</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">400</td></tr>
-            <tr style="background:rgba(177,68,247,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin</b> <span style="color:rgba(255,255,255,0.5); font-size:11px;">(無消行)</span></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>400</b></td></tr>
+            <tr style="background:rgba(177,68,247,0.08);"><td data-i18n="rules.solo.rowTSpinNoClear" style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T); font-weight:bold;">T-Spin (無消行)</td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>400</b></td></tr>
             <tr style="background:rgba(177,68,247,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Single (TSS)</b></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>800</b></td></tr>
             <tr style="background:rgba(177,68,247,0.14);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Double (TSD)</b></td><td style="padding:6px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>1200</b></td></tr>
             <tr style="background:linear-gradient(90deg, rgba(177,68,247,0.2), rgba(255,13,98,0.15));"><td style="padding:6px 10px; color:var(--T);"><b>T-Spin Triple (TST)</b> ⚡</td><td style="padding:6px 10px; text-align:right; color:var(--T);"><b>1600</b></td></tr>
           </tbody>
         </table>
-        <div style="margin:-6px 0 14px 0; padding:8px 10px; background:rgba(177,68,247,0.1); border-left:3px solid var(--T); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.9);">
+        <div data-i18n-html="rules.solo.tspinTip" style="margin:-6px 0 14px 0; padding:8px 10px; background:rgba(177,68,247,0.1); border-left:3px solid var(--T); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.9);">
           <b style="color:var(--T);">💡 注意：</b>T-Spin / Mini T-Spin <b>即使沒消行也有得分</b>（T-Spin 400、Mini T-Spin 100，× Level），所以看到紫色特效就代表你賺到了！
         </div>
 
-        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🔥 加成規則</h3>
+        <h3 data-i18n="rules.solo.bonusHeader" style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🔥 加成規則</h3>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
           <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(247,221,22,0.12), rgba(255,152,0,0.12)); border:1px solid rgba(247,221,22,0.3); border-radius:6px;">
-            <b style="color:var(--O);">B2B 連擊</b>
-            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">連續施展 Tetris 或 T-Spin 消行，基礎分 <b style="color:var(--O);">× 1.5</b>。</div>
+            <b data-i18n="rules.solo.b2bTitle" style="color:var(--O);">B2B 連擊</b>
+            <div data-i18n-html="rules.solo.b2bDesc" style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">連續施展 Quad 或 T-Spin 消行，基礎分 <b style="color:var(--O);">× 1.5</b>。</div>
           </div>
           <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(72,214,47,0.12), rgba(56,189,238,0.12)); border:1px solid rgba(72,214,47,0.3); border-radius:6px;">
-            <b style="color:var(--S);">Combo 連消</b>
-            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">連續消行 N 次，額外 <b style="color:var(--S);">+50 × N</b> 分。</div>
+            <b data-i18n="rules.solo.comboTitle" style="color:var(--S);">Combo 連消</b>
+            <div data-i18n-html="rules.solo.comboDesc" style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">連續消行 N 次，額外 <b style="color:var(--S);">+50 × N</b> 分。</div>
           </div>
           <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(56,189,238,0.12), rgba(42,127,255,0.12)); border:1px solid rgba(56,189,238,0.3); border-radius:6px;">
             <b style="color:var(--I);">Soft Drop</b>
-            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">手動按 ↓ 每下降 1 格 <b style="color:var(--I);">+1 分</b>（破最低紀錄）。</div>
+            <div data-i18n-html="rules.solo.softDropDesc" style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">手動按 ↓ 每下降 1 格 <b style="color:var(--I);">+1 分</b>（破最低紀錄）。</div>
           </div>
           <div style="padding:10px 12px; background:linear-gradient(135deg, rgba(177,68,247,0.12), rgba(255,13,98,0.12)); border:1px solid rgba(177,68,247,0.3); border-radius:6px;">
             <b style="color:var(--T);">Hard Drop</b>
-            <div style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">按 Space 每下落 1 格 <b style="color:var(--T);">+2 分</b>。</div>
+            <div data-i18n-html="rules.solo.hardDropDesc" style="margin-top:4px; color:rgba(255,255,255,0.8); font-size:12px;">按 Space 每下落 1 格 <b style="color:var(--T);">+2 分</b>。</div>
           </div>
         </div>
 
-        <h3 style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">⚡ Level 與速度曲線</h3>
-        <p style="margin:0 0 10px 0; color:rgba(255,255,255,0.8); font-size:12.5px;">每消 <b style="color:var(--O);">10 行</b> 升 1 級。下落速度公式：<code style="color:var(--I); background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:3px; font-size:11.5px;">(0.8 − (L−1)×0.007)^(L−1) 秒/格</code></p>
+        <h3 data-i18n="rules.solo.levelHeader" style="color:var(--O); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">⚡ Level 與速度曲線</h3>
+        <p data-i18n-html="rules.solo.levelDesc" style="margin:0 0 10px 0; color:rgba(255,255,255,0.8); font-size:12.5px;">每消 <b style="color:var(--O);">10 行</b> 升 1 級。下落速度公式：<code style="color:var(--I); background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:3px; font-size:11.5px;">(0.8 − (L−1)×0.007)^(L−1) 秒/格</code></p>
         <table style="width:100%; border-collapse:collapse; font-size:12px;">
           <thead>
-            <tr style="background:rgba(247,221,22,0.12); color:var(--O);"><th style="padding:6px 8px; text-align:left; border-bottom:1px solid rgba(247,221,22,0.3);">Level</th><th style="padding:6px 8px; text-align:right; border-bottom:1px solid rgba(247,221,22,0.3);">每格下落時間</th><th style="padding:6px 8px; text-align:left; border-bottom:1px solid rgba(247,221,22,0.3);">感受</th></tr>
+            <tr style="background:rgba(247,221,22,0.12); color:var(--O);"><th style="padding:6px 8px; text-align:left; border-bottom:1px solid rgba(247,221,22,0.3);">Level</th><th data-i18n="rules.solo.colSpeed" style="padding:6px 8px; text-align:right; border-bottom:1px solid rgba(247,221,22,0.3);">每格下落時間</th><th data-i18n="rules.solo.colFeel" style="padding:6px 8px; text-align:left; border-bottom:1px solid rgba(247,221,22,0.3);">感受</th></tr>
           </thead>
           <tbody>
-            <tr><td style="padding:5px 8px;">1</td><td style="padding:5px 8px; text-align:right;">1000 ms</td><td style="padding:5px 8px; color:rgba(255,255,255,0.65);">悠閒</td></tr>
-            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:5px 8px;">5</td><td style="padding:5px 8px; text-align:right;">~513 ms</td><td style="padding:5px 8px; color:rgba(255,255,255,0.65);">開始變緊</td></tr>
-            <tr><td style="padding:5px 8px;">10</td><td style="padding:5px 8px; text-align:right;">~72 ms</td><td style="padding:5px 8px; color:var(--O);">飆速</td></tr>
-            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:5px 8px;">15</td><td style="padding:5px 8px; text-align:right;">~12 ms</td><td style="padding:5px 8px; color:var(--L);">極限反應</td></tr>
-            <tr style="background:rgba(255,13,98,0.1);"><td style="padding:5px 8px; color:var(--Z);"><b>20+</b></td><td style="padding:5px 8px; text-align:right; color:var(--Z);"><b>&lt; 2 ms</b></td><td style="padding:5px 8px; color:var(--Z);"><b>20G — 瞬間貼地</b></td></tr>
+            <tr><td style="padding:5px 8px;">1</td><td style="padding:5px 8px; text-align:right;">1000 ms</td><td data-i18n="rules.solo.feel1" style="padding:5px 8px; color:rgba(255,255,255,0.65);">悠閒</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:5px 8px;">5</td><td style="padding:5px 8px; text-align:right;">~513 ms</td><td data-i18n="rules.solo.feel5" style="padding:5px 8px; color:rgba(255,255,255,0.65);">開始變緊</td></tr>
+            <tr><td style="padding:5px 8px;">10</td><td style="padding:5px 8px; text-align:right;">~72 ms</td><td data-i18n="rules.solo.feel10" style="padding:5px 8px; color:var(--O);">飆速</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:5px 8px;">15</td><td style="padding:5px 8px; text-align:right;">~12 ms</td><td data-i18n="rules.solo.feel15" style="padding:5px 8px; color:var(--L);">極限反應</td></tr>
+            <tr style="background:rgba(255,13,98,0.1);"><td style="padding:5px 8px; color:var(--Z);"><b>20+</b></td><td style="padding:5px 8px; text-align:right; color:var(--Z);"><b>&lt; 2 ms</b></td><td data-i18n="rules.solo.feel20" style="padding:5px 8px; color:var(--Z); font-weight:bold;">20G — 瞬間貼地</td></tr>
           </tbody>
         </table>
       </div>
 
       <!-- Tab: Battle -->
       <div class="rules-tab-panel hidden" data-panel="battle">
-        <p style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">對戰模式你要做的是 <b style="color:var(--Z);">消更多行、送更多垃圾、把對手頂上天</b>。重力固定 1 秒 1 格，時長 <b style="color:var(--Z);">2 分鐘</b>。</p>
+        <p data-i18n-html="rules.battle.intro" style="color:rgba(255,255,255,0.75); margin:0 0 14px 0; font-size:12.5px;">對戰模式你要做的是 <b style="color:var(--Z);">消更多行、送更多垃圾、把對手頂上天</b>。重力固定 1 秒 1 格，時長 <b style="color:var(--Z);">2 分鐘</b>。</p>
 
-        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">⚔️ 垃圾行攻擊表</h3>
+        <h3 data-i18n="rules.battle.attackHeader" style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">⚔️ 垃圾行攻擊表</h3>
         <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12.5px;">
           <thead>
             <tr style="background:rgba(255,13,98,0.15); color:var(--Z);">
-              <th style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(255,13,98,0.3);">技巧</th>
-              <th style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(255,13,98,0.3);">送出垃圾行</th>
-              <th style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(255,13,98,0.3); background:linear-gradient(90deg, rgba(247,221,22,0.2), rgba(255,152,0,0.2)); color:var(--O);">B2B 版本 🔥</th>
+              <th data-i18n="rules.battle.colTechnique" style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(255,13,98,0.3);">技巧</th>
+              <th data-i18n="rules.battle.colSent" style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(255,13,98,0.3);">送出垃圾行</th>
+              <th data-i18n="rules.battle.colB2B" style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(255,13,98,0.3); background:linear-gradient(90deg, rgba(247,221,22,0.2), rgba(255,152,0,0.2)); color:var(--O);">B2B 版本 🔥</th>
             </tr>
           </thead>
           <tbody>
             <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Single</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.5);">0</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.3);">—</td></tr>
             <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Double</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06);">1</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.3);">—</td></tr>
             <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Triple</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06);">2</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.3);">—</td></tr>
-            <tr style="background:rgba(56,189,238,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>Tetris</b> 🏆</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>4</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>6</b></td></tr>
+            <tr style="background:rgba(56,189,238,0.08);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>Quad</b> 🏆</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--I);"><b>4</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>6</b></td></tr>
             <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">Mini T-Spin Single</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);">1</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>2</b></td></tr>
             <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Single (TSS)</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>2</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>3</b></td></tr>
             <tr style="background:rgba(177,68,247,0.1);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Double (TSD)</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>4</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>6</b></td></tr>
             <tr style="background:linear-gradient(90deg, rgba(177,68,247,0.15), rgba(255,13,98,0.15));"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>T-Spin Triple (TST)</b> ⚡</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--T);"><b>6</b></td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);"><b>9</b></td></tr>
-            <tr style="background:linear-gradient(90deg, rgba(247,221,22,0.15), rgba(255,152,0,0.15));"><td style="padding:6px 10px; color:var(--O);"><b>PERFECT CLEAR</b> ⭐</td><td style="padding:6px 10px; text-align:center; color:var(--O);" colspan="2"><b>額外 +10 行</b>（最兇的一擊！）</td></tr>
+            <tr style="background:linear-gradient(90deg, rgba(247,221,22,0.15), rgba(255,152,0,0.15));"><td data-i18n-html="rules.battle.rowPerfectClear" style="padding:6px 10px; color:var(--O);"><b>PERFECT CLEAR</b> ⭐</td><td data-i18n-html="rules.battle.rowPerfectClearReward" style="padding:6px 10px; text-align:center; color:var(--O);" colspan="2"><b>額外 +10 行</b>（最兇的一擊！）</td></tr>
           </tbody>
         </table>
-        <div style="margin:-6px 0 14px 0; padding:8px 10px; background:rgba(247,221,22,0.08); border-left:3px solid var(--O); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.85);">
-          <b style="color:var(--O);">🔥 B2B = Back-to-Back：</b>連續施展 <b>Tetris</b> 或 <b>T-Spin</b>（中間不能插入普通 Single/Double/Triple），第二次起就會觸發 B2B 版本的加量攻擊。高手連續 B2B TSD 就是一波 6 行 6 行地送！
+        <div data-i18n-html="rules.battle.attackB2BExp" style="margin:-6px 0 14px 0; padding:8px 10px; background:rgba(247,221,22,0.08); border-left:3px solid var(--O); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.85);">
+          <b style="color:var(--O);">🔥 B2B = Back-to-Back：</b>連續施展 <b>Quad</b> 或 <b>T-Spin</b>（中間不能插入普通 Single/Double/Triple），第二次起就會觸發 B2B 版本的加量攻擊。高手連續 B2B TSD 就是一波 6 行 6 行地送！
         </div>
 
-        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🌀 Combo 額外攻擊</h3>
+        <h3 data-i18n="rules.battle.comboHeader" style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🌀 Combo 額外攻擊</h3>
         <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12.5px;">
           <thead>
-            <tr style="background:rgba(72,214,47,0.15); color:var(--S);"><th style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(72,214,47,0.3);">連續消行次數</th><th style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(72,214,47,0.3);">額外送出</th></tr>
+            <tr style="background:rgba(72,214,47,0.15); color:var(--S);"><th data-i18n="rules.battle.comboColCount" style="padding:7px 10px; text-align:left; border-bottom:1px solid rgba(72,214,47,0.3);">連續消行次數</th><th data-i18n="rules.battle.comboColExtra" style="padding:7px 10px; text-align:center; border-bottom:1px solid rgba(72,214,47,0.3);">額外送出</th></tr>
           </thead>
           <tbody>
-            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 1 ~ 2</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--S);">+1 行</td></tr>
-            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 3 ~ 4</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--S);">+2 行</td></tr>
-            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 5 ~ 6</td><td style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);">+3 行</td></tr>
-            <tr style="background:rgba(255,13,98,0.08);"><td style="padding:6px 10px; color:var(--Z);"><b>Combo 7+</b></td><td style="padding:6px 10px; text-align:center; color:var(--Z);"><b>+4 行</b>（上限）</td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 1 ~ 2</td><td data-i18n="rules.battle.comboLine1" style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--S);">+1 行</td></tr>
+            <tr style="background:rgba(255,255,255,0.03);"><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 3 ~ 4</td><td data-i18n="rules.battle.comboLine2" style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--S);">+2 行</td></tr>
+            <tr><td style="padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06);">Combo 5 ~ 6</td><td data-i18n="rules.battle.comboLine3" style="padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); color:var(--O);">+3 行</td></tr>
+            <tr style="background:rgba(255,13,98,0.08);"><td style="padding:6px 10px; color:var(--Z);"><b>Combo 7+</b></td><td data-i18n-html="rules.battle.comboLine4Cap" style="padding:6px 10px; text-align:center; color:var(--Z);"><b>+4 行</b>（上限）</td></tr>
           </tbody>
         </table>
 
-        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🛡️ 垃圾抵銷 & 寬限期</h3>
-        <div style="margin-bottom:12px; padding:10px 12px; background:rgba(56,189,238,0.08); border:1px solid rgba(56,189,238,0.3); border-radius:6px; font-size:12.5px;">
+        <h3 data-i18n="rules.battle.cancellationHeader" style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🛡️ 垃圾抵銷 & 寬限期</h3>
+        <div data-i18n-html="rules.battle.cancellationDesc" style="margin-bottom:12px; padding:10px 12px; background:rgba(56,189,238,0.08); border:1px solid rgba(56,189,238,0.3); border-radius:6px; font-size:12.5px;">
           對手送來的垃圾會先以 <b style="color:var(--O);">🟡 黃色警告條</b> 停留 <b style="color:var(--O);">2 秒</b>，這段期間只要你成功消行，攻擊可以<b style="color:var(--I);">反打抵銷</b>！<br>
           時間一過就變成 <b style="color:var(--Z);">🔴 紅色危險條</b>，下次落地就會從盤底真的頂上來。
           <br><br>
           <b style="color:var(--I);">抵銷順序：</b>你的攻擊 → 先抵自己的 🔴 紅色 → 再抵 🟡 黃色 → 有剩才送給對手。
         </div>
 
-        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">💀 KO 判定</h3>
+        <h3 data-i18n="rules.battle.koHeader" style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">💀 KO 判定</h3>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
           <div style="padding:10px 12px; background:rgba(72,214,47,0.1); border:1px solid rgba(72,214,47,0.35); border-radius:6px; font-size:12.5px;">
-            <b style="color:var(--S);">✅ 被 KO 可復活</b><br>
-            <span style="color:rgba(255,255,255,0.8);">頂到天花板時，盤上<b>有垃圾行</b> → 被 KO 但復活，對手 <b>+1 KO</b>，比賽繼續。</span>
+            <b data-i18n="rules.battle.koReviveTitle" style="color:var(--S);">✅ 被 KO 可復活</b><br>
+            <span data-i18n-html="rules.battle.koReviveDesc" style="color:rgba(255,255,255,0.8);">頂到天花板時，盤上<b>有垃圾行</b> → 被 KO 但復活，對手 <b>+1 KO</b>，比賽繼續。</span>
           </div>
           <div style="padding:10px 12px; background:rgba(255,13,98,0.1); border:1px solid rgba(255,13,98,0.35); border-radius:6px; font-size:12.5px;">
-            <b style="color:var(--Z);">❌ TOP OUT 直接輸</b><br>
-            <span style="color:rgba(255,255,255,0.8);">頂到天花板時，盤上<b>沒有垃圾行</b>（是你自己堆上去的） → 直接落敗。</span>
+            <b data-i18n="rules.battle.topOutTitle" style="color:var(--Z);">❌ TOP OUT 直接輸</b><br>
+            <span data-i18n-html="rules.battle.topOutDesc" style="color:rgba(255,255,255,0.8);">頂到天花板時，盤上<b>沒有垃圾行</b>（是你自己堆上去的） → 直接落敗。</span>
           </div>
         </div>
-        <div style="margin-bottom:14px; padding:8px 10px; background:rgba(177,68,247,0.08); border-left:3px solid var(--T); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.85);">
+        <div data-i18n-html="rules.battle.gracePeriod" style="margin-bottom:14px; padding:8px 10px; background:rgba(177,68,247,0.08); border-left:3px solid var(--T); border-radius:4px; font-size:12px; color:rgba(255,255,255,0.85);">
           <b style="color:var(--T);">🤝 死亡寬限期：</b>雙方在 300ms 內幾乎同時死亡 → 判定 <b>平手（DRAW）</b>，吸收網路延遲造成的「搶先一步」不公平。
         </div>
 
-        <h3 style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🏅 勝負 & 段位</h3>
-        <div style="padding:10px 12px; background:rgba(177,68,247,0.08); border:1px solid rgba(177,68,247,0.3); border-radius:6px; font-size:12.5px; color:rgba(255,255,255,0.85);">
+        <h3 data-i18n="rules.battle.winHeader" style="color:var(--Z); margin:6px 0 8px 0; font-size:15px; letter-spacing:1px;">🏅 勝負 & 段位</h3>
+        <div data-i18n-html="rules.battle.winRule" style="padding:10px 12px; background:rgba(177,68,247,0.08); border:1px solid rgba(177,68,247,0.3); border-radius:6px; font-size:12.5px; color:rgba(255,255,255,0.85);">
           時間結束時，<b style="color:var(--Z);">KO 較多者獲勝</b>；KO 相同則比較 <b>LINES SENT</b>。贏了加 LP 爬段位，輸了扣 LP。<br>
           <span style="color:var(--T);">📖 完整段位規則請到左側 <b>PLAYER 框</b>，點擊你目前的段位文字即可查看。</span>
         </div>
+      </div>
+
+      <div style="margin-top:14px; padding:10px 12px; background:rgba(0,0,0,0.25); border-left:3px solid rgba(255,255,255,0.2); border-radius:4px; font-size:11px; line-height:1.5; color:rgba(255,255,255,0.55);">
+        BRICKADE 為原創獨立作品，靈感來自堆疊方塊類遊戲，與 The Tetris Company, LLC 無任何關聯、贊助或授權關係。<br>
+        BRICKADE is an independent fan project inspired by stacking-block puzzle games. Not affiliated with, endorsed by, or sponsored by The Tetris Company, LLC.<br>
+        Music: <i>Game 8-Bit On</i> &amp; <i>Return To The 8-Bit Past</i> via Pixabay (Pixabay Content License).<br>
+        © 2026 Mars Wang · MIT License
       </div>
     </div>
 
@@ -2345,8 +2412,12 @@
 
   <div id="settings-container" style="position: absolute; right: 20px; top: 20px; z-index: 101; display: flex; flex-direction: column; gap: 10px;">
     
-    <button id="fps-mode-btn" style="width: 220px; box-sizing: border-box; background: transparent; color: var(--I); border: 2px solid var(--I); padding: 10px; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 8px; letter-spacing: 1px; transition: all 0.2s; box-shadow: 0 0 10px rgba(56,189,238,0.2);">
+    <button id="fps-mode-btn" data-i18n="btn.fpsMode" style="width: 220px; box-sizing: border-box; background: transparent; color: var(--I); border: 2px solid var(--I); padding: 10px; font-weight: 900; font-size: 14px; cursor: pointer; border-radius: 8px; letter-spacing: 1px; transition: all 0.2s; box-shadow: 0 0 10px rgba(56,189,238,0.2);">
       ✨ 高幀率模式
+    </button>
+
+    <button id="lang-toggle-btn" data-i18n="lang.toggle" style="width: 220px; box-sizing: border-box; background: transparent; color: var(--T); border: 2px solid var(--T); padding: 8px; font-weight: 900; font-size: 13px; cursor: pointer; border-radius: 8px; letter-spacing: 1px; transition: all 0.2s; box-shadow: 0 0 10px rgba(177,68,247,0.2);">
+      🌐 EN
     </button>
 
     <div id="online-panel" class="online-panel hidden" style="position: static; width: 220px; box-sizing: border-box; max-height: calc(100vh - 120px); margin: 0;">
@@ -2368,9 +2439,9 @@
       <div class="match-title-container" style="text-align: center; margin-bottom: 25px;">
         <div style="position: relative; display: inline-block;">
           
-          <div class="logo-word match-title" style="margin-bottom: 0; line-height: 0.85;">TETRIS</div>
+          <div class="logo-word match-title" style="margin-bottom: 0; line-height: 0.85;">BRICKADE</div>
           
-          <div id="version-tag" style="position: absolute; bottom: 2px; left: 100%; margin-left: 8px; font-size: 13px; font-weight: 900; color: var(--I); cursor: pointer; z-index: 1000; letter-spacing: 1px; transition: all 0.2s ease; text-shadow: 0 0 10px rgba(56,189,238,0.8); white-space: nowrap;">
+          <div id="version-tag" style="display: block; margin-top: 6px; font-size: 13px; font-weight: 900; color: var(--I); cursor: pointer; letter-spacing: 1px; transition: all 0.2s ease; text-shadow: 0 0 10px rgba(56,189,238,0.8); white-space: nowrap; text-align: center;">
             Build <span id="version-text" style="color: var(--white);"></span>
           </div>
 
@@ -2391,7 +2462,7 @@
             </div>
             <div class="info-panel" id="ai-leaderboard-section">
               <h2 style="text-align:center; color:#00FFFF; margin:0 0 10px 0; font-size:24px;">TOP 3 AI KILLER</h2>
-              <div style="text-align:center; font-size:12px; color:rgba(255,255,255,0.6); margin-top:-6px; margin-bottom:8px;">限定高手模式 (不含AI自爆)</div>
+              <div data-i18n="top3.aiKillerDesc" style="text-align:center; font-size:12px; color:rgba(255,255,255,0.6); margin-top:-6px; margin-bottom:8px;">限定高手模式 (不含AI自爆)</div>
               <div id="ai-leaderboard-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: bold;"></div>
             </div>
           </div>
@@ -2403,27 +2474,27 @@
               <button class="mode-btn selected" data-mode="BOMB" id="mode-bomb-btn">
                 <span class="mode-btn-icon">💣</span>
                 <span class="mode-btn-name">BOMB</span>
-                <span class="mode-btn-desc">炸彈引爆消行</span>
+                <span class="mode-btn-desc" data-i18n="matchMode.bombDesc">炸彈引爆消行</span>
                 <span class="mode-pick-row">
-                  <span class="pick-badge my">✓ 你</span>
-                  <span class="pick-badge opp hidden">對手</span>
+                  <span class="pick-badge my" data-i18n="matchMode.pickYou">✓ 你</span>
+                  <span class="pick-badge opp hidden" data-i18n="matchMode.pickOpp">對手</span>
                 </span>
               </button>
               <button class="mode-btn" data-mode="CLASSIC" id="mode-classic-btn">
                 <span class="mode-btn-icon">🧱</span>
                 <span class="mode-btn-name">CLASSIC</span>
-                <span class="mode-btn-desc">原版垃圾行</span>
+                <span class="mode-btn-desc" data-i18n="matchMode.classicDesc">原版垃圾行</span>
                 <span class="mode-pick-row">
-                  <span class="pick-badge my hidden">✓ 你</span>
-                  <span class="pick-badge opp hidden">對手</span>
+                  <span class="pick-badge my hidden" data-i18n="matchMode.pickYou">✓ 你</span>
+                  <span class="pick-badge opp hidden" data-i18n="matchMode.pickOpp">對手</span>
                 </span>
               </button>
             </div>
-            <div id="mode-sync-status" style="margin-top:10px; padding:8px; text-align:center; font-size:12px; font-weight:900; letter-spacing:1px; border-radius:6px; background:rgba(255,171,50,0.1); color:var(--O);">⏳ 等待對手選擇模式...</div>
+            <div id="mode-sync-status" data-i18n="battle.waitingMode" style="margin-top:10px; padding:8px; text-align:center; font-size:12px; font-weight:900; letter-spacing:1px; border-radius:6px; background:rgba(255,171,50,0.1); color:var(--O);">⏳ 等待對手選擇模式...</div>
             <div style="margin-top:10px; padding:8px; font-size:12px; color:rgba(255,255,255,0.7); line-height:1.5;">
-              📜 雙方需選擇 <b style="color:var(--S);">相同模式</b>，才能按下 READY 開始遊戲。<br>
-              💣 BOMB：垃圾洞口是炸彈，落上方引爆。<br>
-              🧱 CLASSIC：垃圾洞口是空格，填滿即可消除。
+              <span data-i18n-html="matchMode.rulesHeader">📜 雙方需選擇 <b style="color:var(--S);">相同模式</b>，才能按下 READY 開始遊戲。</span><br>
+              <span data-i18n="matchMode.bombRule">💣 BOMB：垃圾洞口是炸彈，落上方引爆。</span><br>
+              <span data-i18n="matchMode.classicRule">🧱 CLASSIC：垃圾洞口是空格，填滿即可消除。</span>
             </div>
           </div>
 
@@ -2431,18 +2502,18 @@
           <div class="info-panel hidden" id="combo-room-panel" style="border-color:var(--Z); box-shadow:0 0 10px rgba(255,13,98,0.3);">
             <h2 style="text-align:center; color:var(--Z); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--Z); letter-spacing:2px;">⚡ COMBO ROOM</h2>
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label">📐 場地寬度</div>
+              <div class="ai-setting-label" data-i18n="comboRoom.widthLabel">📐 場地寬度</div>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="combo-width-group">
                 <button class="ai-option-btn" data-width="3">3-Wide</button>
                 <button class="ai-option-btn selected" data-width="4">4-Wide</button>
               </div>
-              <div style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:10px; line-height:1.5;">
+              <div data-i18n="comboRoom.iWarning" style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:10px; line-height:1.5;">
                 ⚠️ 3-Wide 的 I 方塊會自動鎖死直立姿態。
               </div>
             </div>
             <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(255,13,98,0.1); border-radius:6px;">
-              📜 規則：掉落速度固定，盡量拉高 COMBO。<br>
-              不計排名、不上傳最高分。
+              <span data-i18n="comboRoom.rulesText">📜 規則：掉落速度固定，盡量拉高 COMBO。</span><br>
+              <span data-i18n="comboRoom.notRanked">不計排名、不上傳最高分。</span>
             </div>
           </div>
 
@@ -2451,23 +2522,23 @@
             <h2 style="text-align:center; color:var(--I); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--I); letter-spacing:2px;">🧩 FREE PLACEMENT</h2>
 
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label">⬇️ 自然落下</div>
+              <div class="ai-setting-label" data-i18n="free.gravityLabel">⬇️ 自然落下</div>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="free-gravity-group">
-                <button class="ai-option-btn" data-gravity="off">關（手動）</button>
-                <button class="ai-option-btn selected" data-gravity="on">開（固定速度）</button>
+                <button class="ai-option-btn" data-i18n="free.gravityOff" data-gravity="off">關（手動）</button>
+                <button class="ai-option-btn selected" data-i18n="free.gravityOn" data-gravity="on">開（固定速度）</button>
               </div>
             </div>
 
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label">🎴 NEXT / QUEUE</div>
+              <div class="ai-setting-label" data-i18n="free.queueLabel">🎴 NEXT / QUEUE</div>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="free-queue-group">
-                <button class="ai-option-btn" data-queue="off">關閉（純手選）</button>
-                <button class="ai-option-btn selected" data-queue="on">隨機產生</button>
+                <button class="ai-option-btn" data-i18n="free.queueOff" data-queue="off">關閉（純手選）</button>
+                <button class="ai-option-btn selected" data-i18n="free.queueOn" data-queue="on">隨機產生</button>
               </div>
             </div>
 
             <div style="margin-bottom:12px; padding:8px 10px; background:rgba(56,189,238,0.08); border-radius:6px; font-size:12px; line-height:1.6;">
-              <div style="color:rgba(255,255,255,0.85); font-weight:900; margin-bottom:6px; letter-spacing:1px;">⌨️ 數字鍵 → 方塊</div>
+              <div data-i18n="free.numberKeyHeader" style="color:rgba(255,255,255,0.85); font-weight:900; margin-bottom:6px; letter-spacing:1px;">⌨️ 數字鍵 → 方塊</div>
               <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; text-align:center;">
                 <div><div style="color:#38bdee; font-weight:900; font-size:14px;">1</div><div style="color:#38bdee; font-size:11px;">I</div></div>
                 <div><div style="color:#2a7fff; font-weight:900; font-size:14px;">2</div><div style="color:#2a7fff; font-size:11px;">J</div></div>
@@ -2479,32 +2550,32 @@
               </div>
             </div>
 
-            <button id="free-clear-btn" title="清空整個遊戲場，玩家可以重新擺放方塊（Score / Lines / Combo 也會歸零）" style="width:100%; padding:9px; margin-bottom:10px; background:transparent; color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:13px; cursor:pointer; border-radius:6px; letter-spacing:2px; box-shadow:0 0 6px rgba(255,13,98,0.3);">🧹 CLEAR ALL</button>
+            <button id="free-clear-btn" data-i18n-title="free.clearAllTooltip" title="清空整個遊戲場，玩家可以重新擺放方塊（Score / Lines / Combo 也會歸零）" style="width:100%; padding:9px; margin-bottom:10px; background:transparent; color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:13px; cursor:pointer; border-radius:6px; letter-spacing:2px; box-shadow:0 0 6px rgba(255,13,98,0.3);">🧹 CLEAR ALL</button>
 
             <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(56,189,238,0.1); border-radius:6px;">
-              📜 規則：10 格滿寬場地，自由練習擺位。<br>
-              不計排名、不上傳最高分。
+              <span data-i18n="free.rulesText">📜 規則：10 格滿寬場地，自由練習擺位。</span><br>
+              <span data-i18n="free.notRanked">不計排名、不上傳最高分。</span>
             </div>
           </div>
 
           <!-- AI 設定面板（進 AI 模式才顯示，取代排行榜） -->
           <div class="info-panel hidden" id="ai-config-panel" style="border-color:var(--T); box-shadow:0 0 10px rgba(177,68,247,0.25);">
-            <h2 style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
+            <h2 data-i18n="ai.title" style="text-align:center; color:var(--T); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--T); letter-spacing:2px;">🤖 AI 設定</h2>
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label">⚡ 速度 / 難度</div>
+              <div class="ai-setting-label" data-i18n="ai.speedDifficulty">⚡ 速度 / 難度</div>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="ai-speed-group">
-                <button class="ai-option-btn" data-speed="rookie">🐢 菜鳥</button>
-                <button class="ai-option-btn" data-speed="casual">😊 休閒</button>
-                <button class="ai-option-btn selected-speed" data-speed="adaptive" style="grid-column:1/-1;">🎯 適應模式（跟著你的手速）</button>
-                <button class="ai-option-btn" data-speed="pro">💀 高手</button>
-                <button class="ai-option-btn" data-speed="god">👾 神</button>
+                <button class="ai-option-btn" data-i18n="ai.rookie" data-speed="rookie">🐢 菜鳥</button>
+                <button class="ai-option-btn" data-i18n="ai.casual" data-speed="casual">😊 休閒</button>
+                <button class="ai-option-btn selected-speed" data-i18n="ai.adaptive" data-i18n-title="ai.adaptiveTip" data-speed="adaptive" style="grid-column:1/-1;">🎯 適應模式（跟著你的手速）</button>
+                <button class="ai-option-btn" data-i18n="ai.pro" data-speed="pro">💀 高手</button>
+                <button class="ai-option-btn" data-i18n="ai.god" data-speed="god">👾 神</button>
               </div>
             </div>
 
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label">📐 打法風格（右側保留坑寬）</div>
+              <div class="ai-setting-label" data-i18n="ai.style">📐 打法風格（右側保留坑寬）</div>
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;" id="ai-wide-group">
-                <button class="ai-option-btn selected" data-wide="auto" style="grid-column:1/-1;">🧠 自動（AI 自行決策）</button>
+                <button class="ai-option-btn selected" data-i18n="ai.auto" data-wide="auto" style="grid-column:1/-1;">🧠 自動（AI 自行決策）</button>
                 <button class="ai-option-btn" data-wide="1">1-wide</button>
                 <button class="ai-option-btn" data-wide="2">2-wide</button>
                 <button class="ai-option-btn" data-wide="3">3-wide</button>
@@ -2521,39 +2592,39 @@
           <div class="info-panel" id="player-profile-section">
             <h2 style="text-align:center; color:var(--T); margin:0 0 10px 0;">PLAYER</h2>
             <div id="login-form">
-              <input type="text" id="username-input" placeholder="Username (中/英文皆可)" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px; font-weight: bold;">
-              <input type="password" id="password-input" placeholder="Password (至少6位)" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px;">
+              <input type="text" id="username-input" placeholder="Username (中/英文皆可)" data-i18n-placeholder="login.usernamePh" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px; font-weight: bold;">
+              <input type="password" id="password-input" placeholder="Password (至少6位)" data-i18n-placeholder="login.passwordPh" style="width:100%; margin-bottom:8px; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 6px;">
               <button id="login-btn" style="width:100%; background: var(--T); color: var(--white); border: 2px solid var(--white); font-weight: 900; padding: 6px; cursor: pointer;">Login / Register</button>
               <p style="font-size: 11px; margin-top: 8px; margin-bottom: 0; color: rgba(255,255,255,0.6); text-align: center;">Play as Guest (No Save)</p>
             </div>
             <div id="logged-in-info" class="hidden" style="text-align: center;">
-              <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Welcome back,</div>
+              <div data-i18n="player.welcomeBack" style="font-size: 14px; color: rgba(255,255,255,0.7);">Welcome back,</div>
               <div id="display-username" style="font-size: 20px; font-weight: 900; color: var(--T); margin: 5px 0 10px 0;">---</div>
 
-              <button id="match-history-btn" style="width:100%; background: transparent; color: var(--O); border: 2px solid var(--O); font-weight: 900; padding: 6px; cursor: pointer; font-size: 12px; margin-bottom: 10px; letter-spacing: 1px; border-radius: 4px;">📜 對戰紀錄</button>
+              <button id="match-history-btn" data-i18n="btn.matchHistory" style="width:100%; background: transparent; color: var(--O); border: 2px solid var(--O); font-weight: 900; padding: 6px; cursor: pointer; font-size: 12px; margin-bottom: 10px; letter-spacing: 1px; border-radius: 4px;">📜 對戰紀錄</button>
 
               <div id="player-stats" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 10px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.25); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span>RANK:</span>
-                  <span id="display-rank" title="點擊查看段位規則" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5); cursor: pointer;">銅牌 <span style="font-size:12px">(0 LP)</span></span>
+                  <span id="display-rank" title="點擊查看段位規則" data-i18n-title="tip.rank" style="color: #CD7F32; font-weight: 900; font-size: 16px; text-shadow: 0 0 5px rgba(205,127,50,0.5); cursor: pointer;">銅牌 <span style="font-size:12px">(0 LP)</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                  <span title="總對戰場次">MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
-                  <span title="勝率 = 勝場 ÷ 總場次">WIN RATE: <span id="display-winrate" style="color: var(--S); font-weight: bold;">0%</span></span>
+                  <span title="總對戰場次" data-i18n-title="tip.match">MATCH: <span id="display-matches" style="color: var(--white); font-weight: bold;">0</span></span>
+                  <span title="勝率 = 勝場 ÷ 總場次" data-i18n-title="tip.winRate">WIN RATE: <span id="display-winrate" style="color: var(--S); font-weight: bold;">0%</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                  <span title="Attack Per Minute（平均每分鐘送出的攻擊行數）">AVG APM: <span id="display-avg-apm" style="color: var(--T); font-weight: bold;">0</span></span>
-                  <span title="Pieces Per Second（平均每秒放下的方塊數）">AVG PPS: <span id="display-avg-pps" style="color: var(--L); font-weight: bold;">0.00</span></span>
+                  <span title="Attack Per Minute（平均每分鐘送出的攻擊行數）" data-i18n-title="tip.avgApm">AVG APM: <span id="display-avg-apm" style="color: var(--T); font-weight: bold;">0</span></span>
+                  <span title="Pieces Per Second（平均每秒放下的方塊數）" data-i18n-title="tip.avgPps">AVG PPS: <span id="display-avg-pps" style="color: var(--L); font-weight: bold;">0.00</span></span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                  <span title="生涯場均最高連擊（每局 Max Combo 的平均值）">AVG COMBO: <span id="display-avg-combo" style="color: var(--J); font-weight: bold;">0</span></span>
-                  <span title="累積擊倒對手次數（把對手 Top Out 一次算一次）">TOTAL KO: <span id="display-total-ko" style="color: var(--Z); font-weight: bold;">0</span></span>
+                  <span title="生涯場均最高連擊（每局 Max Combo 的平均值）" data-i18n-title="tip.avgCombo">AVG COMBO: <span id="display-avg-combo" style="color: var(--J); font-weight: bold;">0</span></span>
+                  <span title="累積擊倒對手次數（把對手 Top Out 一次算一次）" data-i18n-title="tip.totalKo">TOTAL KO: <span id="display-total-ko" style="color: var(--Z); font-weight: bold;">0</span></span>
                 </div>
               </div>
 
-              <button id="change-pwd-btn" style="width:100%; background: transparent; color: var(--I); border: 1px solid var(--I); margin-bottom: 8px; padding: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">CHANGE PASSWORD</button>
+              <button id="change-pwd-btn" data-i18n="btn.changePassword" style="width:100%; background: transparent; color: var(--I); border: 1px solid var(--I); margin-bottom: 8px; padding: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">CHANGE PASSWORD</button>
               
-              <button id="logout-btn" style="width:100%; background: transparent; color: var(--Z); border: 2px solid var(--Z); font-weight: bold; padding: 4px; cursor: pointer; font-size: 12px;">LOGOUT</button>
+              <button id="logout-btn" data-i18n="btn.logout" style="width:100%; background: transparent; color: var(--Z); border: 2px solid var(--Z); font-weight: bold; padding: 4px; cursor: pointer; font-size: 12px;">LOGOUT</button>
 
               <div class="info-panel hidden" id="admin-panel" style="border-color: #ff0000; box-shadow: 0 0 10px rgba(255,0,0,0.5); margin-top: 15px;">
                 <h2 style="text-align:center; color:#ff0000; margin:0 0 10px 0; letter-spacing: 2px;">🛠️ ADMIN</h2>
@@ -2577,17 +2648,17 @@
             <h2 style="text-align:center; color:var(--J); margin:0 0 10px 0;">MULTIPLAYER</h2>
             <p style="font-size: 14px;">My ID: <span id="my-id" style="color:var(--O); cursor:pointer; font-weight: bold;" title="點擊自動複製 ID">Loading...</span></p>
             <div id="mp-input-group" style="display:flex; gap:5px; margin-bottom:10px;">
-              <input type="text" id="opp-id-input" placeholder="Opponent ID" style="width:60%; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 4px;">
-              <button id="connect-btn" style="width:40%; background: var(--I); color: var(--bg); border: 2px solid var(--white); font-weight: 900; cursor: pointer;">CONNECT</button>
+              <input type="text" id="opp-id-input" placeholder="Opponent ID" data-i18n-placeholder="multiplayer.opponentIdPh" style="width:60%; background: var(--cell-bg); color: var(--white); border: 2px solid var(--white); padding: 4px;">
+              <button id="connect-btn" data-i18n="btn.connect" style="width:40%; background: var(--I); color: var(--bg); border: 2px solid var(--white); font-weight: 900; cursor: pointer;">CONNECT</button>
             </div>
 
-            <button id="ai-btn" style="width:100%; padding:8px; background:var(--T); color:var(--white); border:2px solid var(--white); font-weight:900; font-size:13px; cursor:pointer; margin-bottom:10px; letter-spacing:1px;">🤖 AI 對戰</button>
+            <button id="ai-btn" data-i18n="btn.aiBattle" style="width:100%; padding:8px; background:var(--T); color:var(--white); border:2px solid var(--white); font-weight:900; font-size:13px; cursor:pointer; margin-bottom:10px; letter-spacing:1px;">🤖 AI 對戰</button>
             
             <div id="mp-ready-group" style="display:none; margin-bottom:10px;">
               <button id="ready-btn" style="width:100%; padding:8px; background:var(--S); color:var(--bg); font-weight:bold; border:2px solid var(--white); cursor:pointer;">READY</button>
             </div>
             <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top:10px;">
-              <p id="conn-status" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Status: Standby</p>
+              <p id="conn-status" data-i18n="multiplayer.statusStandby" style="margin: 0; font-size: 14px; text-align:center; color: rgba(255,255,255,0.5); font-weight: bold;">Status: Standby</p>
               <div id="ping-display" style="font-size: 12px; font-weight: bold; display: none;"></div>
             </div>
             <div id="scoreboard" style="display: none; background: rgba(0,0,0,0.25); padding: 8px; border: 2px solid var(--white); text-align: center; margin-top: 10px;">
@@ -2681,23 +2752,23 @@
           <div id="action-msg" style="color:var(--T); font-size:16px; font-weight:900; text-align:center; min-height:22px; margin-top:12px; text-transform:uppercase;"></div>
         </div>
 
-        <button id="practice-btn" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
+        <button id="practice-btn" data-i18n="btn.practice" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
 
-        <button id="combo-room-btn" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18)); color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25); text-shadow:0 0 6px rgba(255,13,98,0.7);">⚡ 進入 COMBO ROOM</button>
+        <button id="combo-room-btn" data-i18n="btn.comboRoom" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18)); color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25); text-shadow:0 0 6px rgba(255,13,98,0.7);">⚡ 進入 COMBO ROOM</button>
 
-        <button id="free-mode-btn" title="自由排版：1-7 數字鍵選方塊、可關閉重力或 NEXT/QUEUE，純手動擺位練習" style="width:100%; padding:10px; background:transparent; color:var(--I); border:2px solid var(--I); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 8px rgba(56,189,238,0.4);">🧩 進入自由排版</button>
+        <button id="free-mode-btn" data-i18n="btn.freeMode" title="自由排版：1-7 數字鍵選方塊、可關閉重力或 NEXT/QUEUE，純手動擺位練習" style="width:100%; padding:10px; background:transparent; color:var(--I); border:2px solid var(--I); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 8px rgba(56,189,238,0.4);">🧩 進入自由排版</button>
 
         <div class="info-panel" id="controls-section" style="font-size: 14px;">
             <h2 style="text-align:center; color:var(--I); margin:0 0 12px 0;">CONTROLS</h2>
-            <p style="margin: 5px 0;"><b>← →</b> : 左右移動</p>
-            <p style="margin: 5px 0;"><b>↓</b> : 軟降 (加速下落)</p>
-            <p style="margin: 5px 0;"><b>Space</b> : 硬降 (瞬間落下)</p>
-            <p style="margin: 5px 0;"><b>↑ / X</b> : 順時針旋轉</p>
-            <p style="margin: 5px 0;"><b>C / Shift</b> : 保留方塊 (Hold)</p>
-            <p style="margin: 5px 0;"><b>P / Esc</b> : 暫停 / 繼續遊戲</p>
-            <p style="margin: 5px 0;"><b>R</b> : 重新開始 / 對戰後離開房間</p>
-            <p style="margin: 5px 0;"><b>A</b> : 反悔 (Undo 上一步)</p>
-            <button id="open-rules-btn" title="查看完整遊戲規則、計分、對戰機制" style="width:100%; margin-top:12px; padding:10px; background:linear-gradient(135deg, rgba(72,214,47,0.15), rgba(56,189,238,0.15)); color:var(--S); border:2px solid var(--S); font-weight:900; font-size:13px; cursor:pointer; border-radius:8px; letter-spacing:2px; transition:all 0.2s; box-shadow:0 0 12px rgba(72,214,47,0.35);">📖 完整規則 & 計分</button>
+            <p style="margin: 5px 0;"><b>← →</b> : <span data-i18n="controls.move">左右移動</span></p>
+            <p style="margin: 5px 0;"><b>↓</b> : <span data-i18n="controls.softDrop">軟降 (加速下落)</span></p>
+            <p style="margin: 5px 0;"><b>Space</b> : <span data-i18n="controls.hardDrop">硬降 (瞬間落下)</span></p>
+            <p style="margin: 5px 0;"><b>↑ / X</b> : <span data-i18n="controls.rotateCW">順時針旋轉</span></p>
+            <p style="margin: 5px 0;"><b>C / Shift</b> : <span data-i18n="controls.hold">保留方塊 (Hold)</span></p>
+            <p style="margin: 5px 0;"><b>P / Esc</b> : <span data-i18n="controls.pause">暫停 / 繼續遊戲</span></p>
+            <p style="margin: 5px 0;"><b>R</b> : <span data-i18n="controls.restart">重新開始 / 對戰後離開房間</span></p>
+            <p style="margin: 5px 0;"><b>A</b> : <span data-i18n="controls.undo">反悔 (Undo 上一步)</span></p>
+            <button id="open-rules-btn" data-i18n="btn.fullRules" title="查看完整遊戲規則、計分、對戰機制" style="width:100%; margin-top:12px; padding:10px; background:linear-gradient(135deg, rgba(72,214,47,0.15), rgba(56,189,238,0.15)); color:var(--S); border:2px solid var(--S); font-weight:900; font-size:13px; cursor:pointer; border-radius:8px; letter-spacing:2px; transition:all 0.2s; box-shadow:0 0 12px rgba(72,214,47,0.35);">📖 完整規則 & 計分</button>
         </div>
 
       </div>

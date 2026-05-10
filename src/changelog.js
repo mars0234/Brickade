@@ -1,5 +1,6 @@
 // changelog.js
-// 📝 以後你只要在這裡新增/修改文字就好，完全不用去動 index.html！
+// 📝 在這裡新增 / 修改各版本的 release notes，UI 端的 game.js 會自動讀取。
+// i18n: 同時提供 zh-TW 與 en 兩個版本，window.getChangelog() 依當前 lang 回傳對應陣列。
 
 const CHANGELOG_DATA = [
   {
@@ -68,3 +69,77 @@ const CHANGELOG_DATA = [
     ]
   }
 ];
+
+const CHANGELOG_DATA_EN = [
+  {
+    version: 'v2.4.0',
+    title: 'Buttery-smooth & esports visual upgrade (2026-04-13)',
+    changes: [
+      '✨ <b>New visual engine:</b> cross-display adaptive "High FPS Mode" with 120Hz+ support — glides like ice.',
+      '🎯 <b>Hardcore feel preserved:</b> carefully tuned linear interpolation; X-axis movement and ghost piece snap to grid instantly, so smoothness never costs muscle memory.',
+      '🎨 <b>Battle HUD upgrade:</b> all top-row system buttons rebuilt as a "frosted-glass capsule UI" with dynamic node migration — small-screen layout no longer breaks.',
+      '🐛 <b>System fix:</b> fixed a crash (ReferenceError) caused by the line-clear animation in High FPS Mode.',
+      '🐛 <b>Layout fix:</b> fixed a fatal Temporal Dead Zone variable bug that made the opponent panel disappear when entering a multiplayer room.'
+    ]
+  },
+  {
+    version: 'v2.3.0',
+    title: '⏪ Time-rewind superpower (2026-04-13)',
+    changes: [
+      '<b>Undo:</b> brand new rewind mechanic! As long as the piece just locked and no clear triggered, press A to pull it back and re-place. Works in all modes.',
+      '<b>Surgical rollback:</b> "surgical-grade" piece extraction preserves all incoming garbage rows and bombs, preventing undo from being abused as an invincibility shield.',
+      '<b>Vinyl rewind SFX:</b> Web Audio API synthesizes a realistic tape-rewind sound, audible to both players, for full magical-duel immersion.',
+      '<b>Safety upgrade:</b> Undo is auto-disabled during the 3-2-1 countdown, with explicit "already used / already cleared" feedback.'
+    ]
+  },
+  {
+    version: 'v2.2.0',
+    title: '✨ UI evolution & anti-disconnect (2026-04-13)',
+    changes: [
+      '<b>UI overhaul:</b> unified font sizes across all leaderboards and the ONLINE player list, matched panel widths — visually cleaner.',
+      '<b>Anti-disconnect:</b> killed the P2P "ghost timer" and call-collision bug that caused unexpected mid-match disconnects.',
+      '<b>Esports visual polish:</b> reduced screen-shake intensity across all actions to prevent piece misreads. AI leaderboard heading changed to high-contrast cyan with no glow.',
+      '<b>Status & debug:</b> idle state now displays "Standby"; the version number and ping in the bottom-right are auto-hidden during battle and AI modes.'
+    ]
+  },
+  {
+    version: 'v2.1.1',
+    title: '🐛 AI logic hotfix (2026-04-13)',
+    changes: [
+      'Fixed a bug where AI on "Rookie" and "Adaptive" difficulties would freeze (no piece drop) because of an action-buffer cap deadlock.'
+    ]
+  },
+  {
+    version: 'v2.1.0',
+    title: '🔥 Ultimate arcade update (2026-04-13)',
+    changes: [
+      '<b>New gamepad support:</b> PS4 dual-stick support, 360° DJ-turntable rotation feel, with rotation bound to L2/R2 triggers.',
+      '<b>Soft-drop speed remaster:</b> locked to the competitive 33ms standard, fixing the late-level speed-runaway bug.',
+      '<b>Time-stop field:</b> Pause now works in solo and AI modes, with a 3-second resume countdown to keep your rhythm intact.',
+      '<b>Underlying shielding:</b> fixed the exploit that allowed sneaking piece movements during the opening countdown.',
+      '<b>Version lock:</b> prevents players on different versions from connecting and causing universe-bending desync.'
+    ]
+  },
+  {
+    version: 'v2.0.0',
+    title: '🛠️ The dual-engine era (2026-04-01)',
+    changes: [
+      'Introduced an independent Web Worker background engine — switching browser tabs no longer disconnects you.',
+      'Massive performance leap — removed all high-cost shadowBlur effects across the board.'
+    ]
+  },
+  {
+    version: 'v1.0.0',
+    title: '🎉 Official launch (2026-03-15)',
+    changes: [
+      'Implemented Firebase cloud-saved scores and leaderboard system.',
+      'Implemented PeerJS peer-to-peer real-time battle system.'
+    ]
+  }
+];
+
+// 給 game.js 用：依當前語系回傳對應的 changelog 陣列
+window.getChangelog = function () {
+  const lang = (window.getLang && window.getLang()) || 'zh-TW';
+  return lang === 'en' ? CHANGELOG_DATA_EN : CHANGELOG_DATA;
+};

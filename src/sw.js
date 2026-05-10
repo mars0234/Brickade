@@ -1,12 +1,13 @@
 // Service Worker: network-first + offline fallback.
 // 線上永遠最新版、離線時 PWA 仍能載入（單人模式可玩；對戰需要網路）。
 
-const CACHE_NAME = 'jft-v12';
+const CACHE_NAME = 'brickade-v21';
 
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/game.js',
+  '/i18n.js',
   '/ai_worker.js',
   '/tetris_ai.js',
   '/tetris_ai.wasm',

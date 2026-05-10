@@ -78,17 +78,32 @@
 
   // --- Firebase 初始化與啟動 ---
   const firebaseConfig = {
-    apiKey: "AIzaSyCtMNMIOHtNPEYqLrny6zSt3zMVSz4Suko",
-    authDomain: "tetris-6748b.firebaseapp.com",
-    databaseURL: "https://tetris-6748b-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "tetris-6748b",
-    storageBucket: "tetris-6748b.firebasestorage.app",
-    messagingSenderId: "972625697471",
-    appId: "1:972625697471:web:2da7680582c8c87fb9840a",
-    measurementId: "G-QKS5NN47NE"
+    apiKey: "AIzaSyC0CNkNpDVeSOiSMeiJTU2EEBjoscIOAWc",
+    authDomain: "brickade.firebaseapp.com",
+    databaseURL: "https://brickade-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "brickade",
+    storageBucket: "brickade.firebasestorage.app",
+    messagingSenderId: "535350207834",
+    appId: "1:535350207834:web:62eca9aa23924db44a3f63"
   };
   
   firebase.initializeApp(firebaseConfig);
+
+  // === App Check (reCAPTCHA v3) ===
+  // 暫時停用：Spark plan 沒有計費風險、現有 Firestore/RTDB rules 已足夠保護
+  // 未來升 Blaze plan 或流量上規模時，把 ENABLE_APP_CHECK 改回 true 即可
+  const ENABLE_APP_CHECK = false;
+  if (ENABLE_APP_CHECK) {
+    try {
+      firebase.appCheck().activate(
+        new firebase.appCheck.ReCaptchaV3Provider('6Ld82N8sAAAAABUnTkq46QEd8h9SVzjdCk4VnPg6'),
+        true // isTokenAutoRefreshEnabled
+      );
+    } catch (e) {
+      console.warn('[AppCheck] activation failed:', e);
+    }
+  }
+
   const auth = firebase.auth();
   const db = firebase.firestore();
   const rtdb = firebase.database(); // 初始化 RTDB
@@ -225,12 +240,12 @@
     const targetPadding = isInBattle ? '10px 0' : '10px';
 
     if (isHighFpsMode) {
-      fpsBtn.textContent = '✨ 高幀率模式';
+      fpsBtn.textContent = window.t('btn.fpsMode', '✨ 高幀率模式');
       fpsBtn.style.color = 'var(--I)';
       fpsBtn.style.borderColor = 'var(--I)';
       fpsBtn.style.boxShadow = '0 0 10px rgba(56,189,238,0.3)';
     } else {
-      fpsBtn.textContent = '🧱 鎖定 60FPS';
+      fpsBtn.textContent = window.t('btn.fpsModeLock60', '🧱 鎖定 60FPS');
       fpsBtn.style.color = 'var(--white)';
       fpsBtn.style.borderColor = 'var(--white)';
       fpsBtn.style.boxShadow = 'none';
@@ -551,7 +566,7 @@
   };
   let iAmReady = false;      // 我是否已準備
   let oppIsReady = false;    // 對手是否已準備
-  // 對戰模式：'BOMB' = 垃圾洞口是炸彈、引爆消行 (原本玩法)；'CLASSIC' = 垃圾洞口是空格、填滿消除 (Tetris Battle 經典)
+  // 對戰模式：'BOMB' = 垃圾洞口是炸彈、引爆消行 (原本玩法)；'CLASSIC' = 垃圾洞口是空格、填滿消除 (傳統對戰)
   // 雙方模式必須一致，Ready 才會解鎖；對戰開始後鎖定不可改
   let battleMode = 'BOMB';
   let oppBattleMode = null; // 對手選的模式，null 表示還沒收到
@@ -683,7 +698,7 @@
         exitSpectateMode('USER_LEAVE');
         return;
       }
-      if (confirm("確定要離開對戰房間，回到單人模式嗎？")) {
+      if (confirm(window.t('toast.confirmLeaveBattle', '確定要離開對戰房間，回到單人模式嗎？'))) {
         if (conn && conn.open) conn.send({ type: 'OPPONENT_DISCONNECTED' });
         
         // 傳入 false，因為是手動離開，不需要彈出異常斷線警告
@@ -893,13 +908,13 @@
 
             if (existingConn && existingConn.open) {
               existingConn.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
-              showToast(`已向 ${targetName} 再次發送邀請！`);
+              showToast(window.t('toast.inviteResent', '已向 {user} 再次發送邀請！').replace('{user}', targetName));
               lastInviteAttempt = null;
 
               if (inviteTimeouts[targetPeerId]) clearTimeout(inviteTimeouts[targetPeerId]);
               inviteTimeouts[targetPeerId] = setTimeout(() => {
                 if (!isMultiplayer && outgoingInvites[targetPeerId] === existingConn) {
-                  showToast(`⚠️ 對 ${targetName} 的邀請已超時`);
+                  showToast(window.t('toast.inviteTimeout', '⚠️ 對 {user} 的邀請已超時').replace('{user}', targetName));
                   existingConn.close();
                   delete outgoingInvites[targetPeerId];
                 }
@@ -913,14 +928,14 @@
             connection.on('open', () => {
               connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
               outgoingInvites[targetPeerId] = connection;
-              showToast(`已向 ${targetName} 發送邀請！`);
+              showToast(window.t('toast.inviteSent', '已向 {user} 發送邀請！').replace('{user}', targetName));
               lastInviteAttempt = null;
               if (connStatus) { connStatus.textContent = 'Status: Invite sent, waiting...'; connStatus.style.color = 'var(--O)'; }
 
               if (inviteTimeouts[targetPeerId]) clearTimeout(inviteTimeouts[targetPeerId]);
               inviteTimeouts[targetPeerId] = setTimeout(() => {
                 if (!isMultiplayer && outgoingInvites[targetPeerId] === connection) {
-                  showToast(`⚠️ 對 ${targetName} 的邀請已超時`);
+                  showToast(window.t('toast.inviteTimeout', '⚠️ 對 {user} 的邀請已超時').replace('{user}', targetName));
                   connection.close();
                   delete outgoingInvites[targetPeerId];
                 }
@@ -961,7 +976,7 @@
           if (!targetName) return;
 
           if (targetName === currentMyIdEl.textContent) {
-            showToast("不能跟自己連線啦！"); return;
+            showToast(window.t('toast.cantConnectSelf', '不能跟自己連線啦！')); return;
           }
 
           if (targetName.toUpperCase() === 'ADMIN_MARS') {
@@ -985,7 +1000,7 @@
 
     // 顯示提示文字
     if (isOpponent) {
-      showToast("🎉 對手已投降！你獲得了本局勝利！");
+      showToast(window.t('battle.oppSurrendered', '🎉 對手已投降！你獲得了本局勝利！'));
     } else {
       showMsg("YOU SURRENDERED"); // 在畫面上顯示投降提示
     }
@@ -1009,7 +1024,7 @@
 
       // 把投降的判定移到最上面，確保投降不會被 AI 模式攔截
       if (readyBtn.textContent.includes('SURRENDER')) {
-        if (confirm("確定要投降嗎？這將會讓對手直接獲得 1 勝！")) {
+        if (confirm(window.t('battle.confirmSurrender', '確定要投降嗎？這將會讓對手直接獲得 1 勝！'))) {
           if (conn && conn.open) conn.send({ type: 'SURRENDER' });
           handleSurrender(false); // false 代表是我自己投降
         }
@@ -1026,7 +1041,7 @@
         oppIsReady = false; // 對手如果也已 READY，重置以避免取消後又馬上 checkBothReady 開局
         if (conn && conn.open) conn.send({ type: 'CANCEL_READY' });
         playSound('move');
-        showToast('↩️ 已取消 READY，可重新選擇模式', 1500);
+        showToast(window.t('battle.cancelReady', '↩️ 已取消 READY，可重新選擇模式'), 1500);
         refreshReadyButtonLock();
         return;
       }
@@ -1034,13 +1049,13 @@
       // 防呆：模式不一致的話禁止 READY (鍵盤快捷鍵也吃這個檢查，避免繞過 disabled 按鈕)
       if (!isAIMode && (oppBattleMode === null || oppBattleMode !== battleMode)) {
         playSound('move');
-        showToast(oppBattleMode === null ? '⏳ 請等待對手選擇對戰模式' : '⚠️ 雙方模式不一致，無法開始', 1500);
+        showToast(oppBattleMode === null ? window.t('battle.waitForMode', '⏳ 請等待對手選擇對戰模式') : window.t('battle.modeMismatchToast', '⚠️ 雙方模式不一致，無法開始'), 1500);
         return;
       }
 
       // 按下 READY → 進入「等對手」狀態：按鈕保持可點，文字改成「✕ 取消 READY」讓玩家可反悔
       iAmReady = true;
-      readyBtn.textContent = '✕ 取消 READY';
+      readyBtn.textContent = window.t('battle.cancelReadyBtn', '✕ 取消 READY');
       readyBtn.style.background = 'var(--Z)';
       readyBtn.style.color = 'var(--white)';
       readyBtn.style.borderColor = 'var(--white)';
@@ -1097,13 +1112,13 @@
     if (status) {
       status.classList.remove('match', 'mismatch');
       if (oppBattleMode === null) {
-        status.textContent = '⏳ 等待對手選擇模式...';
+        status.textContent = window.t('battle.waitingMode', '⏳ 等待對手選擇模式...');
       } else if (oppBattleMode === battleMode) {
-        status.textContent = '✅ 模式一致，可以按下 READY 開始';
+        status.textContent = window.t('battle.modeAgreed', '✅ 模式一致，可以按下 READY 開始');
         status.classList.add('match');
       } else {
         const oppName = oppBattleMode === 'BOMB' ? '💣 BOMB' : '🧱 CLASSIC';
-        status.textContent = `⚠️ 對手選擇了 ${oppName}，模式不同無法開始`;
+        status.textContent = window.t('matchMode.modeMismatch', '⚠️ 對手選擇了 {mode}，模式不同無法開始').replace('{mode}', oppName);
         status.classList.add('mismatch');
       }
     }
@@ -1121,7 +1136,7 @@
     // 已按 READY → 顯示「✕ 取消 READY」紅色可點，讓玩家可以反悔重選模式
     if (iAmReady) {
       rBtn.disabled = false;
-      rBtn.textContent = '✕ 取消 READY';
+      rBtn.textContent = window.t('battle.cancelReadyBtn', '✕ 取消 READY');
       rBtn.style.background = 'var(--Z)';
       rBtn.style.color = 'var(--white)';
       rBtn.style.borderColor = 'var(--white)';
@@ -1140,7 +1155,7 @@
       rBtn.style.opacity = '1';
     } else {
       rBtn.disabled = true;
-      rBtn.textContent = oppBattleMode === null ? '等待對手...' : '模式不一致';
+      rBtn.textContent = oppBattleMode === null ? window.t('battle.btnWaitingOpp', '等待對手...') : window.t('battle.btnModeMismatch', '模式不一致');
       rBtn.style.background = 'rgba(120,120,120,0.4)';
       rBtn.style.color = 'rgba(255,255,255,0.6)';
       rBtn.style.cursor = 'not-allowed';
@@ -1420,7 +1435,7 @@
       if (wasNarrow) {
         const cbBtn = document.getElementById('combo-room-btn');
         if (cbBtn) {
-          cbBtn.textContent = '⚡ 進入 COMBO ROOM';
+          cbBtn.textContent = window.t('btn.comboRoom', '⚡ 進入 COMBO ROOM');
           cbBtn.style.background = 'linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18))';
           cbBtn.style.color = 'var(--Z)';
           cbBtn.style.borderColor = 'var(--Z)';
@@ -1434,7 +1449,7 @@
       if (wasFree) {
         const fmBtn = document.getElementById('free-mode-btn');
         if (fmBtn) {
-          fmBtn.textContent = '🧩 進入自由排版';
+          fmBtn.textContent = window.t('btn.freeMode', '🧩 進入自由排版');
           fmBtn.style.background = 'transparent';
           fmBtn.style.color = 'var(--I)';
           fmBtn.style.borderColor = 'var(--I)';
@@ -1454,6 +1469,7 @@
 
     updateMyActivity(isAIMode ? 'AI_BATTLE' : 'MULTIPLAYER'); // 切換為對戰狀態
     isMultiplayer = true;
+    document.body.classList.add('battle-mode'); // CSS 用：隱藏語言切換鈕避免蓋到對手框
     if (typeof bgm !== 'undefined') {
       bgm.pause(); // 進入連線模式時，關閉單機 BGM
       bgm.currentTime = 0;
@@ -1637,10 +1653,10 @@
     if (showDisconnectWarning && isMultiplayer && !isAIMode) {
       if (gameStarted && !gameOver) {
         gameOver = true;
-        showToast("⚠️ 對手已斷線或離開遊戲！本局不結算。");
+        showToast(window.t('battle.oppDisconnect', '⚠️ 對手已斷線或離開遊戲！本局不結算。'));
       } else {
         // 處理「在準備大廳被斷線」的情況
-        showToast("⚠️ 連線已中斷，返回單人模式。");
+        showToast(window.t('battle.connectionLost', '⚠️ 連線已中斷，返回單人模式。'));
       }
     } else if (gameStarted && !gameOver) {
       gameOver = true; // 即使不顯示警告，也要確保遊戲狀態被終止
@@ -1648,6 +1664,7 @@
 
     // 必須先把 isMultiplayer / isAIMode 重置，updateMyActivity 會觸發 Firebase 名單重算；若此時這兩個旗標還是 true，其他玩家觀戰此人的按鈕會被鎖在「對戰中無法觀戰」狀態
     isMultiplayer = false; isAIMode = false; iAmReady = false; oppIsReady = false;
+    document.body.classList.remove('battle-mode'); // 對戰結束，語言切換鈕重新出現
     updateMyActivity('IDLE'); // 退出房間回到閒置大廳
 
     // 清空對戰殘留盤面，回到 PRESS ENTER 起始畫面（與 exitSpectateMode 對齊）
@@ -1903,14 +1920,14 @@
       else if (data.type === 'INVITE_LATE') {
         // 我按了接受，但對方已經跟第一名開始遊戲了
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
-        showToast("😭 慢了一步！對方已經跟別人開始遊戲了！", 4000);
+        showToast(window.t('toast.tooSlow', '😭 慢了一步！對方已經跟別人開始遊戲了！'), 4000);
         connStatus.textContent = 'Status: Too Slow';
         connStatus.style.color = 'var(--Z)';
         setTimeout(() => connection.close(), 2000);
       }
       else if (data.type === 'INVITE_BUSY') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
-        showToast("⚠️ 對方正在遊戲中");
+        showToast(window.t('toast.oppInGame', '⚠️ 對方正在遊戲中'));
         connStatus.textContent = 'Status: Player is busy';
         connStatus.style.color = 'var(--O)';
         setTimeout(() => connection.close(), 2000); // 延遲 2 秒關閉
@@ -1919,12 +1936,12 @@
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
         connStatus.textContent = 'Status: Version Mismatch!';
         connStatus.style.color = 'var(--Z)';
-        alert(`❌ 連線失敗：版本不一致！\n\n請確認雙方都更新到最新版！`);
+        alert(window.t('toast.versionMismatch', '❌ 連線失敗：版本不一致！\n\n請確認雙方都更新到最新版！'));
         connection.close();
       }
       else if (data.type === 'INVITE_REJECT') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
-        showToast("💔 對方拒絕了你的對戰邀請！", 3000);
+        showToast(window.t('battle.inviteRejected', '💔 對方拒絕了你的對戰邀請！'), 3000);
         connStatus.textContent = 'Status: Rejected';
         connStatus.style.color = 'var(--Z)';
 
@@ -1943,7 +1960,7 @@
           const info = spectatorConns.get(connection.peer);
           spectatorConns.delete(connection.peer);
           broadcastSpectatorListToAll();
-          if (info && info.username) showToast('👀 ' + info.username + ' 結束了觀戰', 2000);
+          if (info && info.username) showToast(window.t('toast.specEnded', '👀 {user} 結束了觀戰').replace('{user}', info.username), 2000);
         }
         setTimeout(() => { try { connection.close(); } catch(e) {} }, 200);
       }
@@ -1961,7 +1978,7 @@
            // 對手取消了 READY：把對手狀態還原。如果對戰已經開始或正在倒數就忽略 (太晚了)。
            if (countdownValue > 0 || (gameStarted && !gameOver)) return;
            oppIsReady = false;
-           showToast('↩️ 對手取消了 READY', 1500);
+           showToast(window.t('battle.oppCancelReady', '↩️ 對手取消了 READY'), 1500);
            refreshReadyButtonLock();
         } else if (data.type === 'MODE_SELECT') {
            // 對手切換對戰模式：更新對手選擇、刷新 UI 與 Ready 按鈕鎖定狀態
@@ -2003,12 +2020,12 @@
                // 我剛剛已經死了(在寬限期內)，現在收到對手死訊 -> 雙方平局！
                clearTimeout(gameOverTimeout);
                isCheckingGameOver = false;
-               showToast("🤝 雙方同時 Top Out，平局！");
+               showToast(window.t('battle.mutualKO', '🤝 雙方同時 Top Out，平局！'));
                setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('DRAW'); } }, 1000);
              } else {
                // 對手先死了，開啟寬限期，等看看我在這 300ms 內會不會也剛好死掉
                isCheckingGameOver = true;
-               showToast("🎉 對手被方塊淹沒了！");
+               showToast(window.t('battle.oppDrowned', '🎉 對手被方塊淹沒了！'));
                gameOverTimeout = setTimeout(() => {
                  isCheckingGameOver = false;
                  if (!gameOver) {
@@ -2026,7 +2043,7 @@
         } else if (data.type === 'OPPONENT_LEFT_FOR_ANOTHER') {
            // 專門處理「對手接受別人邀請」的超嗆 Toast
            if (isMultiplayer) {
-               showToast("💔 對手無情地拋棄了你，跟別人跑了！", 5000);
+               showToast(window.t('battle.oppLeftForOther', '💔 對手無情地拋棄了你，跟別人跑了！'), 5000);
                // 傳入 false 阻止系統發送預設的斷線警告，改用上面這句專屬的
                exitMultiplayerMode(false); 
            }
@@ -2043,10 +2060,11 @@
                // 讀取傳過來的對戰資訊，呼叫你寫好的段位系統上色
                const oppLp = p.lp || 0;
                const rankInfo = getRankInfo(oppLp); // 抓取對應的段位顏色與名稱
-               const winRateText = p.winRate ? ` | 勝率: ${p.winRate}` : '';
-               
+               const _rankNameI18n = window.t(rankInfo.nameKey, rankInfo.name);
+               const winRateText = p.winRate ? `${window.t('opp.winRatePrefix', ' | 勝率: ')}${p.winRate}` : '';
+
                // 組合出第二行的戰績文字，字體調小並取消外發光避免太刺眼
-               const statsHtml = `<div style="font-size: 13px; color: ${rankInfo.color}; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">${rankInfo.name} (${oppLp} LP)${winRateText}</div>`;
+               const statsHtml = `<div style="font-size: 13px; color: ${rankInfo.color}; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">${_rankNameI18n} (${oppLp} LP)${winRateText}</div>`;
                
                // 把兩行合併塞進標題區塊
                oppTitleEl.innerHTML = nameHtml + statsHtml;
@@ -2060,7 +2078,7 @@
            const oppPanelEl = document.getElementById('opp-panel');
            if (oppPanelEl && !oppState.isGuest) {
              const oppRank = getRankInfo(oppState.lp);
-             applyRankFrame(oppPanelEl, oppState.lp, oppRank.name, { bottomText: `${oppState.lp} LP` });
+             applyRankFrame(oppPanelEl, oppState.lp, window.t(oppRank.nameKey, oppRank.name), { bottomText: `${oppState.lp} LP` });
              // 套上牌位框可能微幅改變視覺需求，重新跑 fitLayout 確保兩邊畫布等大
              if (typeof fitLayout === 'function') setTimeout(fitLayout, 0);
            }
@@ -2095,7 +2113,7 @@
         const info = spectatorConns.get(connection.peer);
         spectatorConns.delete(connection.peer);
         broadcastSpectatorListToAll();
-        if (info && info.username) showToast('👀 ' + info.username + ' 結束了觀戰', 2000);
+        if (info && info.username) showToast(window.t('toast.specEnded', '👀 {user} 結束了觀戰').replace('{user}', info.username), 2000);
       }
       // 確保連線關閉時，清空對應的狀態變數
       if (isMultiplayer && conn === connection) {
@@ -2224,8 +2242,8 @@
       gain.gain.setValueAtTime(0.15 * masterVolume, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
       osc.start(now); osc.stop(now + 0.4);
-    } else if (type === 'tetris') {
-      // --- Tetris 專屬的雙重震盪器「和弦」爆炸聲 ---
+    } else if (type === 'quad') {
+      // --- Quad 專屬的雙重震盪器「和弦」爆炸聲 ---
       osc.type = 'square';
       osc.frequency.setValueAtTime(250, now);
       osc.frequency.linearRampToValueAtTime(500, now + 0.4);
@@ -2873,6 +2891,14 @@
             pps: myPPS,
             durationSec: durationSec
           };
+          // GoatCounter：對戰結束結果（WIN / LOSE / DRAW），可看到全站勝負分布
+          if (window.goatcounter && window.goatcounter.count && matchResult) {
+            window.goatcounter.count({
+              path: 'match-end-' + String(matchResult).toLowerCase(),
+              title: 'Match end: ' + matchResult,
+              event: true,
+            });
+          }
           db.collection('users').doc(currentUserUID)
             .collection('matchHistory').add(historyEntry)
             .then(() => {
@@ -2953,7 +2979,7 @@
           const reasonText = reasons.length ? reasons.join('\n') : '• 雙方條件不足';
           // 延遲一點點彈出，讓勝負動畫先播完不會被 alert 卡住
           setTimeout(() => {
-            alert('⚠️ 本局未列入排位積分 (LP) 計算\n\n' + reasonText + '\n\n✨ 提示：雙方都需要達到 1000 分且時間耗盡 (或有一方投降)，才會計入段位與對戰紀錄。');
+            alert(window.t('battle.notRanked', '⚠️ 本局未列入排位積分 (LP) 計算\n\n{reason}\n\n✨ 提示：雙方都需要達到 1000 分且時間耗盡 (或有一方投降)，才會計入段位與對戰紀錄。').replace('{reason}', reasonText));
           }, 1500);
         }
       }
@@ -3622,7 +3648,7 @@
         oppCtx.fillText('WAITING...', oppCanvas.width / 2, oppCanvas.height / 2 - 16);
         oppCtx.fillStyle = 'rgba(255,255,255,0.6)';
         oppCtx.font = '700 16px Arial';
-        oppCtx.fillText('等待對手準備', oppCanvas.width / 2, oppCanvas.height / 2 + 16);
+        oppCtx.fillText(window.t('opp.waitingForReady', '等待對手準備'), oppCanvas.width / 2, oppCanvas.height / 2 + 16);
       }
     }
 
@@ -3740,7 +3766,7 @@
 
     // 如果遊戲正在進行中，但「沒有快照」或「剛消行被鎖定」，才跳出警告通知
     if (!canUndo || !previousGameState) {
-      showToast("⚠️ 無法反悔 (已消行、炸彈，或已用過一次)！", 2000);
+      showToast(window.t('toast.cantUndo', '⚠️ 無法反悔 (已消行、炸彈，或已用過一次)！'), 2000);
       return;
     }
 
@@ -4798,34 +4824,34 @@
       if (!isMultiplayer && !isPracticeMode && !isNarrowMode && !isFreeMode) level = Math.floor(lines / 10) + 1;
     }
 
-    // 依照 Tetris Battle 官方圖表設定基礎分數與攻擊力
+    // 依照競技攻擊表設定基礎分數與攻擊力
     if (tSpinType) {
       difficult = true;
       if (tSpinType === 'Full') {
-        // 對齊 Tetris Battle 官方: T-Spin=400 / TSS=800 / TSD=1200 / TST=1600
+        // T-Spin=400 / TSS=800 / TSD=1200 / TST=1600
         base = [400, 800, 1200, 1600][linesCleared] || 0;
         attack = [0, 2, 4, 6][linesCleared] || 0;
         msg = linesCleared ? `T-Spin ${['','Single','Double','Triple'][linesCleared]}` : 'T-Spin';
       } else { // Mini
-        // 對齊 Tetris Battle 官方: Mini=100 / Mini Single=200 / Mini Double=400
+        // Mini=100 / Mini Single=200 / Mini Double=400
         base = [100, 200, 400, 0][linesCleared] || 0;
         attack = [0, 1, 0, 0][linesCleared] || 0;
         msg = linesCleared ? `Mini T-Spin ${['','Single','Double'][linesCleared]}` : 'Mini T-Spin';
       }
     } else {
-      // Tetris Battle 官方: Single=100 / Double=300 / Triple=500 / Tetris=800
+      // Single=100 / Double=300 / Triple=500 / Quad=800
       base = [0, 100, 300, 500, 800][linesCleared] || 0;
       attack = [0, 0, 1, 2, 4][linesCleared] || 0;
       if (linesCleared === 4) {
         difficult = true;
-        msg = 'Tetris';
+        msg = 'Quad';
       }
     }
 
     if (base > 0 || isPerfectClear) {
       if (isPerfectClear) playSound('perfect');
       else if (tSpinType) { playSound('tspin'); shakeMag = 5; }
-      else if (linesCleared === 4) { playSound('tetris'); shakeMag = 8; }
+      else if (linesCleared === 4) { playSound('quad'); shakeMag = 8; }
       else if (linesCleared > 0) { playSound('clear', combo > 0 ? combo : 0); shakeMag = 2 + linesCleared; }
       
       // B2B 判定
@@ -4834,7 +4860,7 @@
           if (b2b > 0) {
             base = Math.floor(base * 1.5);
             // 覆蓋為圖表中的 B2B 攻擊力
-            if (!tSpinType && linesCleared === 4) attack = 6; // B2B Tetris
+            if (!tSpinType && linesCleared === 4) attack = 6; // B2B Quad
             else if (tSpinType === 'Mini' && linesCleared === 1) attack = 2; // B2B T-Spin Mini
             else if (tSpinType === 'Full' && linesCleared === 1) attack = 3; // B2B T-Spin Single
             else if (tSpinType === 'Full' && linesCleared === 2) attack = 6; // B2B T-Spin Double
@@ -4876,7 +4902,7 @@
         if (cleanMsg !== '' && !cleanMsg.startsWith('COMBO')) {
           let floatColor = '#ffffff'; let floatSize = 28;
           if (cleanMsg.includes('PERFECT')) { floatColor = '#f7dd16'; floatSize = 40; }
-          else if (cleanMsg.includes('Tetris')) { floatColor = '#38bdee'; floatSize = 34; }
+          else if (cleanMsg.includes('Quad')) { floatColor = '#38bdee'; floatSize = 34; }
           else if (cleanMsg.includes('T-Spin')) { floatColor = '#b144f7'; floatSize = 32; }
           myFloatingTexts.push(new FloatingText(cleanMsg, (COLS * SIZE) / 2, (VISIBLE_ROWS * SIZE) / 2 - 20, floatColor, floatSize));
         }
@@ -5019,7 +5045,7 @@
 
     // 尋找滿行
     // BOMB 模式：含 G 的行不算一般消行 (因為 G 行洞口是炸彈，正常情況不會被填滿；唯一移除方式是引爆)
-    // CLASSIC 模式：G 行 (灰垃圾行) 被填滿後就可以一般消除，比照 Tetris Battle 行為
+    // CLASSIC 模式：G 行 (灰垃圾行) 被填滿後就可以一般消除
     // 兩個模式都禁止把含 'B' 炸彈的行當一般消行 (那要靠 detonatedRows 引爆)
     const fullRows = [];
     for (let r = 0; r < ROWS; r++) {
@@ -5056,8 +5082,8 @@
 
   // --- 將垃圾行從底部推入盤面 ---
   // BOMB 模式：每行洞口放一顆 'B' 炸彈，玩家落在炸彈正上方就引爆消行；連 2 行同洞就換洞 (2-2-2 凌亂機制)
-  // CLASSIC 模式 (Tetris Battle 經典)：每行洞口是空格 (null)，可以塞方塊填滿後一般消除；
-  //   一次倒下的所有垃圾共用同一個洞口，下次再倒下垃圾才換新洞 (對齊 Tetris Battle 行為)
+  // CLASSIC 模式：每行洞口是空格 (null)，可以塞方塊填滿後一般消除；
+  //   一次倒下的所有垃圾共用同一個洞口，下次再倒下垃圾才換新洞
   function applyGarbage() {
     if (activeGarbage <= 0) return;
 
@@ -5484,7 +5510,7 @@
       // 立即送一個 frame 讓觀戰端有畫面
       connection.send({ type: 'SPECTATE_FRAME', frame: buildSpectateFrame() });
     } catch(e) {}
-    showToast('👀 ' + (fromUsername || '某玩家') + ' 開始觀戰你！', 2500);
+    showToast(window.t('spectate.youStarted', '👀 {user} 開始觀戰你！').replace('{user}', fromUsername || window.t('spectate.fallbackUser', '某玩家')), 2500);
     broadcastSpectatorListToAll();
   }
 
@@ -5518,42 +5544,42 @@
 
   async function startSpectate(targetUsername) {
     if (isSpectating) {
-      showToast('⚠️ 你已經在觀戰其他玩家');
+      showToast(window.t('spectate.alreadySpec', '⚠️ 你已經在觀戰其他玩家'));
       return;
     }
     if (isMultiplayer || isAIMode) {
-      showToast('⚠️ 對戰中無法觀戰');
+      showToast(window.t('spectate.battleNoSpec', '⚠️ 對戰中無法觀戰'));
       return;
     }
     if (!peer || !isMyPeerReady) {
-      showToast('⚠️ 連線尚未就緒');
+      showToast(window.t('spectate.notReady', '⚠️ 連線尚未就緒'));
       return;
     }
     if (targetUsername === currentPlayer) {
-      showToast('⚠️ 不能觀戰自己');
+      showToast(window.t('spectate.cantSelf', '⚠️ 不能觀戰自己'));
       return;
     }
     // 軟提示：若本機正在進行單機遊戲，提醒玩家會中斷
     if (gameStarted && !gameOver) {
-      showToast('⚠️ 進入觀戰將中斷你目前的遊戲', 2000);
+      showToast(window.t('spectate.willInterrupt', '⚠️ 進入觀戰將中斷你目前的遊戲'), 2000);
     }
-    showToast('正在連線到 ' + targetUsername + '...', 1500);
+    showToast(window.t('spectate.connecting', '正在連線到 {user}...').replace('{user}', targetUsername), 1500);
     try {
       const snap = await db.collection('users').where('username', '==', targetUsername).get();
       if (snap.empty) {
-        showToast('⚠️ 找不到此玩家');
+        showToast(window.t('spectate.notFound', '⚠️ 找不到此玩家'));
         return;
       }
       const targetPeerId = snap.docs[0].data().currentPeerId;
       if (!targetPeerId) {
-        showToast('⚠️ 此玩家未上線');
+        showToast(window.t('spectate.userOffline', '⚠️ 此玩家未上線'));
         return;
       }
       const c = peer.connect(targetPeerId, { reliable: true, metadata: { kind: 'spectate' } });
       let opened = false;
       const openTimeout = setTimeout(() => {
         if (!opened) {
-          showToast('⚠️ 連線超時');
+          showToast(window.t('spectate.timeout', '⚠️ 連線超時'));
           try { c.close(); } catch(e) {}
         }
       }, 8000);
@@ -5565,20 +5591,20 @@
       c.on('data', (data) => handleSpectateData(c, data, targetUsername));
       c.on('close', () => {
         if (isSpectating && spectateConn === c) {
-          showToast('👀 觀戰連線已關閉', 2500);
+          showToast(window.t('spectate.closed', '👀 觀戰連線已關閉'), 2500);
           exitSpectateMode('CONN_CLOSED');
         }
       });
       c.on('error', (err) => {
         console.log('觀戰連線錯誤:', err);
         if (isSpectating && spectateConn === c) exitSpectateMode('CONN_ERROR');
-        else showToast('⚠️ 觀戰連線失敗');
+        else showToast(window.t('spectate.failed', '⚠️ 觀戰連線失敗'));
       });
       spectateConn = c;
       spectateTarget = { username: targetUsername, peerId: targetPeerId };
     } catch (e) {
       console.error(e);
-      showToast('⚠️ 觀戰失敗：' + (e && e.message ? e.message : '未知錯誤'));
+      showToast(window.t('spectate.failedReason', '⚠️ 觀戰失敗：{reason}').replace('{reason}', (e && e.message) ? e.message : window.t('spectate.unknownError', '未知錯誤')));
     }
   }
 
@@ -5586,12 +5612,12 @@
     if (!data || !data.type) return;
     if (data.type === 'SPECTATE_REJECT') {
       const reasons = {
-        PRACTICE: '對方在練習模式，無法觀戰',
-        FULL: '觀戰人數已滿 (' + MAX_SPECTATORS + '/' + MAX_SPECTATORS + ')',
-        BUSY: '對方目前無法被觀戰',
-        PHASE_PENDING: '對戰中觀戰功能即將開放'
+        PRACTICE: window.t('spectate.reasonPractice', '對方在練習模式，無法觀戰'),
+        FULL: window.t('spectate.reasonFull', '觀戰人數已滿 ({cur}/{max})').replace('{cur}', MAX_SPECTATORS).replace('{max}', MAX_SPECTATORS),
+        BUSY: window.t('spectate.reasonBusy', '對方目前無法被觀戰'),
+        PHASE_PENDING: window.t('spectate.reasonPhasePending', '對戰中觀戰功能即將開放')
       };
-      showToast('⚠️ ' + (reasons[data.reason] || '無法觀戰'), 3000);
+      showToast('⚠️ ' + (reasons[data.reason] || window.t('spectate.reasonGeneric', '無法觀戰')), 3000);
       try { connection.close(); } catch(e) {}
       spectateConn = null;
       spectateTarget = null;
@@ -5605,15 +5631,15 @@
     }
     if (data.type === 'SPECTATE_END') {
       const reasons = {
-        HOST_LEFT: '對方離開了遊戲',
-        GAME_END: '對方結束了這局',
-        DISCONNECT: '對方斷線了',
-        UNSTABLE: '連線不穩，已斷開觀戰',
-        RETURN_LOBBY: '對方返回了主畫面',
-        ENTERED_BATTLE: '對方進入了對戰模式',
-        ENTERED_PRACTICE: '對方進入了練習模式'
+        HOST_LEFT: window.t('spectate.endHostLeft', '對方離開了遊戲'),
+        GAME_END: window.t('spectate.endGameEnd', '對方結束了這局'),
+        DISCONNECT: window.t('spectate.endDisconnect', '對方斷線了'),
+        UNSTABLE: window.t('spectate.endUnstable', '連線不穩，已斷開觀戰'),
+        RETURN_LOBBY: window.t('spectate.endReturn', '對方返回了主畫面'),
+        ENTERED_BATTLE: window.t('spectate.endEnteredBattle', '對方進入了對戰模式'),
+        ENTERED_PRACTICE: window.t('spectate.endEnteredPractice', '對方進入了練習模式')
       };
-      showToast('👀 ' + (reasons[data.reason] || '觀戰結束'), 3000);
+      showToast('👀 ' + (reasons[data.reason] || window.t('spectate.endGeneric', '觀戰結束')), 3000);
       exitSpectateMode(data.reason || 'END');
       return;
     }
@@ -5702,11 +5728,11 @@
       try { spectateConn.send({ type: 'SPECTATE_PING' }); } catch(e) {}
       // 超過 15 秒沒收到 frame 視為斷線（容忍瀏覽器背景分頁節流）
       if (spectateLastFrameAt && Date.now() - spectateLastFrameAt > 15000) {
-        showToast('⚠️ 觀戰連線中斷');
+        showToast(window.t('spectate.disconnected', '⚠️ 觀戰連線中斷'));
         exitSpectateMode('TIMEOUT');
       }
     }, 2000);
-    showToast('👀 開始觀戰 ' + (_spectateHostUsername || '玩家'), 2000);
+    showToast(window.t('spectate.startWatching', '👀 開始觀戰 {user}').replace('{user}', _spectateHostUsername || window.t('spectate.fallbackPlayer', '玩家')), 2000);
   }
 
   function exitSpectateMode(reason) {
@@ -5862,7 +5888,8 @@
               let statsHtml = '';
               if (typeof getRankInfo === 'function') {
                 const rankInfo = getRankInfo(oppLp);
-                statsHtml = '<div style="font-size: 13px; color: ' + rankInfo.color + '; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">' + rankInfo.name + ' (' + oppLp + ' LP)</div>';
+                const _rankNameI18n = window.t(rankInfo.nameKey, rankInfo.name);
+                statsHtml = '<div style="font-size: 13px; color: ' + rankInfo.color + '; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">' + _rankNameI18n + ' (' + oppLp + ' LP)</div>';
               }
               oppTitleEl.innerHTML = '<div style="position: relative; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; color: var(--Z);">' + f.opp.name + '</div>' + statsHtml;
               oppTitleEl.style.color = '';
@@ -5925,7 +5952,7 @@
       // playSound 的 type 直接對應，這層 switch 只處理需要額外視覺效果的
       switch (effect) {
         case 'clear':
-        case 'tetris':
+        case 'quad':
         case 'tspin':
         case 'perfect':
         case 'drop':
@@ -5935,7 +5962,7 @@
         case 'lose':
         case 'undo':
           try { playSound(effect, params.param || 0); } catch(e) {}
-          if (effect === 'tetris') shakeMag = Math.max(shakeMag, 8);
+          if (effect === 'quad') shakeMag = Math.max(shakeMag, 8);
           else if (effect === 'tspin') shakeMag = Math.max(shakeMag, 5);
           else if (effect === 'clear') shakeMag = Math.max(shakeMag, 2 + (params.param || 1));
           break;
@@ -5987,8 +6014,9 @@
               let statsHtml = '';
               if (typeof getRankInfo === 'function') {
                 const rankInfo = getRankInfo(oppLp);
-                const winRateText = p.winRate ? ' | 勝率: ' + p.winRate : '';
-                statsHtml = '<div style="font-size: 13px; color: ' + rankInfo.color + '; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">' + rankInfo.name + ' (' + oppLp + ' LP)' + winRateText + '</div>';
+                const _rankNameI18n = window.t(rankInfo.nameKey, rankInfo.name);
+                const winRateText = p.winRate ? window.t('opp.winRatePrefix', ' | 勝率: ') + p.winRate : '';
+                statsHtml = '<div style="font-size: 13px; color: ' + rankInfo.color + '; letter-spacing: 0px; text-shadow: none; margin-top: 2px;">' + _rankNameI18n + ' (' + oppLp + ' LP)' + winRateText + '</div>';
               }
               oppTitleEl.innerHTML = nameHtml + statsHtml;
               oppTitleEl.style.color = '';
@@ -6000,7 +6028,8 @@
             // 觀戰模式也替對手遊戲區套上牌位框
             const oppPanelSpec = document.getElementById('opp-panel');
             if (oppPanelSpec && typeof applyRankFrame === 'function' && p.name !== 'Guest') {
-              applyRankFrame(oppPanelSpec, oppState.lp, getRankInfo(oppState.lp).name, { bottomText: `${oppState.lp} LP` });
+              const _oppTier = getRankInfo(oppState.lp);
+              applyRankFrame(oppPanelSpec, oppState.lp, window.t(_oppTier.nameKey, _oppTier.name), { bottomText: `${oppState.lp} LP` });
             }
           }
           break;
@@ -6096,7 +6125,7 @@
     const mpLeaveBtn = document.getElementById('mp-leave-btn');
     if (mpLeaveBtn) {
       mpLeaveBtn._origText = mpLeaveBtn.innerHTML;
-      mpLeaveBtn.innerHTML = '✕ 離開觀戰';
+      mpLeaveBtn.innerHTML = window.t('spectate.leaveBtn', '✕ 離開觀戰');
       mpLeaveBtn.style.color = '#fff';
       mpLeaveBtn.style.borderColor = 'var(--Z)';
       mpLeaveBtn.style.background = 'rgba(255,13,98,0.7)';
@@ -6138,7 +6167,7 @@
           watermark = document.createElement('div');
           watermark.className = 'spectate-readonly-mark';
           watermark.style.cssText = 'text-align:center; font-size:11px; color:var(--I); font-weight:900; margin-top:-8px; margin-bottom:6px; letter-spacing:1px;';
-          watermark.textContent = '👀 唯讀同步中';
+          watermark.textContent = window.t('spectate.readOnlySync', '👀 唯讀同步中');
           aiPanel.insertBefore(watermark, aiPanel.firstChild.nextSibling);
         } else {
           watermark.style.display = '';
@@ -6289,7 +6318,7 @@
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'spectate-leave-overlay';
-      btn.innerHTML = '✕ 離開觀戰';
+      btn.innerHTML = window.t('spectate.leaveBtn', '✕ 離開觀戰');
       btn.style.cssText = 'position:absolute; top:0px; right:0px; z-index:50; background:rgba(255,13,98,0.88); color:#fff; border:2px solid #fff; border-radius:6px; padding:4px 10px; font-weight:900; font-size:12px; cursor:pointer; box-shadow:0 0 10px rgba(255,13,98,0.6); white-space:nowrap;';
       btn.addEventListener('click', () => exitSpectateMode('USER_LEAVE'));
       playerSection.appendChild(btn);
@@ -6531,7 +6560,7 @@
         } else {
           // 單點或按太慢，記錄時間並跳出提示
           lastFPressTime = now;
-          showToast("⚠️ 確定要投降？請快速連按兩下 F 鍵！", 2000);
+          showToast(window.t('battle.surrenderHint', '⚠️ 確定要投降？請快速連按兩下 F 鍵！'), 2000);
         }
       }
       return; // 執行完就跳出，不再往下判定
@@ -6934,12 +6963,13 @@
   fitLayout();
 
   // === AI 設定按鈕邏輯 ===
+  // 改 i18n key 對照表，read 時透過 t() 翻譯成當前語系
   const AI_WIDE_HINTS = {
-    auto:  '🧠 AI 自行選擇最佳落點，追求 Tetris 建塔策略',
-    '1':   '1-wide：右側留 1 列深坑，用 I 磚反覆插坑，適合練 Tetris 節奏',
-    '2':   '2-wide：右側留 2 列，穩定版 Tetris 策略，適合中高難度 AI',
-    '3':   '3-wide：右側留 3 列，兼顧平整與消行，節奏型打法',
-    '4':   '4-wide Combo：右側留 4 列通道，每顆方塊都消行，持續 Combo 輸出！',
+    auto: 'aiHint.auto',
+    '1':  'aiHint.1',
+    '2':  'aiHint.2',
+    '3':  'aiHint.3',
+    '4':  'aiHint.4',
   };
 
   function initAIConfigButtons() {
@@ -6969,11 +6999,11 @@
         document.querySelectorAll('#ai-wide-group .ai-option-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
         aiWideMode = btn.dataset.wide === 'auto' ? 'auto' : parseInt(btn.dataset.wide);
-        if (wideHintEl) wideHintEl.textContent = AI_WIDE_HINTS[btn.dataset.wide] || '';
+        if (wideHintEl) wideHintEl.textContent = window.t(AI_WIDE_HINTS[btn.dataset.wide] || '', '');
       });
       // 初始化 hint
       if (btn.classList.contains('selected') && wideHintEl) {
-        wideHintEl.textContent = AI_WIDE_HINTS[btn.dataset.wide] || '';
+        wideHintEl.textContent = window.t(AI_WIDE_HINTS[btn.dataset.wide] || '', '');
       }
     });
   }
@@ -7007,7 +7037,7 @@
       initAI();
       oppIsReady = true;
       aiBtn.classList.add('hidden'); // 進入AI模式後隱藏按鈕
-      showToast('🤖 AI 對手已就緒！可調整設定後按 READY 開始對戰');
+      showToast(window.t('toast.aiReady', '🤖 AI 對手已就緒！可調整設定後按 READY 開始對戰'));
     });
   }
 
@@ -7089,7 +7119,9 @@
         const fireIcon = winStreak >= 3 ? '<span style="color:#ff8c00; text-shadow:0 0 8px #ff0000; margin-left:4px;" title="3連勝以上！">🔥</span>' : '';
 
         let lp = data.lp || 0;
-        const { name: badgeName, color: badgeColor } = getRankInfo(lp);
+        const _badgeTier = getRankInfo(lp);
+        const badgeName = window.t(_badgeTier.nameKey, _badgeTier.name);
+        const badgeColor = _badgeTier.color;
 
         listEl.innerHTML += `
           <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(255, 255, 255, 0.05); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
@@ -7098,8 +7130,8 @@
               <span style="color: ${badgeColor}; font-weight: 900; text-shadow: 0 0 5px ${badgeColor}; font-size: 16px;">${badgeName} <span style="font-size:11px">(${lp})</span></span>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: rgba(255,255,255,0.6);">
-              <span>勝率: <span style="color:var(--S); font-weight:bold;">${winRate}%</span></span>
-              <span><span style="color:var(--white);">${wins}</span> 勝 / ${matches} 場</span>
+              <span>${window.t('leaderboard.winRateLabel', '勝率')}: <span style="color:var(--S); font-weight:bold;">${winRate}%</span></span>
+              <span><span style="color:var(--white);">${wins}</span> ${window.t('leaderboard.wins', '勝')} / ${matches} ${window.t('leaderboard.matches', '場')}</span>
             </div>
           </div>
         `;
@@ -7282,7 +7314,7 @@
         const stillOnline = (myData && myData.username === spectateTarget.username)
           || others.some(u => u.username === spectateTarget.username);
         if (!stillOnline) {
-          showToast('👀 對方已離線，觀戰結束', 2500);
+          showToast(window.t('spectate.hostOffline', '👀 對方已離線，觀戰結束'), 2500);
           exitSpectateMode('HOST_OFFLINE');
         }
       }
@@ -7314,17 +7346,17 @@
         let actStr = data.activity || 'IDLE';
 
         // 狀態視覺化解析
-        let activityText = '大廳閒置';
+        let activityText = window.t('online.idle', '大廳閒置');
         let activityColor = '#a8a8a8';
         let dotColor = 'var(--S)'; // 預設綠色點點
 
-        if (actStr === 'SINGLE') { activityText = '單機闖關中'; activityColor = 'var(--O)'; dotColor = 'var(--O)'; }
-        else if (actStr === 'PRACTICE') { activityText = '深山修行中'; activityColor = 'var(--S)'; dotColor = 'var(--S)'; }
-        else if (actStr === 'AI_BATTLE') { activityText = '與 AI 激戰中'; activityColor = 'var(--T)'; dotColor = 'var(--T)'; }
-        else if (actStr === 'MULTIPLAYER') { activityText = '雙人對戰中'; activityColor = 'var(--Z)'; dotColor = 'var(--Z)'; }
-        else if (actStr === 'SPECTATING') { activityText = '👀 觀戰中'; activityColor = 'var(--I)'; dotColor = 'var(--I)'; }
+        if (actStr === 'SINGLE') { activityText = window.t('online.single', '單機闖關中'); activityColor = 'var(--O)'; dotColor = 'var(--O)'; }
+        else if (actStr === 'PRACTICE') { activityText = window.t('online.practice', '深山修行中'); activityColor = 'var(--S)'; dotColor = 'var(--S)'; }
+        else if (actStr === 'AI_BATTLE') { activityText = window.t('online.aiBattle', '與 AI 激戰中'); activityColor = 'var(--T)'; dotColor = 'var(--T)'; }
+        else if (actStr === 'MULTIPLAYER') { activityText = window.t('online.multiplayer', '雙人對戰中'); activityColor = 'var(--Z)'; dotColor = 'var(--Z)'; }
+        else if (actStr === 'SPECTATING') { activityText = window.t('online.spectating', '👀 觀戰中'); activityColor = 'var(--I)'; dotColor = 'var(--I)'; }
         // 離開與閒置狀態
-        else if (actStr === 'AWAY') { activityText = '離開 (閒置中)'; activityColor = '#888888'; dotColor = '#888888'; }
+        else if (actStr === 'AWAY') { activityText = window.t('online.away', '離開 (閒置中)'); activityColor = '#888888'; dotColor = '#888888'; }
 
         let inviteButtonHTML = '';
         let spectateButtonHTML = ''; // 👀 觀戰專屬按鈕（取代原本的聊天 💬 快捷鍵）
@@ -7345,19 +7377,19 @@
            inviteButtonHTML = `<button class="quick-invite-btn" data-username="${username}" style="background:${btnBg}; color:var(--bg); border:1px solid var(--white); border-radius:4px; font-weight:bold; cursor:${btnCursor}; font-size:10px; padding:3px 8px;" ${btnDisabled}>${btnText}</button>`;
            // 產生 👀 觀戰按鈕
            let spectateDisabled = false;
-           let spectateTitle = '觀戰此玩家';
+           let spectateTitle = window.t('spectate.btnTitle.normal', '觀戰此玩家');
            let spectateColor = 'var(--I)';
            let spectateCursor = 'pointer';
            if (actStr === 'PRACTICE') {
-             spectateDisabled = true; spectateTitle = '練習模式不可觀戰'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+             spectateDisabled = true; spectateTitle = window.t('spectate.btnTitle.practice', '練習模式不可觀戰'); spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
            } else if (actStr === 'SPECTATING') {
-             spectateDisabled = true; spectateTitle = '對方正在觀戰，無法被觀戰'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+             spectateDisabled = true; spectateTitle = window.t('spectate.btnTitle.spectating', '對方正在觀戰，無法被觀戰'); spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
            } else if (isSpectating) {
-             spectateDisabled = true; spectateTitle = '你已在觀戰其他玩家'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+             spectateDisabled = true; spectateTitle = window.t('spectate.btnTitle.alreadySpec', '你已在觀戰其他玩家'); spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
            } else if (isMultiplayer || isAIMode) {
-             spectateDisabled = true; spectateTitle = '對戰中無法觀戰'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+             spectateDisabled = true; spectateTitle = window.t('spectate.btnTitle.battle', '對戰中無法觀戰'); spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
            } else if (!isMyPeerReady) {
-             spectateDisabled = true; spectateTitle = '連線尚未就緒'; spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
+             spectateDisabled = true; spectateTitle = window.t('spectate.btnTitle.notReady', '連線尚未就緒'); spectateColor = 'rgba(255,255,255,0.25)'; spectateCursor = 'not-allowed';
            }
            spectateButtonHTML = `<button class="spectate-trigger" data-username="${username}" data-disabled="${spectateDisabled ? '1' : '0'}" style="background:transparent; border:none; color:${spectateColor}; font-size:14px; cursor:${spectateCursor}; padding:0; display:flex; align-items:center; justify-content:center;" title="${spectateTitle}">👀</button>`;
         } else {
@@ -7554,7 +7586,7 @@
                   unreadUsers.add(sender); 
                   updateChatBadge();        
                   playSound('move');
-                  showToast(`💬 ${sender} 傳送了一則新訊息`, 3000);
+                  showToast(window.t('chat.newMessage', '💬 {sender} 傳送了一則新訊息').replace('{sender}', sender), 3000);
               }
               
               if (activeChatUser === sender && !document.getElementById('chat-panel').classList.contains('hidden')) {
@@ -7574,12 +7606,12 @@
       
       // 沒選擇對象就按送出：跳出明確的警告提示，而不是默默沒反應
       if (!activeChatUser) {
-          showToast('⚠️ 請先點擊對話框左上角「Player ▼」選擇聊天對象！');
+          showToast(window.t('chat.pickPlayer', '⚠️ 請先點擊對話框左上角「Player ▼」選擇聊天對象！'));
           return;
       }
       
       if (!activeChatPeerId) {
-          showToast('⚠️ 正在取得玩家連線資訊，請稍後重試');
+          showToast(window.t('chat.fetchingPlayer', '⚠️ 正在取得玩家連線資訊，請稍後重試'));
           return;
       }
 
@@ -7644,7 +7676,7 @@
       if (spectateBtn) {
           e.stopPropagation();
           if (spectateBtn.getAttribute('data-disabled') === '1') {
-              const t = spectateBtn.getAttribute('title') || '無法觀戰';
+              const t = spectateBtn.getAttribute('title') || window.t('spectate.toastNoSpec', '無法觀戰');
               showToast('⚠️ ' + t);
               return;
           }
@@ -7695,7 +7727,7 @@
           }
       // 3 秒內不能連續狂按，但可以一直發送給不同人，或重發給同一人
       if (myInviteCD) {
-        showToast("⏳ 邀請發送太頻繁，請等 3 秒...");
+        showToast(window.t('toast.inviteRateLimit', '⏳ 邀請發送太頻繁，請等 3 秒...'));
         return;
       }
       myInviteCD = true;
@@ -7738,16 +7770,16 @@
       const user = firebase.auth().currentUser;
       if (!user) return;
       
-      const newPwd = prompt("請輸入新密碼 (至少 6 位數)：");
+      const newPwd = prompt(window.t('pwd.promptNewPwd', '請輸入新密碼 (至少 6 位數)：'));
       if (newPwd && newPwd.length >= 6) {
         user.updatePassword(newPwd).then(() => {
-          alert("密碼修改成功！下次請使用新密碼登入。");
+          alert(window.t('pwd.changeSuccess', '密碼修改成功！下次請使用新密碼登入。'));
           localStorage.setItem('tetris_saved_pass', newPwd); // 更新本機儲存
         }).catch(err => {
-          alert("修改失敗：" + err.message + "\\n(為了安全性，您可能需要登出再重新登入一次才能修改密碼)");
+          alert(window.t('pwd.changeFailed', '修改失敗：{err}\n(為了安全性，您可能需要登出再重新登入一次才能修改密碼)').replace('{err}', err.message));
         });
       } else if (newPwd) {
-        alert("密碼長度必須至少 6 個字元！");
+        alert(window.t('pwd.tooShort', '密碼長度必須至少 6 個字元！'));
       }
     });
   }
@@ -7757,7 +7789,7 @@
     const user = usernameInput.value.trim();
     const pass = passwordInput.value.trim();
 
-    if (!user || !pass) { alert("請輸入名稱與密碼！"); return; }
+    if (!user || !pass) { alert(window.t('login.emptyFields', '請輸入名稱與密碼！')); return; }
     
     // 將輸入的帳號密碼存入瀏覽器，下次打開自動填寫
     localStorage.setItem('tetris_saved_user', user);
@@ -7774,12 +7806,16 @@
       .catch((error) => {
         auth.createUserWithEmailAndPassword(email, pass)
           .then((userCredential) => {
-            showToast(`🎉 註冊成功！歡迎加入 JUST FUCKING TETRIS，${user}！`);
+            showToast(window.t('login.registerSuccess').replace('{user}', user));
+            // GoatCounter：新註冊成功事件
+            if (window.goatcounter && window.goatcounter.count) {
+              window.goatcounter.count({ path: 'register-success', title: 'New registration', event: true });
+            }
             handleLoginSuccess(user, userCredential.user.uid);
           })
           .catch((regError) => {
-            if (regError.code === 'auth/email-already-in-use') alert("密碼錯誤！或者這個名稱被別人用囉。");
-            else alert("發生錯誤：" + regError.message);
+            if (regError.code === 'auth/email-already-in-use') alert(window.t('login.passwordOrTaken', '密碼錯誤！或者這個名稱被別人用囉。'));
+            else alert(window.t('login.errorPrefix', '發生錯誤：') + regError.message);
             loginBtn.textContent = 'Login / Register';
           });
       });
@@ -7917,7 +7953,7 @@
     }).catch(err => {
       // 如果有錯誤，強制彈出警告視窗
       console.error("❌ 讀取資料大失敗：", err);
-      alert("讀取雲端存檔失敗！被 Firebase 擋住了，請按 F12 查看錯誤訊息。");
+      alert(window.t('cloud.readFailed', '讀取雲端存檔失敗！被 Firebase 擋住了，請按 F12 查看錯誤訊息。'));
     });
   }
 
@@ -7925,13 +7961,13 @@
   // tierClass / symbol / cornerSym / hasBottomPlate 給 CSS 牌位框使用
   const RANK_RULES = {
     tiers: [
-      { name: '銅牌', min: 0,    color: '#CD7F32', tierClass: 'tier-bronze',   symbol: '◆',  plateDecor: ''   },
-      { name: '銀牌', min: 200,  color: '#C0C0C0', tierClass: 'tier-silver',   symbol: '◈',  plateDecor: ''   },
-      { name: '金牌', min: 400,  color: '#FFD700', tierClass: 'tier-gold',     symbol: '★',  plateDecor: '★'  },
-      { name: '白金', min: 600,  color: '#00FF7F', tierClass: 'tier-platinum', symbol: '❖',  plateDecor: '❖'  },
-      { name: '鑽石', min: 800,  color: '#b9f2ff', tierClass: 'tier-diamond',  symbol: '✦',  plateDecor: '✦'  },
-      { name: '大師', min: 1000, color: '#FF00FF', tierClass: 'tier-master',   symbol: '♛',  plateDecor: '♛'  },
-      { name: '菁英', min: 1200, color: '#00FFFF', tierClass: 'tier-elite',    symbol: '♚',  plateDecor: '♚'  },
+      { name: '銅牌', nameKey: 'rank.bronze',   min: 0,    color: '#CD7F32', tierClass: 'tier-bronze',   symbol: '◆',  plateDecor: ''   },
+      { name: '銀牌', nameKey: 'rank.silver',   min: 200,  color: '#C0C0C0', tierClass: 'tier-silver',   symbol: '◈',  plateDecor: ''   },
+      { name: '金牌', nameKey: 'rank.gold',     min: 400,  color: '#FFD700', tierClass: 'tier-gold',     symbol: '★',  plateDecor: '★'  },
+      { name: '白金', nameKey: 'rank.platinum', min: 600,  color: '#00FF7F', tierClass: 'tier-platinum', symbol: '❖',  plateDecor: '❖'  },
+      { name: '鑽石', nameKey: 'rank.diamond',  min: 800,  color: '#b9f2ff', tierClass: 'tier-diamond',  symbol: '✦',  plateDecor: '✦'  },
+      { name: '大師', nameKey: 'rank.master',   min: 1000, color: '#FF00FF', tierClass: 'tier-master',   symbol: '♛',  plateDecor: '♛'  },
+      { name: '菁英', nameKey: 'rank.elite',    min: 1200, color: '#00FFFF', tierClass: 'tier-elite',    symbol: '♚',  plateDecor: '♚'  },
     ]
   };
   const ALL_TIER_CLASSES = RANK_RULES.tiers.map(t => t.tierClass);
@@ -7943,6 +7979,18 @@
       if (lp >= tiers[i].min) return tiers[i];
     }
     return tiers[0];
+  }
+
+  // 把 Firestore 內存的舊段位中文字（如「鑽石」、「銀牌」）翻成當前語系。
+  // matchHistory 寫入時固定用中文（保持向後相容），讀取時才動態翻譯。
+  const _RANK_CN_TO_KEY = {
+    '銅牌': 'rank.bronze', '銀牌': 'rank.silver', '金牌': 'rank.gold',
+    '白金': 'rank.platinum', '鑽石': 'rank.diamond', '大師': 'rank.master', '菁英': 'rank.elite',
+  };
+  function localizeStoredRank(name) {
+    if (!name) return '—';
+    const key = _RANK_CN_TO_KEY[name];
+    return key && window.t ? window.t(key, name) : name;
   }
 
   // === 套用牌位框：替 element 加上對應段位 class，並補齊 4 角寶石 + 頂部牌子 + 翅膀 ===
@@ -7976,7 +8024,7 @@
         plate.className = 'rank-plate';
         element.appendChild(plate);
       }
-      const text = (labelText !== undefined ? labelText : tier.name);
+      const text = (labelText !== undefined ? labelText : window.t(tier.nameKey, tier.name));
       const decor = tier.plateDecor;
       plate.innerHTML = decor
         ? `<span class="rank-plate-icon">${decor}</span> ${text} <span class="rank-plate-icon">${decor}</span>`
@@ -8055,7 +8103,9 @@
   function updateRankUI(lp) {
     const rankEl = document.getElementById('display-rank');
     if (!rankEl) return;
-    const { name: rankName, color } = getRankInfo(lp);
+    const tierInfo = getRankInfo(lp);
+    const rankName = window.t(tierInfo.nameKey, tierInfo.name);
+    const color = tierInfo.color;
     rankEl.innerHTML = `${rankName} <span style="font-size:12px">(${lp} LP)</span>`;
     rankEl.style.color = color;
     rankEl.style.textShadow = `0 0 5px ${color}`;
@@ -8080,10 +8130,10 @@
       const range = next ? `${t.min} ~ ${next.min - 1} LP` : `${t.min}+ LP`;
       const isCurrent = currentRank.name === t.name;
       const bg = isCurrent ? `background: rgba(177,68,247,0.15);` : '';
-      const mark = isCurrent ? `<span style="color:var(--T); font-weight:900; margin-left:6px;">◀ 你在這</span>` : '';
+      const mark = isCurrent ? `<span style="color:var(--T); font-weight:900; margin-left:6px;">${window.t('rankModal.youAreHere', '◀ 你在這')}</span>` : '';
       tierRows += `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:4px; ${bg}">
-          <span style="color:${t.color}; font-weight:900; font-size:15px; text-shadow:0 0 6px ${t.color}80;">${t.name}</span>
+          <span style="color:${t.color}; font-weight:900; font-size:15px; text-shadow:0 0 6px ${t.color}80;">${window.t(t.nameKey, t.name)}</span>
           <span style="color:rgba(255,255,255,0.8); font-weight:bold;">${range}${mark}</span>
         </div>
       `;
@@ -8092,44 +8142,44 @@
     // 2) 勝場加分規則
     const winRulesHTML = `
       <div style="display:flex; flex-direction:column; gap:6px;">
-        <div style="color:rgba(255,255,255,0.9);">▸ 基礎 <b style="color:var(--S);">+20</b>，對手比你高 100+ LP <b style="color:var(--S);">+10</b>、高 200+ LP <b style="color:var(--S);">+15</b></div>
-        <div style="color:rgba(255,255,255,0.9);">▸ 連勝 2+ 場 <b style="color:var(--O);">+5</b>、連勝 5+ 場 <b style="color:var(--O);">+10</b>（僅正常對戰生效）</div>
-        <div style="color:rgba(255,255,255,0.9);">▸ 單局破 15,000 分 <b style="color:var(--O);">+5</b>（僅正常對戰生效）</div>
+        <div style="color:rgba(255,255,255,0.9);">${window.t('rankModal.winRule1')}</div>
+        <div style="color:rgba(255,255,255,0.9);">${window.t('rankModal.winRule2')}</div>
+        <div style="color:rgba(255,255,255,0.9);">${window.t('rankModal.winRule3')}</div>
       </div>
     `;
 
     // 3) 敗場扣分 & 保底
     const loseRulesHTML = `
       <div style="display:flex; flex-direction:column; gap:6px;">
-        <div style="color:rgba(255,255,255,0.9);">▸ 基礎 <b style="color:var(--Z);">-15</b>；鑽石以上 <b style="color:var(--Z);">-20</b>；菁英 <b style="color:var(--Z);">-25</b></div>
-        <div style="color:rgba(255,255,255,0.9);">▸ 輸給高你 200+ LP 的強者，扣分 <b style="color:var(--I);">減半</b></div>
-        <div style="color:rgba(255,255,255,0.9);">▸ <b style="color:var(--I);">連輸 3 場</b>自動觸發一場保底（本場不扣分）</div>
+        <div style="color:rgba(255,255,255,0.9);">${window.t('rankModal.loseRule1')}</div>
+        <div style="color:rgba(255,255,255,0.9);">${window.t('rankModal.loseRule2')}</div>
+        <div style="color:rgba(255,255,255,0.9);">${window.t('rankModal.loseRule3')}</div>
       </div>
     `;
 
     // 3) 虐菜保護 (防堵強者虐弱)
     const bullyHTML = `
-      <div style="color:rgba(255,255,255,0.85); margin-bottom:6px;">當你比對手高出一個以上段位時，LP 收益會<b style="color:var(--Z);">大幅遞減</b>：</div>
+      <div style="color:rgba(255,255,255,0.85); margin-bottom:6px;">${window.t('rankModal.bullyIntro')}</div>
       <div style="display:grid; grid-template-columns: auto 1fr; gap:4px 12px; padding:8px 12px; background:rgba(0,0,0,0.3); border-radius:6px; border:1px solid rgba(255,255,255,0.1);">
-        <span style="color:rgba(255,255,255,0.7);">對手低 200~299 LP</span><span style="color:var(--O); font-weight:900;">+5 LP（無獎勵）</span>
-        <span style="color:rgba(255,255,255,0.7);">對手低 300~399 LP</span><span style="color:var(--O); font-weight:900;">+1 LP（象徵性）</span>
-        <span style="color:rgba(255,255,255,0.7);">對手低 400+ LP</span><span style="color:var(--Z); font-weight:900;">0 LP（算勝場但不計連勝）</span>
+        <span style="color:rgba(255,255,255,0.7);">${window.t('rankModal.bullyL1')}</span><span style="color:var(--O); font-weight:900;">${window.t('rankModal.bullyL1Reward')}</span>
+        <span style="color:rgba(255,255,255,0.7);">${window.t('rankModal.bullyL2')}</span><span style="color:var(--O); font-weight:900;">${window.t('rankModal.bullyL2Reward')}</span>
+        <span style="color:rgba(255,255,255,0.7);">${window.t('rankModal.bullyL3')}</span><span style="color:var(--Z); font-weight:900;">${window.t('rankModal.bullyL3Reward')}</span>
       </div>
       <div style="color:rgba(255,255,255,0.85); margin-top:8px;">
-        ▸ 每日虐菜勝場<b style="color:var(--Z);"> 上限 2 場</b>，第 3 場起 LP 收益全部歸零，台灣時間每日凌晨 00:00 重置。
+        ${window.t('rankModal.bullyDailyLimit')}
       </div>
       <div style="color:rgba(255,255,255,0.6); font-size:12px; margin-top:4px;">
-        想持續上分？請挑戰同段位或更強的對手 💪
+        ${window.t('rankModal.bullyHint')}
       </div>
     `;
 
     // 4) 有效對戰門檻
     const validHTML = `
-      <div style="color:rgba(255,255,255,0.85);">以下情況<b style="color:var(--Z);">不會</b>列入排位：</div>
+      <div style="color:rgba(255,255,255,0.85);">${window.t('rankModal.validIntro')}</div>
       <ul style="margin:6px 0 0 0; padding-left:20px; color:rgba(255,255,255,0.8); display:flex; flex-direction:column; gap:4px;">
-        <li>任一方未登入、為訪客或管理員模式</li>
-        <li>時間到時，任一方分數未達 1,000 分</li>
-        <li>AI 對戰（練習模式）</li>
+        <li>${window.t('rankModal.validItem1')}</li>
+        <li>${window.t('rankModal.validItem2')}</li>
+        <li>${window.t('rankModal.validItem3')}</li>
       </ul>
     `;
 
@@ -8141,11 +8191,11 @@
     `;
 
     contentEl.innerHTML =
-      section('段位階梯', 'var(--I)', `<div style="display:flex; flex-direction:column; gap:4px;">${tierRows}</div>`) +
-      section('勝場加分', 'var(--S)', winRulesHTML) +
-      section('敗場扣分 & 保護', 'var(--O)', loseRulesHTML) +
-      section('虐菜保護機制', 'var(--Z)', bullyHTML) +
-      section('有效對戰條件', 'var(--T)', validHTML);
+      section(window.t('rankModal.section.tierLadder'), 'var(--I)', `<div style="display:flex; flex-direction:column; gap:4px;">${tierRows}</div>`) +
+      section(window.t('rankModal.section.winBonus'), 'var(--S)', winRulesHTML) +
+      section(window.t('rankModal.section.lossPenalty'), 'var(--O)', loseRulesHTML) +
+      section(window.t('rankModal.section.bullyProtection'), 'var(--Z)', bullyHTML) +
+      section(window.t('rankModal.section.validMatch'), 'var(--T)', validHTML);
   }
 
   // 點擊段位 → 開 Modal
@@ -8271,14 +8321,14 @@
       const setStreak = parseInt(document.getElementById('admin-set-streak').value);
       
 
-      if (!targetName) return alert("請輸入目標玩家名稱！");
+      if (!targetName) return alert(window.t('admin.emptyName', '請輸入目標玩家名稱！'));
 
       try {
         adminUpdateBtn.textContent = 'Updating...';
         
         // 去資料庫找這位玩家
         const snapshot = await db.collection('users').where('username', '==', targetName).get();
-        if (snapshot.empty) return alert("找不到這個玩家！");
+        if (snapshot.empty) return alert(window.t('admin.notFound', '找不到這個玩家！'));
 
         let targetDocId = null;
         let currentMatches = 0;
@@ -8298,7 +8348,7 @@
           if (setWins > currentMatches) updateData.matches = setWins; 
         }
 
-        if (Object.keys(updateData).length === 0) return alert("請至少輸入一項要修改的數值！");
+        if (Object.keys(updateData).length === 0) return alert(window.t('admin.emptyValues', '請至少輸入一項要修改的數值！'));
 
         // 強制寫入 Firebase (使用 merge: true 只會更新你輸入的欄位，不會洗掉其他資料)
         await db.collection('users').doc(targetDocId).set(updateData, { merge: true });
@@ -8309,10 +8359,10 @@
         document.getElementById('admin-set-wins').value = '';
         document.getElementById('admin-set-streak').value = '';
         
-        alert(`成功修改玩家 ${targetName} 的數據！\n(請該玩家重新登入，或打完一局結算後就會更新畫面)`);
+        alert(window.t('admin.modifySuccess', '成功修改玩家 {user} 的數據！\n(請該玩家重新登入，或打完一局結算後就會更新畫面)').replace('{user}', targetName));
       } catch (err) {
         console.error("修改失敗:", err);
-        alert("修改失敗！");
+        alert(window.t('admin.modifyFailed', '修改失敗！'));
       } finally {
         adminUpdateBtn.textContent = 'Update Player Stats';
       }
@@ -8331,7 +8381,7 @@
         const email = currentPlayer.toLowerCase() + '@tetris.com';
         await auth.signInWithEmailAndPassword(email, pwd);
       } catch (error) {
-        alert("密碼錯誤！請輸入您登入此帳號的正確密碼。");
+        alert(window.t('admin.wrongPassword', '密碼錯誤！請輸入您登入此帳號的正確密碼。'));
         adminResetBtn.textContent = '⚠️ RESET SEASON';
         return;
       }
@@ -8346,10 +8396,10 @@
         });
 
         await batch.commit();
-        alert("🎉 賽季重置完成！全伺服器玩家已歸零。");
+        alert(window.t('admin.resetSuccess', '🎉 賽季重置完成！全伺服器玩家已歸零。'));
       } catch (err) {
         console.error("重置失敗:", err);
-        alert("重置失敗！請檢查網路。");
+        alert(window.t('admin.resetFailed', '重置失敗！請檢查網路。'));
       } finally {
         adminResetBtn.textContent = '⚠️ RESET SEASON';
       }
@@ -8426,14 +8476,14 @@
       isPracticeMode = !isPracticeMode;
 
       if (isPracticeMode) {
-        practiceBtn.textContent = '🟩 離開練習模式';
+        practiceBtn.textContent = window.t('practice.btnExit', '🟩 離開練習模式');
         practiceBtn.style.background = 'var(--S)';
         practiceBtn.style.color = 'var(--bg)';
         practiceBtn.style.borderColor = 'var(--S)';
         // Combo Room 進行中時，名稱優先顯示 Combo Room 標示
-        if (myNameDisplay && !isNarrowMode) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+        if (myNameDisplay && !isNarrowMode) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
       } else {
-        practiceBtn.textContent = '🟨 進入練習模式';
+        practiceBtn.textContent = window.t('btn.practice', '🟨 進入練習模式');
         practiceBtn.style.background = 'transparent';
         practiceBtn.style.color = 'var(--O)';
         practiceBtn.style.borderColor = 'var(--O)';
@@ -8456,14 +8506,14 @@
   function setComboRoomBtnState(active) {
     if (!comboRoomBtn) return;
     if (active) {
-      comboRoomBtn.textContent = '🟩 離開 COMBO ROOM';
+      comboRoomBtn.textContent = window.t('btn.comboRoomExit', '🟩 離開 COMBO ROOM');
       comboRoomBtn.style.background = 'var(--Z)';
       comboRoomBtn.style.color = 'var(--white)';
       comboRoomBtn.style.borderColor = 'var(--Z)';
       comboRoomBtn.style.boxShadow = '0 0 16px rgba(255,13,98,0.85), inset 0 0 10px rgba(255,255,255,0.25)';
       comboRoomBtn.style.textShadow = '0 0 6px rgba(0,0,0,0.5)';
     } else {
-      comboRoomBtn.textContent = '⚡ 進入 COMBO ROOM';
+      comboRoomBtn.textContent = window.t('btn.comboRoom', '⚡ 進入 COMBO ROOM');
       comboRoomBtn.style.background = 'linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18))';
       comboRoomBtn.style.color = 'var(--Z)';
       comboRoomBtn.style.borderColor = 'var(--Z)';
@@ -8492,7 +8542,7 @@
         if (myNameDisplay) {
           // 還原名稱顯示：若同時也在練習模式，保留練習模式的標示
           if (isPracticeMode) {
-            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
           } else {
             myNameDisplay.innerHTML = 'You';
           }
@@ -8557,12 +8607,12 @@
   function setFreeModeBtnState(active) {
     if (!freeModeBtn) return;
     if (active) {
-      freeModeBtn.textContent = '🟩 離開自由排版';
+      freeModeBtn.textContent = window.t('btn.freeModeExit', '🟩 離開自由排版');
       freeModeBtn.style.background = 'var(--I)';
       freeModeBtn.style.color = 'var(--bg)';
       freeModeBtn.style.borderColor = 'var(--I)';
     } else {
-      freeModeBtn.textContent = '🧩 進入自由排版';
+      freeModeBtn.textContent = window.t('btn.freeMode', '🧩 進入自由排版');
       freeModeBtn.style.background = 'transparent';
       freeModeBtn.style.color = 'var(--I)';
       freeModeBtn.style.borderColor = 'var(--I)';
@@ -8604,7 +8654,7 @@
         if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'flex';
         if (myNameDisplay) {
           if (isPracticeMode) {
-            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(練習模式，不計排名)</span>';
+            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
           } else {
             myNameDisplay.innerHTML = 'You';
           }
@@ -8927,16 +8977,17 @@
   const versionTextEl = document.getElementById('version-text');
   if (versionTextEl) versionTextEl.textContent = GAME_VERSION;
 
-  // 自動渲染更新日誌
-  if (changelogContent && typeof CHANGELOG_DATA !== 'undefined') {
+  // 自動渲染更新日誌（依當前語系拿對應陣列）
+  const _changelogArr = (typeof window.getChangelog === 'function') ? window.getChangelog() : (typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
+  if (changelogContent && _changelogArr.length > 0) {
     changelogContent.innerHTML = ''; // 先清空
-    
+
     // --- 抓取第一筆 (最新) 的日期 ---
-    const latestTitle = CHANGELOG_DATA[0].title;
+    const latestTitle = _changelogArr[0].title;
     const dateMatch = latestTitle.match(/\((.*?)\)/); // 抓取括號內的文字
     const latestDate = dateMatch ? dateMatch[1] : 'UNKNOWN_DATE';
-    
-    CHANGELOG_DATA.forEach((patch, index) => {
+
+    _changelogArr.forEach((patch, index) => {
       // --- 標題包含最新日期，就判定為 isLatest ---
       const isLatest = patch.title.includes(latestDate); 
       
@@ -8995,10 +9046,11 @@
   function reasonBadge(reason, result) {
     if (reason === 'SURRENDER') {
       const isMySurrender = result === 'LOSE';
-      return `<span style="color:rgba(255,255,255,0.55); font-size:10px; margin-left:6px; border:1px solid rgba(255,255,255,0.25); padding:1px 5px; border-radius:3px;">${isMySurrender ? '投降' : '對手投降'}</span>`;
+      const txt = isMySurrender ? window.t('history.reasonSurrender', '投降') : window.t('history.reasonOppSurrender', '對手投降');
+      return `<span style="color:rgba(255,255,255,0.55); font-size:10px; margin-left:6px; border:1px solid rgba(255,255,255,0.25); padding:1px 5px; border-radius:3px;">${txt}</span>`;
     }
     if (reason === 'KO') return '<span style="color:#ff6b6b; font-size:10px; margin-left:6px; border:1px solid #ff6b6b; padding:1px 5px; border-radius:3px;">KO</span>';
-    if (reason === 'TIMEOUT') return '<span style="color:rgba(255,255,255,0.55); font-size:10px; margin-left:6px; border:1px solid rgba(255,255,255,0.25); padding:1px 5px; border-radius:3px;">時間到</span>';
+    if (reason === 'TIMEOUT') return `<span style="color:rgba(255,255,255,0.55); font-size:10px; margin-left:6px; border:1px solid rgba(255,255,255,0.25); padding:1px 5px; border-radius:3px;">${window.t('history.reasonTimeout', '時間到')}</span>`;
     return '';
   }
 
@@ -9009,7 +9061,7 @@
     });
 
     if (!docs || docs.length === 0) {
-      historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">這個分類裡還沒有任何紀錄。</div>';
+      historyContent.innerHTML = `<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">${window.t('history.empty', '這個分類裡還沒有任何紀錄。')}</div>`;
       if (!_historyViewingPlayer) historySummary.innerHTML = '';
       return;
     }
@@ -9025,11 +9077,11 @@
     const lpSumColor = lpSum > 0 ? 'var(--S)' : (lpSum < 0 ? 'var(--Z)' : 'var(--white)');
     const lpSumText = (lpSum > 0 ? '+' : '') + lpSum;
     const summaryLine = `
-      <div style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85);">
-        <span>近 <span style="color:var(--O);">${historyDocsCache.length}</span> 場</span>
-        <span style="color:var(--S);">勝 ${winCount}</span>
-        <span style="color:var(--Z);">負 ${loseCount}</span>
-        <span style="color:rgba(255,255,255,0.7);">平 ${drawCount}</span>
+      <div style="display:flex; justify-content:center; flex-wrap:wrap; gap:6px 18px; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85);">
+        <span>${window.t('history.recentPrefix', '近 ')}<span style="color:var(--O);">${historyDocsCache.length}</span>${window.t('history.recentSuffix', ' 場')}</span>
+        <span style="color:var(--S);">${window.t('history.summaryWin', '勝')} ${winCount}</span>
+        <span style="color:var(--Z);">${window.t('history.summaryLose', '負')} ${loseCount}</span>
+        <span style="color:rgba(255,255,255,0.7);">${window.t('history.summaryDraw', '平')} ${drawCount}</span>
         <span>LP: <span style="color:${lpSumColor}; font-weight:900;">${lpSumText}</span></span>
       </div>`;
     if (_historyViewingPlayer) {
@@ -9079,15 +9131,15 @@
         <div style="margin-top:8px; font-size:10px; background:rgba(0,0,0,0.3); padding:6px 8px; border-radius:4px; overflow-x: auto;">
           <div style="display:grid; grid-template-columns: 32px repeat(6, 1fr) 44px; gap:4px; align-items:center; min-width: 340px;">
             <div style="color:rgba(255,255,255,0.5); font-weight:bold; text-align:left;"></div>
-            <div title="本局自己盤面消掉的總行數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">消行</div>
-            <div title="本局送給對手的垃圾行數（攻擊表計算，例如 Tetris=4 行、T-Spin Double=4 行）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">攻擊</div>
-            <div title="本局擊倒對手次數（把對手 Top Out 一次算一次）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">KO</div>
-            <div title="Max Combo：本局最高連擊數（連續消行的最大次數）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">MAX C</div>
-            <div title="Attack Per Minute：平均每分鐘送出的攻擊行數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">APM</div>
-            <div title="Pieces Per Second：平均每秒放下的方塊數" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">PPS</div>
-            <div title="本局持續時間（不含開場 3-2-1 倒數）" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">⏱</div>
+            <div title="${window.t('history.tipLines')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">${window.t('history.statLines')}</div>
+            <div title="${window.t('history.tipAttack')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">${window.t('history.statAttack')}</div>
+            <div title="${window.t('history.tipKO')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">KO</div>
+            <div title="${window.t('history.tipMaxC')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">MAX C</div>
+            <div title="${window.t('history.tipAPM')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">APM</div>
+            <div title="${window.t('history.tipPPS')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">PPS</div>
+            <div title="${window.t('history.tipDuration')}" style="text-align:center; color:rgba(255,255,255,0.6); cursor:help;">⏱</div>
 
-            <div style="color:var(--T); font-weight:900;">我</div>
+            <div style="color:var(--T); font-weight:900;">${window.t('history.colMe', '我')}</div>
             <div style="text-align:center; font-weight:bold; ${hi(m.myLines||0, oppLinesCleared)}">${m.myLines || 0}</div>
             <div style="text-align:center; font-weight:bold; ${hi(m.myLinesSent||0, oppLinesSent)}">${m.myLinesSent || 0}</div>
             <div style="text-align:center; font-weight:bold; ${hi(m.myKOs||0, m.oppKOs||0)}">${m.myKOs || 0}</div>
@@ -9096,7 +9148,7 @@
             <div style="text-align:center; font-weight:bold; ${hi(myPps, oppPps)}">${myPps}</div>
             <div style="text-align:center; color:rgba(255,255,255,0.75);" rowspan="2">${durText}</div>
 
-            <div style="color:var(--Z); font-weight:900;">對手</div>
+            <div style="color:var(--Z); font-weight:900;">${window.t('history.colOpp', '對手')}</div>
             <div style="text-align:center; font-weight:bold; ${hi(oppLinesCleared, m.myLines||0)}">${oppLinesCleared}</div>
             <div style="text-align:center; font-weight:bold; ${hi(oppLinesSent, m.myLinesSent||0)}">${oppLinesSent}</div>
             <div style="text-align:center; font-weight:bold; ${hi(m.oppKOs||0, m.myKOs||0)}">${m.oppKOs || 0}</div>
@@ -9122,14 +9174,14 @@
           </div>
           <div style="display:flex; justify-content:space-between; gap:10px;">
             <div style="flex:1; text-align:center; background:rgba(0,0,0,0.25); padding:6px; border-radius:4px;">
-              <div style="color:var(--T); font-weight:900; font-size:13px;">${_historyViewingPlayer || currentPlayer || '我'}</div>
-              <div style="color:${myRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${m.myRank || '—'} (${m.myLP || 0} LP)</div>
+              <div style="color:var(--T); font-weight:900; font-size:13px;">${_historyViewingPlayer || currentPlayer || window.t('history.fallbackMe', '我')}</div>
+              <div style="color:${myRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${localizeStoredRank(m.myRank)} (${m.myLP || 0} LP)</div>
               <div style="color:var(--white); font-weight:900; font-size:14px; margin-top:3px;">${(m.myScore || 0).toLocaleString()}</div>
             </div>
             <div style="align-self:center; color:rgba(255,255,255,0.5); font-weight:900;">VS</div>
             <div style="flex:1; text-align:center; background:rgba(0,0,0,0.25); padding:6px; border-radius:4px;">
               <div style="color:var(--Z); font-weight:900; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${oppName}</div>
-              <div style="color:${oppRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${m.oppRank || '—'} (${m.oppLP || 0} LP)</div>
+              <div style="color:${oppRankColor}; font-weight:bold; font-size:11px; margin-top:2px;">${localizeStoredRank(m.oppRank)} (${m.oppLP || 0} LP)</div>
               <div style="color:var(--white); font-weight:900; font-size:14px; margin-top:3px;">${(m.oppScore || 0).toLocaleString()}</div>
             </div>
           </div>
@@ -9170,7 +9222,7 @@
 
   function openHistoryModal() {
     if (!currentUserUID) {
-      showToast('請先登入才能查看對戰紀錄！', 2500);
+      showToast(window.t('history.loginRequired', '請先登入才能查看對戰紀錄！'), 2500);
       return;
     }
     historyModal.classList.remove('hidden');
@@ -9213,7 +9265,7 @@
       <div class="player-stats-card" style="background:rgba(0,0,0,0.35); border:2px solid ${rankInfo.color}; border-radius:6px; padding:10px 14px; margin-bottom:4px;">
         <div style="text-align:center; margin-bottom:6px;">
           <span style="font-size:16px; font-weight:900; color:var(--T);">${username}</span>
-          <div style="font-size:14px; font-weight:900; color:${rankInfo.color}; text-shadow:0 0 5px ${rankInfo.color}80; margin-top:2px;">${rankInfo.name} <span style="font-size:12px;">(${lp} LP)</span></div>
+          <div style="font-size:14px; font-weight:900; color:${rankInfo.color}; text-shadow:0 0 5px ${rankInfo.color}80; margin-top:2px;">${window.t(rankInfo.nameKey, rankInfo.name)} <span style="font-size:12px;">(${lp} LP)</span></div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:12px; color:rgba(255,255,255,0.85);">
           <div>MATCH: <span style="color:var(--white); font-weight:bold;">${m}</span></div>
@@ -9270,7 +9322,7 @@
     closeHistoryBtn.addEventListener('click', () => {
       historyModal.classList.add('hidden');
       const historyTitle = document.getElementById('history-title');
-      if (historyTitle) historyTitle.textContent = '📜 對戰紀錄';
+      if (historyTitle) historyTitle.textContent = window.t('history.title', '📜 對戰紀錄');
       _historyViewingPlayer = null;
       playSound('move');
     });

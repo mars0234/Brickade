@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BRICKADE — Play</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #06004f;
+    color: #f2f2f2;
+    font-family: 'Arial Black', Arial, Helvetica, sans-serif;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: clamp(40px, 9vw, 72px);
+    letter-spacing: 4px;
+    color: #fff;
+    text-shadow:
+      0 0 8px #38bdee,
+      0 0 18px rgba(56, 189, 238, 0.6);
+  }
+  .tagline {
+    font-size: clamp(13px, 2vw, 16px);
+    margin: 0 0 36px;
+    color: rgba(255, 255, 255, 0.65);
+    letter-spacing: 1px;
+  }
+  a.play-btn {
+    display: inline-block;
+    padding: 18px 56px;
+    background: linear-gradient(135deg, #38bdee, #b144f7);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 900;
+    font-size: clamp(18px, 3vw, 22px);
+    letter-spacing: 4px;
+    border-radius: 8px;
+    box-shadow:
+      0 0 16px rgba(56, 189, 238, 0.5),
+      0 8px 24px rgba(0, 0, 0, 0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  a.play-btn:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+      0 0 24px rgba(56, 189, 238, 0.8),
+      0 12px 32px rgba(0, 0, 0, 0.5);
+  }
+  .features {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    max-width: 560px;
+    width: 100%;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .feat {
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+  }
+  .footer {
+    position: absolute;
+    bottom: 14px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+  <h1>BRICKADE</h1>
+  <p class="tagline">Real-time online block-stacking battle</p>
+  <a class="play-btn" href="https://brickade.web.app/" target="_blank" rel="noopener">▶ PLAY NOW</a>
+  <div class="features">
+    <div class="feat">⚔️ 1v1 PvP</div>
+    <div class="feat">🤖 5-tier AI</div>
+    <div class="feat">🏆 Ranked LP</div>
+    <div class="feat">📱 PWA / Mobile</div>
+    <div class="feat">🌐 Free Forever</div>
+    <div class="feat">⚡ Plays in browser</div>
+  </div>
+  <div class="footer">Game opens in a new tab · brickade.web.app</div>
+</body>
+</html>

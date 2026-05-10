@@ -1,7 +1,7 @@
 {
-  "name": "tetris-battle",
+  "name": "brickade",
   "version": "1.0.0",
-  "description": "",
+  "description": "Real-time online block-stacking battle game",
   "main": "build.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,17 +9,25 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mars0234/Tetris-Battle.git"
+    "url": "git+https://github.com/mars0234/Brickade.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "html5-game",
+    "browser-game",
+    "puzzle",
+    "multiplayer",
+    "webrtc",
+    "pwa"
+  ],
+  "author": "Mars Wang",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/mars0234/Tetris-Battle/issues"
+    "url": "https://github.com/mars0234/Brickade/issues"
   },
-  "homepage": "https://github.com/mars0234/Tetris-Battle#readme",
+  "homepage": "https://github.com/mars0234/Brickade#readme",
   "devDependencies": {
+    "firebase-admin": "^13.9.0",
     "javascript-obfuscator": "^5.4.1"
   }
 }
