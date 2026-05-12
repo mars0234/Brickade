@@ -1,13 +1,13 @@
 // ai_worker.js
 
 // 1. 在背景載入你的 C++ WASM 模組
-importScripts('tetris_ai.js');
+importScripts('brickade_ai.js');
 
 let wasmAI = null;
 
 // 當 WASM 準備好時
 Module.onRuntimeInitialized = () => {
-  wasmAI = new Module.TetrisAI();
+  wasmAI = new Module.BrickadeAI();
   // 告訴主程式：「我準備好了！」
   postMessage({ type: 'READY' });
 };

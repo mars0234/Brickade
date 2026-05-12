@@ -1,10 +1,11 @@
 /**
- * Firestore 遷移腳本：tetris-6748b → brickade
+ * Firestore 遷移腳本：舊專案 → brickade
+ * （已執行完畢，保留供日後類似遷移參考）
  *
  * 用法：
  *   1. 安裝依賴：  npm install firebase-admin --save-dev
  *   2. 下載兩份 service account JSON：
- *        - 舊：Firebase Console → tetris-6748b → 專案設定 → 服務帳號 → 產生新的私密金鑰
+ *        - 舊：Firebase Console → 舊專案 → 專案設定 → 服務帳號 → 產生新的私密金鑰
  *              另存為 ./service-old.json
  *        - 新：Firebase Console → brickade → 專案設定 → 服務帳號 → 產生新的私密金鑰
  *              另存為 ./service-new.json
@@ -97,7 +98,7 @@ async function migrateUser(userDoc) {
 async function main() {
   console.log('==============================================');
   console.log('  BRICKADE Firestore 遷移');
-  console.log('  從  tetris-6748b');
+  console.log('  從  舊專案');
   console.log('  到  brickade');
   console.log('==============================================');
 

@@ -441,6 +441,7 @@
       this._volume = 1;
       this._muted = false;
       this._paused = true;
+      this._loop = true;
       this._gain.gain.value = 0;
       // 一建構就開始 fetch + decode (對齊原本 preload='auto' + load() 的行為)
       this._ensureLoaded().catch(() => {});
@@ -483,10 +484,22 @@
       }
       this._source = audioCtx.createBufferSource();
       this._source.buffer = this._buffer;
-      this._source.loop = true; // ← Web Audio 樣本級 loop，無接縫
+      this._source.loop = this._loop; // ← Web Audio 樣本級 loop，無接縫
       this._source.connect(this._gain);
+      const src = this._source;
+      this._ended = false;
+      src.onended = () => {
+        if (this._source === src) {
+          this._paused = true;
+          this._source = null;
+          if (!this._loop) this._ended = true;
+        }
+      };
       this._source.start(0);
     }
+    get ended() { return this._ended; }
+    set loop(v) { this._loop = !!v; if (this._source) this._source.loop = this._loop; }
+    get loop() { return this._loop; }
     pause() {
       if (this._paused) return;
       this._paused = true;
@@ -523,6 +536,7 @@
   // 雙人對戰模式背景音樂
   const battleBgm = new SeamlessAudio(AUDIO_PATHS.battleBgm);
   battleBgm.volume = masterVolume * 0.15;
+  battleBgm.loop = false; // 對戰曲 1:57，比賽 2:00，不循環避免結尾頭尾重疊
   // 行動裝置切到背景或螢幕鎖定時，AudioContext 會被系統 suspend (Web Audio source 雖未停，
   // 但完全沒輸出)，回到前景時要先 resume 才會繼續發聲；不需要重設 currentTime，loop 自動接續。
   document.addEventListener('visibilitychange', () => {
@@ -531,7 +545,7 @@
       audioCtx.resume().catch(() => {});
     }
     if (isBgmMuted || !bgmStarted) return;
-    if (isMultiplayer && gameStarted && battleBgm.paused) {
+    if (isMultiplayer && gameStarted && battleBgm.paused && !battleBgm.ended) {
       battleBgm.play().catch(() => {});
     } else if (!isMultiplayer && bgm.paused) {
       bgm.play().catch(() => {});
@@ -6576,7 +6590,7 @@
       localStorage.setItem('tetrisBgmMuted', isBgmMuted);
       updateSoundUI();
       if (!isBgmMuted && bgmStarted) {
-        if (isMultiplayer && gameStarted) battleBgm.play().catch(e=>{});
+        if (isMultiplayer && gameStarted && !battleBgm.ended) battleBgm.play().catch(e=>{});
         else if (!isMultiplayer && gameStarted) bgm.play().catch(e=>{});
       }
       return;
@@ -7082,7 +7096,7 @@
         
         listEl.innerHTML += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.05); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
-            <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
+            <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span><span class="lb-name-trigger" data-username="${data.username}" style="cursor:pointer;">${data.username}</span></span>
             <span style="color: var(--S); font-weight: 900; font-size: 16px;">${data.highScore || 0}</span>
           </div>
         `;
@@ -7126,7 +7140,7 @@
         listEl.innerHTML += `
           <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(255, 255, 255, 0.05); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="color: ${rankColor}; font-weight: bold; font-size: 16px;"><span style="font-size:12px; margin-right:4px; opacity:0.7;">#${rank}</span>${data.username}${fireIcon}</span>
+              <span style="color: ${rankColor}; font-weight: bold; font-size: 16px;"><span style="font-size:12px; margin-right:4px; opacity:0.7;">#${rank}</span><span class="lb-name-trigger" data-username="${data.username}" style="cursor:pointer;">${data.username}</span>${fireIcon}</span>
               <span style="color: ${badgeColor}; font-weight: 900; text-shadow: 0 0 5px ${badgeColor}; font-size: 16px;">${badgeName} <span style="font-size:11px">(${lp})</span></span>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: rgba(255,255,255,0.6);">
@@ -7173,7 +7187,7 @@
         
         listEl.innerHTML += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.05); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
-            <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span>${data.username}</span>
+            <span style="color: ${color}; font-size: 16px;"><span style="font-size:12px; margin-right:6px; opacity:0.7;">#${rank}</span><span class="lb-name-trigger" data-username="${data.username}" style="cursor:pointer;">${data.username}</span></span>
             <span style="color: var(--I); font-weight: 900; text-shadow: 0 0 5px var(--I); font-size: 16px;">${data.aiProWins} 勝</span>
           </div>
         `;
@@ -7184,6 +7198,18 @@
         listEl.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size: 12px; margin-top: 10px;">No challengers yet</div>';
       }
     });
+
+    // 排行榜名字點擊 = 查看該玩家戰績（事件委派）
+    const _lbContainer = document.getElementById('leaderboard-container');
+    if (_lbContainer && !_lbContainer.dataset.nameClickBound) {
+      _lbContainer.dataset.nameClickBound = '1';
+      _lbContainer.addEventListener('click', (e) => {
+        const trigger = e.target.closest && e.target.closest('.lb-name-trigger');
+        if (!trigger) return;
+        const username = trigger.getAttribute('data-username');
+        if (username) openPlayerHistory(username);
+      });
+    }
   }
 
   // --- 更新個人當前活動狀態的輔助函式 ---

@@ -39,7 +39,7 @@ struct SearchNode {
     int queueConsumed;  // 追蹤已消耗的 queue 數量，修復 hold 時 queue 重複使用的 bug
 };
 
-class TetrisAI {
+class BrickadeAI {
 private:
     int initialBoard[ROWS][COLS];
 
@@ -310,7 +310,7 @@ private:
     }
 
 public:
-    TetrisAI() {}
+    BrickadeAI() {}
 
     val findBestMove(std::string boardStr, std::string currentPiece, std::string holdPiece, std::string queueStr, int currentCombo, int keepEmpty) {
         if (boardStr.length() != ROWS * COLS) return val::object();
@@ -427,8 +427,8 @@ public:
     }
 };
 
-EMSCRIPTEN_BINDINGS(tetris_ai_module) {
-    class_<TetrisAI>("TetrisAI")
+EMSCRIPTEN_BINDINGS(brickade_ai_module) {
+    class_<BrickadeAI>("BrickadeAI")
         .constructor<>()
-        .function("findBestMove", &TetrisAI::findBestMove);
+        .function("findBestMove", &BrickadeAI::findBestMove);
 }
