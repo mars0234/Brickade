@@ -707,6 +707,17 @@
   const mpLeaveBtn = document.getElementById('mp-leave-btn');
   if (mpLeaveBtn) {
     mpLeaveBtn.addEventListener('click', () => {
+      // 多人對戰預覽 + 可能混入 1v1 狀態：兩邊都清乾淨
+      if (window.isMpMulti) {
+        if (isMultiplayer) {
+          if (conn && conn.open) { try { conn.send({ type: 'OPPONENT_DISCONNECTED' }); } catch {} }
+          exitMultiplayerMode(false);
+          if (conn) { try { conn.close(); } catch {} conn = null; }
+        }
+        const multiplayerBtn = document.getElementById('multiplayer-btn');
+        if (multiplayerBtn) multiplayerBtn.click(); // 觸發 exitMpMultiPreview
+        return;
+      }
       // 👀 觀戰模式：直接離開觀戰，不需要 confirm
       if (isSpectating) {
         exitSpectateMode('USER_LEAVE');
@@ -843,6 +854,12 @@
         }
       });
 
+      // Phase 9：本機 PeerJS 訊號層斷線 → 自動嘗試重連
+      peer.on('disconnected', () => {
+        console.warn('[peer] disconnected from signaling server, attempting reconnect');
+        try { peer.reconnect(); } catch (e) { console.warn('[peer] reconnect threw', e); }
+      });
+
       peer.on('error', (err) => {
         console.error("PeerJS 錯誤:", err);
         if (err.type === 'peer-unavailable') {
@@ -891,6 +908,9 @@
         // 如果是專門用來聊天的管線，交給聊天處理器
         if (connection.metadata && connection.metadata.purpose === 'chat') {
             setupChatConnection(connection);
+        } else if (connection.metadata && connection.metadata.purpose === 'mp-game') {
+            // 多人對戰 mesh：交給專用 handler，不要佔用 1v1 的 conn
+            setupMpConnection(connection, false);
         } else {
             // 原本的遊戲管線維持不變
             setupConnection(connection, false);
@@ -921,7 +941,7 @@
             let existingConn = outgoingInvites[targetPeerId];
 
             if (existingConn && existingConn.open) {
-              existingConn.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
+              existingConn.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent, mpRoomCode: (window.isMpMulti ? (window.mpHostSettings && window.mpHostSettings.roomCode) || null : null) });
               showToast(window.t('toast.inviteResent', '已向 {user} 再次發送邀請！').replace('{user}', targetName));
               lastInviteAttempt = null;
 
@@ -940,7 +960,7 @@
             setupConnection(connection, true);
 
             connection.on('open', () => {
-              connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent });
+              connection.send({ type: 'INVITE', version: GAME_VERSION, from: currentPlayer || currentMyIdEl.textContent, mpRoomCode: (window.isMpMulti ? (window.mpHostSettings && window.mpHostSettings.roomCode) || null : null) });
               outgoingInvites[targetPeerId] = connection;
               showToast(window.t('toast.inviteSent', '已向 {user} 發送邀請！').replace('{user}', targetName));
               lastInviteAttempt = null;
@@ -1034,6 +1054,19 @@
   // READY / 投降 / 取消 READY 按鍵邏輯
   if (readyBtn) {
     readyBtn.addEventListener('click', () => {
+      // Phase 4：多人對戰 READY 切換（Phase 5+ 才接遊戲啟動）
+      if (window.isMpMulti) {
+        if (countdownValue > 0 || (gameStarted && !gameOver)) return;
+        if (window.mpIsSpectatorWaiting) return; // 觀戰等待中無法按 READY
+        window.mpIAmReady = !window.mpIAmReady;
+        broadcastMp({ type: 'MP_READY', ready: window.mpIAmReady });
+        updateMpReadyButtonUI();
+        updateMpConnStatus();
+        playSound('move');
+        // 房主每次按 READY 都重新檢測一次是否全員就緒
+        maybeStartMpGame();
+        return;
+      }
       if (!isMultiplayer) return;
 
       // 把投降的判定移到最上面，確保投降不會被 AI 模式攔截
@@ -1337,6 +1370,15 @@
 
   // --- 啟動 3、2、1 倒數 (單人/雙人共用) ---
   function startCountdown() {
+    // 練習模式必須先選 Combo Room 或自由排版才能開始
+    if (!isMultiplayer && isPracticeMode && !isNarrowMode && !isFreeMode) {
+      const am = document.getElementById('action-msg');
+      if (am) {
+        am.textContent = window.t('practice.chooseSubMode', '請先選擇 COMBO ROOM 或 自由排版');
+        am.style.color = 'var(--O)';
+      }
+      return;
+    }
     if (!isMultiplayer) updateMyActivity(isPracticeMode ? 'PRACTICE' : 'SINGLE'); // 單機狀態更新
     if (countdownInterval) clearInterval(countdownInterval);
 
@@ -1408,22 +1450,28 @@
           }
           connStatus.textContent = 'Status: CONNECTED! GO!';
           
-          battleTime = 120;
-          if (timerInterval) clearInterval(timerInterval);
-          timerInterval = setInterval(() => {
-            if (!gameOver && isMultiplayer && !isPaused && countdownValue <= 0) {
-              battleTime--;
-              let mins = Math.floor(battleTime / 60);
-              let secs = battleTime % 60;
-              if (timerEl) timerEl.textContent = `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
-              
-              if (battleTime <= 0) {
-                clearInterval(timerInterval);
-                matchEndReason = 'TIMEOUT';
-                endBattleMatch();
+          // Phase 8：多人對戰 LAST_SURVIVOR 不啟計時，顯示 ∞
+          if (window.mpGameActive && window.mpWinCondition === 'LAST_SURVIVOR') {
+            if (timerEl) timerEl.textContent = '∞';
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+          } else {
+            battleTime = (window.mpGameActive && typeof window.mpMaxTime === 'number') ? window.mpMaxTime : 120;
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+              if (!gameOver && isMultiplayer && !isPaused && countdownValue <= 0) {
+                battleTime--;
+                let mins = Math.floor(battleTime / 60);
+                let secs = battleTime % 60;
+                if (timerEl) timerEl.textContent = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                if (battleTime <= 0) {
+                  clearInterval(timerInterval);
+                  matchEndReason = 'TIMEOUT';
+                  endBattleMatch();
+                }
               }
-            }
-          }, 1000);
+            }, 1000);
+          }
         }
         lastActionTime = Date.now(); // 倒數結束，開始嚴格計算掛機時間
         // AI 模式：直接啟動 AI (方塊池會自動產生雙方同步的方塊)
@@ -1701,6 +1749,17 @@
     matchResult = null;
     isKOed = false;
     clearFx = null;
+    // 重置對戰計分（KO / 攻擊行數）與 DOM 顯示，避免下次進對戰看到上一場殘值
+    myKOs = 0; oppKOs = 0; myLinesSent = 0; oppLinesSent = 0;
+    const myKoElExitMP = document.getElementById('my-ko-display');
+    const oppKoElExitMP = document.getElementById('opp-ko-display');
+    const myLinesElExitMP = document.getElementById('my-lines-sent-display');
+    const oppLinesElExitMP = document.getElementById('opp-lines-sent-display');
+    if (myKoElExitMP) myKoElExitMP.textContent = '0';
+    if (oppKoElExitMP) oppKoElExitMP.textContent = '0';
+    if (myLinesElExitMP) myLinesElExitMP.textContent = '0';
+    if (oppLinesElExitMP) oppLinesElExitMP.textContent = '0';
+    piecePool = []; myPieceIndex = 0;
     if (scoreEl) scoreEl.textContent = '0';
     if (linesEl) linesEl.textContent = '0';
     if (levelEl) levelEl.textContent = '1';
@@ -1871,7 +1930,18 @@
           setTimeout(() => connection.close(), 500);
           return;
         }
-        
+
+        // 多人房間邀請：自動加入，不顯示 1v1 邀請 toast
+        if (data.mpRoomCode && !isMultiplayer) {
+          showToast(`${data.from} ${window.t('multiplayer.invitedToRoom', '邀請你加入多人房間')}`);
+          try { connection.send({ type: 'MP_INVITE_OK' }); } catch {}
+          setTimeout(() => { try { connection.close(); } catch {} }, 300);
+          if (typeof window.enterMpMultiAndJoin === 'function') {
+            window.enterMpMultiAndJoin(data.mpRoomCode);
+          }
+          return;
+        }
+
         // (保持原本的撞車邏輯不變)
         if (conn && !isMultiplayer && data.from === document.getElementById('opp-id-input').value.trim()) {
            if (currentPlayer.localeCompare(data.from) > 0) {
@@ -1908,9 +1978,25 @@
         }
         playSound('perfect');
       }
+      else if (data.type === 'MP_INVITE_OK') {
+        // 對方已自動加入多人房 → 清掉這條 1v1 邀請的 timeout 與 outgoingInvites 記錄
+        if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
+        const peerId = connection.peer;
+        if (peerId && inviteTimeouts[peerId]) { clearTimeout(inviteTimeouts[peerId]); delete inviteTimeouts[peerId]; }
+        if (peerId && outgoingInvites[peerId] === connection) delete outgoingInvites[peerId];
+        setTimeout(() => { try { connection.close(); } catch {} }, 300);
+        return;
+      }
       else if (data.type === 'INVITE_ACCEPT') {
         if (connection.inviteTimeout) clearTimeout(connection.inviteTimeout);
-        
+
+        // 我已在多人對戰房 → 不接受 1v1 邀請接受，直接告知對方
+        if (window.isMpMulti) {
+          try { connection.send({ type: 'INVITE_LATE' }); } catch {}
+          setTimeout(() => { try { connection.close(); } catch {} }, 500);
+          return;
+        }
+
         // 先搶先贏！如果我已經進遊戲了，告訴後按的人「太慢啦」
         if (isMultiplayer) {
            connection.send({ type: 'INVITE_LATE' });
@@ -2130,7 +2216,8 @@
         if (info && info.username) showToast(window.t('toast.specEnded', '👀 {user} 結束了觀戰').replace('{user}', info.username), 2000);
       }
       // 確保連線關閉時，清空對應的狀態變數
-      if (isMultiplayer && conn === connection) {
+      // 多人對戰借用 isMultiplayer=true 旗標時，這條 1v1 conn（邀請流程暫用）關閉不應拆掉 mp-multi 畫面
+      if (isMultiplayer && conn === connection && !window.isMpMulti) {
         exitMultiplayerMode();
       }
       
@@ -2432,7 +2519,7 @@
     
     // 連線模式下，上方有一個飛出界外 (-75px) 的計時器和離房按鈕
     // 把它需要的 85px 真實空間，加進「總需求高度」來計算縮放
-    const extraTopSpace = (isMultiplayer || isSpectatingBattle) ? 85 : 0;
+    const extraTopSpace = (isMultiplayer || isSpectatingBattle || window.isMpMulti) ? 85 : 0;
     const requiredH = rect.height + extraTopSpace;
     
     // 計算出最完美的縮放比例
@@ -2440,7 +2527,7 @@
     
     // 計算 Y 軸偏移：因為 transform 是基於中心點 (-50%) 縮放
     // 為了把上方的 extraTopSpace 空間讓出來，把中心點「往下推」這段空間的一半
-    const offsetY = (isMultiplayer || isSpectatingBattle) ? (extraTopSpace * scale) / 2 : 0;
+    const offsetY = (isMultiplayer || isSpectatingBattle || window.isMpMulti) ? (extraTopSpace * scale) / 2 : 0;
     
     layout.style.transform = `translate(-50%, calc(-50% + ${offsetY}px)) scale(${scale})`;
 
@@ -2610,6 +2697,57 @@
     playSound('drop');
 
     if (isMultiplayer) {
+      // === Phase 7：多人對戰 top-out 走 MP_ELIMINATED / MP_KO ===
+      if (window.mpGameActive) {
+        const lastAtk = window.recentIncomingAttacks && window.recentIncomingAttacks.length
+          ? window.recentIncomingAttacks[window.recentIncomingAttacks.length - 1] : null;
+        const killerPeerId = lastAtk ? lastAtk.from : null;
+        if (!hasGarbage) {
+          isKOed = true;
+          current = null;
+          broadcastMp({ type: 'MP_ELIMINATED', killerPeerId });
+          // 本地也記殺手的 KO（如果是別人；自殺不算）
+          if (killerPeerId) {
+            const k = mpPlayersMap.get(killerPeerId);
+            if (k) { k.ko = (k.ko || 0) + 1; updateMpSlotStats(killerPeerId); }
+          }
+          showMsg("TOP OUT!");
+          myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
+          playSound('lose');
+          // 直接結束（自己被淘汰）；不開寬限期，由 last-survivor 判定誰贏
+          setTimeout(() => { if (!gameOver) mpEndMatch('LOSE'); }, 1200);
+          return;
+        }
+        // 有垃圾 → 被 KO（被消化）但會復活；廣播 MP_KO，計凶手分
+        isKOed = true;
+        canUndo = false;
+        previousGameState = null;
+        broadcastMp({ type: 'MP_KO', killerPeerId });
+        if (killerPeerId) {
+          const k = mpPlayersMap.get(killerPeerId);
+          if (k) { k.ko = (k.ko || 0) + 1; updateMpSlotStats(killerPeerId); }
+        }
+        activeGarbage = 0;
+        nextGarbage = 0;
+        myFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
+        current = null;
+        // 復活：清掉垃圾繼續
+        setTimeout(() => {
+          if (!window.mpGameActive || gameOver) return;
+          let newBoard = board.filter(row => !row.includes('G') && !row.includes('B'));
+          while (newBoard.length < ROWS) newBoard.unshift(Array(COLS).fill(null));
+          board = newBoard;
+          activeGarbage = 0; nextGarbage = 0;
+          holdUsed = false; isKOed = false; clearFx = null;
+          lockTimer = 0; lockResets = 0; gravityTimer = 0;
+          moveCooldown = 0; dasTimer = 0; arrTimer = 0;
+          activeDir = 0; lastMoveType = null; lastKickIndex = 0;
+          keysDown.clear();
+          if (pieceToSave) { current = makePiece(pieceToSave); renderPanels(); }
+          else { spawn(); }
+        }, 1000);
+        return;
+      }
       if (!hasGarbage) {
         isKOed = true;
         current = null;
@@ -2617,7 +2755,7 @@
         if (conn && conn.open) conn.send({ type: 'TOP_OUT_LOSE' });
         showMsg("TOP OUT!");
         myFloatingTexts.push(new FloatingText("TOP OUT!", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 60));
-        playSound('lose'); 
+        playSound('lose');
 
         // --- 死亡寬限期邏輯 (自己 Top Out) ---
         if (isCheckingGameOver) {
@@ -2630,13 +2768,13 @@
           isCheckingGameOver = true;
           gameOverTimeout = setTimeout(() => {
             isCheckingGameOver = false;
-            if (!gameOver) { 
+            if (!gameOver) {
               // 寬限期過了對手都沒事，那就是我真的輸了 (900ms 是保留給文字動畫飄完的時間)
-              setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('LOSE'); } }, 900); 
+              setTimeout(() => { if (!gameOver) { matchEndReason = 'KO'; endBattleMatch('LOSE'); } }, 900);
             }
           }, GRACE_PERIOD);
         }
-        return; 
+        return;
       }
 
       isKOed = true;
@@ -2710,6 +2848,10 @@
 
   // --- 2分鐘時間到，結算對戰勝負與積分 ---
   function endBattleMatch(forcedResult = null) {
+    // 多人對戰：不走 1v1 結算（避免寫入 1v1 戰績、重置成「等待對手」鎖死按鈕）
+    if (window.mpGameActive) {
+      return mpEndMatch(forcedResult);
+    }
     gameOver = true;
     if (typeof battleBgm !== 'undefined') battleBgm.pause(); // 時間到，切斷對戰音樂
     if (isMultiplayer) {
@@ -3443,18 +3585,32 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      if (!isMultiplayer) {
+      if (!isMultiplayer && !window.isMpMulti) {
         ctx.fillStyle = '#f2f2f2';
         ctx.font = '900 28px Arial';
         ctx.fillText('PRESS ENTER', CANVAS_W / 2, CANVAS_H / 2 - 16);
         ctx.font = '700 18px Arial';
         ctx.fillText('TO START', CANVAS_W / 2, CANVAS_H / 2 + 16);
       } else {
-        // 雙向鏡像：當我按下準備時，我的畫面也要變成綠色的 READY
-        if (iAmReady) {
+        const iReady = window.isMpMulti ? !!window.mpIAmReady : iAmReady;
+        const mpAlone = window.isMpMulti && (typeof mpPlayersMap !== 'undefined') && mpPlayersMap.size <= 1;
+        const mpSpec = window.isMpMulti && window.mpIsSpectatorWaiting;
+        if (mpSpec) {
+          // 中途加入者：當前回合還沒結束 → 顯示「觀戰等待」
+          ctx.fillStyle = '#38bdee';
+          ctx.font = '900 24px Arial';
+          ctx.fillText('WAITING FOR', CANVAS_W / 2, CANVAS_H / 2 - 16);
+          ctx.fillText('ROUND END', CANVAS_W / 2, CANVAS_H / 2 + 16);
+        } else if (iReady) {
           ctx.fillStyle = '#48d62f';
           ctx.font = '900 36px Arial';
           ctx.fillText('READY !', CANVAS_W / 2, CANVAS_H / 2);
+        } else if (mpAlone) {
+          // 多人對戰房內只有我一個 → 顯示等待玩家加入，不顯示 CLICK READY
+          ctx.fillStyle = '#f2f2f2';
+          ctx.font = '900 24px Arial';
+          ctx.fillText('WAITING FOR', CANVAS_W / 2, CANVAS_H / 2 - 16);
+          ctx.fillText('PLAYERS', CANVAS_W / 2, CANVAS_H / 2 + 16);
         } else {
           ctx.fillStyle = '#f2f2f2';
           ctx.font = '900 28px Arial';
@@ -4937,7 +5093,17 @@
       }
       // 抵消後還有剩，就打給對手
       if (attack > 0 && isMultiplayer) {
-        if (isAIMode) {
+        if (window.isMpMulti && window.mpGameActive) {
+          // 多人對戰：依目前策略挑目標 peer，走 mesh 送 MP_ATTACK
+          const targetPid = (typeof pickMpAttackTarget === 'function') ? pickMpAttackTarget() : null;
+          if (targetPid) {
+            sendMpToPeer(targetPid, { type: 'MP_ATTACK', lines: attack });
+          }
+          myLinesSent += attack;
+          const myLinesEl = document.getElementById('my-lines-sent-display');
+          if (myLinesEl) myLinesEl.textContent = myLinesSent;
+          oppFloatingTexts.push(new FloatingText(`-${attack}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 20, '#ff1111', 50));
+        } else if (isAIMode) {
           // 玩家打擊 AI 模式
           aiNextGarbage += attack;
           myLinesSent += attack;
@@ -5793,6 +5959,17 @@
     isPaused = false;
     countdownValue = 0;
     matchResult = null;
+    // 重置對戰計分（KO / 攻擊行數）與 DOM 顯示，避免觀戰結束看到上一場殘值
+    myKOs = 0; oppKOs = 0; myLinesSent = 0; oppLinesSent = 0;
+    const myKoElExitSpec = document.getElementById('my-ko-display');
+    const oppKoElExitSpec = document.getElementById('opp-ko-display');
+    const myLinesElExitSpec = document.getElementById('my-lines-sent-display');
+    const oppLinesElExitSpec = document.getElementById('opp-lines-sent-display');
+    if (myKoElExitSpec) myKoElExitSpec.textContent = '0';
+    if (oppKoElExitSpec) oppKoElExitSpec.textContent = '0';
+    if (myLinesElExitSpec) myLinesElExitSpec.textContent = '0';
+    if (oppLinesElExitSpec) oppLinesElExitSpec.textContent = '0';
+    piecePool = []; myPieceIndex = 0;
     if (scoreEl) scoreEl.textContent = '0';
     if (linesEl) linesEl.textContent = '0';
     if (levelEl) levelEl.textContent = '1';
@@ -6415,8 +6592,8 @@
 
     // --- 官方重力公式 (分流單機與連線) ---
     let gravityInterval;
-    if (isMultiplayer || isPracticeMode || isNarrowMode || isFreeMode) {
-      gravityInterval = 1000; // 對戰 / 練習 / Combo Room / Free Mode：重力鎖定為極慢 (1秒1格)
+    if (isMultiplayer || isNarrowMode || isFreeMode) {
+      gravityInterval = 1000; // 對戰 / Combo Room / Free Mode：重力鎖定為極慢 (1秒1格)
     } else {
       const gravitySeconds = Math.pow(0.8 - ((level - 1) * 0.007), level - 1);
       gravityInterval = gravitySeconds * 1000; // 單機模式：越玩越快
@@ -6664,7 +6841,15 @@
     
     // 遊戲流程控制 (開始、重啟)
     if (k === 'Enter' || k === 'NumpadEnter' || k === 'KeyR') {
-      if (!isMultiplayer) { 
+      // 多人對戰預覽 / 對戰中：Enter 觸發 READY 切換（不要啟動單人練習）
+      if (window.isMpMulti) {
+        if (gameStarted && !gameOver) return;
+        if (k === 'Enter' || k === 'NumpadEnter') {
+          if (readyBtn && !readyBtn.disabled) readyBtn.click();
+        }
+        return;
+      }
+      if (!isMultiplayer) {
         if (k === 'KeyR' && gameStarted && !gameOver && !isPracticeMode && !isNarrowMode && !isFreeMode && isCloudDataLoaded && currentUserUID && currentPlayer !== 'Admin_Mars') {
            db.collection('users').doc(currentUserUID).set({
              username: currentPlayer,
@@ -8494,33 +8679,1606 @@
   // 練習模式切換邏輯
   const practiceBtn = document.getElementById('practice-btn');
   const myNameDisplay = document.getElementById('my-name-display');
+  const practiceModeActions = document.getElementById('practice-mode-actions');
+
+  // 把單機盤面徹底收乾淨，回到「PRESS ENTER」起始畫面
+  // ⚠️ 只設 gameStarted=false（顯示 PRESS ENTER），不要同時設 gameOver=true，
+  //    否則畫布會同時疊出 GAME OVER 與 PRESS ENTER 兩個框
+  function resetToPressEnter() {
+    gameOver = false;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownValue = 0;
+    gameStarted = false;
+    isPaused = false;
+    isKOed = false;
+    board = createBoard();
+    score = 0; lines = 0; level = 1; combo = -1; b2b = 0;
+    maxCombo = 0; piecesPlaced = 0;
+    activeGarbage = 0; nextGarbage = 0;
+    clearFx = null;
+    current = null; queue = []; holdType = null; holdUsed = false;
+    piecePool = []; myPieceIndex = 0;
+    if (typeof updateHUD === 'function') updateHUD();
+    if (typeof renderPanels === 'function') renderPanels(); // 清掉殘留的 NEXT / QUEUE / HOLD
+    if (typeof draw === 'function') draw();
+  }
+
+  // === 多人對戰（最多 7 人）入口（Phase 1 骨架：先做排版預覽，房間/連線邏輯後續加上） ===
+  // 用 window 範圍變數，後面 Phase 2~9 會在 game.js 各處讀寫
+  window.isMpMulti = false;
+  window.mpAttackStrategy = 'RANDOM';
+  window.mpHostSettings = { mode: 'BOMB', winCondition: 'LAST_SURVIVOR', roomCode: null };
+  window.mpIsHost = true;
+  window.mpRoomId = null;
+  let mpRoomRef = null;
+  let mpRoomListener = null;
+  let mpMySlot = -1;
+  const mpPlayersMap = new Map(); // peerId -> { slot, name, uid, ready, peerId }
+
+  function generateMpRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉易混淆 0/O/1/I
+    let s = '';
+    for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+
+  function getMpUid() { return currentUserUID || ('anon-' + (peer && peer.id ? peer.id : Math.random().toString(36).slice(2,10))); }
+  function getMpName() { return currentPlayer || 'Guest'; }
+  function getMpPeerId() { return peer && peer.id ? peer.id : null; }
+
+  async function createMpRoom() {
+    const pid = getMpPeerId();
+    if (!pid) { alert(window.t('multiplayer.peerNotReady', '連線初始化中，請稍候再試')); return false; }
+    const uid = getMpUid();
+    const code = window.mpHostSettings.roomCode || generateMpRoomCode();
+    window.mpHostSettings.roomCode = code;
+    const roomId = 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    const ref = rtdb.ref('/mpRooms/' + roomId);
+    try {
+      await ref.set({
+        host: uid,
+        hostPeerId: pid,
+        code,
+        mode: window.mpHostSettings.mode,
+        winCondition: window.mpHostSettings.winCondition,
+        status: 'LOBBY',
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        players: {
+          '0': { uid, peerId: pid, name: getMpName(), ready: false, joinOrder: 0 }
+        }
+      });
+      // 簡化版：房主斷線整個房間自動消失（Phase 9 再做轉移）
+      ref.onDisconnect().remove();
+      await rtdb.ref('/mpRoomCodes/' + code).set({ roomId, createdAt: firebase.database.ServerValue.TIMESTAMP });
+      rtdb.ref('/mpRoomCodes/' + code).onDisconnect().remove();
+    } catch (e) {
+      console.warn('createMpRoom failed:', e);
+      return false;
+    }
+    window.mpRoomId = roomId;
+    mpRoomRef = ref;
+    mpMySlot = 0;
+    window.mpIsHost = true;
+    attachMpRoomListener();
+    syncMpHostPanelUI();
+    return true;
+  }
+
+  function setMpJoinStatus(msg, kind) {
+    const el = document.getElementById('mp-join-status');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = kind === 'ok' ? 'var(--S)' : kind === 'info' ? 'var(--I)' : 'var(--Z)';
+  }
+  async function joinMpRoomByCode(rawCode) {
+    const code = (rawCode || '').trim().toUpperCase();
+    if (!code) return false;
+    const pid = getMpPeerId();
+    if (!pid) { setMpJoinStatus(window.t('multiplayer.peerNotReady', '連線初始化中，請稍候再試')); return false; }
+    const uid = getMpUid();
+    const idxSnap = await rtdb.ref('/mpRoomCodes/' + code).once('value');
+    const idx = idxSnap.val();
+    if (!idx || !idx.roomId) { setMpJoinStatus(window.t('multiplayer.joinNotFound', '找不到房間代碼') + ': ' + code); return false; }
+    const roomId = idx.roomId;
+    const playersRef = rtdb.ref('/mpRooms/' + roomId + '/players');
+    const tx = await playersRef.transaction((players) => {
+      players = players || {};
+      // 已存在同 uid → 替換 peerId 重用 slot（避免換 peer 後變成新人）
+      for (const k of Object.keys(players)) {
+        if (players[k] && players[k].uid === uid) {
+          players[k].peerId = pid;
+          players[k].name = getMpName();
+          return players;
+        }
+      }
+      for (let s = 1; s <= 4; s++) {
+        if (!players[String(s)]) {
+          players[String(s)] = { uid, peerId: pid, name: getMpName(), ready: false, joinOrder: s };
+          return players;
+        }
+      }
+      return; // 滿
+    });
+    if (!tx.committed) { setMpJoinStatus(window.t('multiplayer.roomFull', '房間已滿')); return false; }
+    const finalPlayers = tx.snapshot.val() || {};
+    mpMySlot = -1;
+    for (const k of Object.keys(finalPlayers)) {
+      if (finalPlayers[k] && finalPlayers[k].uid === uid) { mpMySlot = Number(k); break; }
+    }
+    window.mpRoomId = roomId;
+    mpRoomRef = rtdb.ref('/mpRooms/' + roomId);
+    window.mpIsHost = false;
+    if (mpMySlot >= 0) rtdb.ref('/mpRooms/' + roomId + '/players/' + mpMySlot).onDisconnect().remove();
+    attachMpRoomListener();
+    return true;
+  }
+
+  async function leaveMpRoom() {
+    if (!window.mpRoomId) return;
+    detachMpRoomListener();
+    const rid = window.mpRoomId;
+    const slot = mpMySlot;
+    const wasHost = window.mpIsHost;
+    const code = window.mpHostSettings.roomCode;
+    window.mpRoomId = null;
+    mpRoomRef = null;
+    mpMySlot = -1;
+    mpPlayersMap.clear();
+    try {
+      if (wasHost) {
+        await rtdb.ref('/mpRooms/' + rid).remove();
+        if (code) await rtdb.ref('/mpRoomCodes/' + code).remove();
+      } else if (slot >= 0) {
+        await rtdb.ref('/mpRooms/' + rid + '/players/' + slot).remove();
+      }
+    } catch (e) { console.warn('leaveMpRoom err', e); }
+  }
+
+  function attachMpRoomListener() {
+    if (!mpRoomRef) return;
+    mpRoomListener = mpRoomRef.on('value', (snap) => {
+      const room = snap.val();
+      if (!room) {
+        if (!window.mpIsHost && window.mpRoomId) {
+          alert(window.t('multiplayer.roomClosed', '房主已關閉房間'));
+          if (typeof exitMpMultiPreview === 'function') exitMpMultiPreview();
+        }
+        return;
+      }
+      if (!window.mpIsHost) {
+        window.mpHostSettings.mode = room.mode || 'BOMB';
+        window.mpHostSettings.winCondition = room.winCondition || 'LAST_SURVIVOR';
+        window.mpHostSettings.roomCode = room.code || null;
+      }
+      const players = room.players || {};
+      // Phase 9：保留 game-state 欄位（disconnectedAt / eliminated / ko / linesSent / boardHeight）
+      const preserved = new Map();
+      for (const [pid, v] of mpPlayersMap) {
+        preserved.set(pid, {
+          disconnectedAt: v.disconnectedAt,
+          eliminated: v.eliminated,
+          ko: v.ko,
+          linesSent: v.linesSent,
+          boardHeight: v.boardHeight
+        });
+      }
+      mpPlayersMap.clear();
+      Object.keys(players).forEach(k => {
+        const p = players[k];
+        if (p && p.peerId) {
+          const entry = { ...p, slot: Number(k) };
+          const old = preserved.get(p.peerId);
+          if (old) {
+            if (old.disconnectedAt) entry.disconnectedAt = old.disconnectedAt;
+            if (old.eliminated)     entry.eliminated = old.eliminated;
+            if (old.ko != null)     entry.ko = old.ko;
+            if (old.linesSent != null) entry.linesSent = old.linesSent;
+            if (old.boardHeight != null) entry.boardHeight = old.boardHeight;
+          }
+          mpPlayersMap.set(p.peerId, entry);
+        }
+      });
+      renderMpSlots();
+      syncMpHostPanelUI();
+      manageMpMesh(); // Phase 4：依房間玩家列表調整 mesh 連線
+      updateMpConnStatus();
+      updateMpTargetIndicator(); // Phase 5：人員變動時重算 🎯
+    });
+  }
+
+  function updateMpConnStatus() {
+    if (!window.isMpMulti) return;
+    const el = document.getElementById('conn-status');
+    if (!el) return;
+    // 中途加入者：對方還在對戰，顯示觀戰中
+    if (window.mpIsSpectatorWaiting) {
+      el.textContent = window.t('mp.spectatorStatus', 'Status: 觀戰中，等本局結束…');
+      el.style.color = 'var(--I)';
+      return;
+    }
+    if (mpPlayersMap.size <= 1) {
+      el.textContent = window.t('multiplayer.waitingPlayers', 'Status: 等待玩家加入…');
+      el.style.color = 'var(--O)';
+      return;
+    }
+    // 多人已在房；依 ready 狀態切換文字
+    const myReady = !!window.mpIAmReady;
+    let othersReadyCount = 0, othersTotal = 0;
+    const myPid = getMpPeerId();
+    for (const v of mpPlayersMap.values()) {
+      if (v.peerId === myPid) continue;
+      othersTotal++;
+      if (mpReadyState.get(v.peerId)) othersReadyCount++;
+    }
+    const allOthersReady = othersTotal > 0 && othersReadyCount === othersTotal;
+    if (myReady && !allOthersReady) {
+      el.textContent = window.t('multiplayer.waitOppReady', 'Status: 等待對手準備…');
+      el.style.color = 'var(--O)';
+    } else if (!myReady && othersReadyCount > 0) {
+      el.textContent = window.t('multiplayer.oppReadyClickReady', 'Status: 對手已準備，按 READY');
+      el.style.color = 'var(--S)';
+    } else if (!myReady) {
+      el.textContent = window.t('multiplayer.clickReady', 'Status: 按 READY 開始');
+      el.style.color = 'var(--S)';
+    } else {
+      // myReady && allOthersReady → 即將開始（Phase 5 接倒數）
+      el.textContent = window.t('multiplayer.allReady', 'Status: 全員就緒，準備開始…');
+      el.style.color = 'var(--S)';
+    }
+  }
+
+  function updateMpReadyButtonUI() {
+    const btn = document.getElementById('ready-btn');
+    if (!btn) return;
+    // Phase 8+：中途加入時若其他人正在對戰 → 鎖死按鈕、顯示「觀戰中」
+    if (window.mpIsSpectatorWaiting) {
+      btn.textContent = window.t('mp.spectating', '👀 觀戰中…');
+      btn.style.background = 'rgba(255,255,255,0.1)';
+      btn.style.color = 'rgba(255,255,255,0.5)';
+      btn.style.borderColor = 'rgba(255,255,255,0.3)';
+      btn.style.cursor = 'not-allowed';
+      btn.disabled = true;
+      return;
+    }
+    btn.disabled = false;
+    btn.style.cursor = 'pointer';
+    if (window.mpIAmReady) {
+      btn.textContent = window.t('battle.cancelReadyBtn', '✕ 取消 READY');
+      btn.style.background = 'var(--Z)';
+      btn.style.color = 'var(--white)';
+      btn.style.borderColor = 'var(--white)';
+    } else {
+      btn.textContent = 'READY';
+      btn.style.background = 'var(--S)';
+      btn.style.color = 'var(--bg)';
+      btn.style.borderColor = 'var(--S)';
+    }
+  }
+
+  // 中途加入者狀態判定：只要有任何 peer roundActive=true 且自己不在對戰中 → 觀戰等待
+  function refreshMpSpectatorState() {
+    if (!window.isMpMulti) return;
+    if (window.mpGameActive) {
+      // 自己也在對戰中：不是觀戰者
+      if (window.mpIsSpectatorWaiting) {
+        window.mpIsSpectatorWaiting = false;
+        updateMpReadyButtonUI();
+        updateMpConnStatus();
+      }
+      return;
+    }
+    let anyActive = false;
+    for (const v of mpPlayersMap.values()) {
+      if (v.roundActive) { anyActive = true; break; }
+    }
+    const wasSpec = !!window.mpIsSpectatorWaiting;
+    window.mpIsSpectatorWaiting = anyActive;
+    if (wasSpec !== anyActive) {
+      updateMpReadyButtonUI();
+      updateMpConnStatus();
+      if (!anyActive) {
+        // 觀戰結束（上局結束）→ 清掉觀戰者本機的所有殘留：上局所有人 eliminated/board/inCurrentRound
+        for (const v of mpPlayersMap.values()) {
+          v.eliminated = false;
+          v.boardStr = '';
+          v.curPiece = null;
+          v.inCurrentRound = false;
+        }
+        clearMpSlotEliminatedUI();
+        renderMpSlots();
+        window.mpIAmReady = false;
+        broadcastMp({ type: 'MP_READY', ready: false });
+      }
+    }
+  }
+  window.refreshMpSpectatorState = refreshMpSpectatorState;
+
+  function detachMpRoomListener() {
+    if (mpRoomRef && mpRoomListener) {
+      try { mpRoomRef.off('value', mpRoomListener); } catch {}
+    }
+    mpRoomListener = null;
+  }
+
+  // ============================================================
+  // Phase 4：Mesh PeerJS 連線層
+  // ============================================================
+  const mpConns = new Map();          // peerId -> DataConnection
+  const mpLastSeen = new Map();       // peerId -> Date.now() of last heartbeat
+  const mpReadyState = new Map();     // peerId -> bool (ready or not)
+  window.mpIAmReady = false;
+  let mpHeartbeatTimer = null;
+  let mpHeartbeatCheckTimer = null;
+
+  function setupMpConnection(connection, isInitiator) {
+    if (!connection) return;
+    const peerId = connection.peer;
+    // 已有開啟中的連線就直接保留
+    const existing = mpConns.get(peerId);
+    if (existing && existing.open && existing !== connection) {
+      try { connection.close(); } catch {}
+      return;
+    }
+    mpConns.set(peerId, connection);
+
+    connection.on('open', () => {
+      mpLastSeen.set(peerId, Date.now());
+      // 一開連線就先送一次自己的 READY 狀態 + 心跳（帶 roundActive 讓對方馬上知道是否該觀戰）
+      try { connection.send({ type: 'MP_HEARTBEAT', t: Date.now(), roundActive: !!window.mpGameActive, senderPeerId: getMpPeerId() }); } catch {}
+      try { connection.send({ type: 'MP_READY', ready: !!window.mpIAmReady, senderPeerId: getMpPeerId() }); } catch {}
+    });
+
+    connection.on('data', (data) => {
+      if (!data || !data.type) return;
+      mpLastSeen.set(peerId, Date.now());
+      // Phase 9：收到任何訊息 → 清掉斷線標記（已重連）
+      const ps = mpPlayersMap.get(peerId);
+      if (ps && ps.disconnectedAt) {
+        ps.disconnectedAt = null;
+        clearMpReconnectOverlay(peerId);
+      }
+      handleMpMessage(data, peerId);
+    });
+
+    connection.on('close', () => {
+      if (mpConns.get(peerId) === connection) mpConns.delete(peerId);
+      mpReadyState.delete(peerId);
+      // Phase 9：對戰中斷線 → 開 30 秒緩衝（lobby 中直接讓 mesh 重連即可）
+      if (window.mpGameActive) {
+        const ps = mpPlayersMap.get(peerId);
+        if (ps && !ps.eliminated && !ps.disconnectedAt) {
+          ps.disconnectedAt = Date.now();
+          showMpReconnectOverlay(peerId, 30);
+        }
+      }
+      updateMpConnStatus();
+    });
+
+    connection.on('error', (err) => {
+      console.warn('[mp-conn] error from', peerId, err);
+    });
+  }
+
+  function connectToMpPeer(targetPeerId) {
+    if (!peer || !isMyPeerReady || !targetPeerId) return;
+    if (targetPeerId === getMpPeerId()) return;
+    const existing = mpConns.get(targetPeerId);
+    if (existing && (existing.open || existing._open !== false)) return; // 已連
+    try {
+      const conn = peer.connect(targetPeerId, {
+        reliable: true,
+        metadata: { purpose: 'mp-game', roomId: window.mpRoomId }
+      });
+      setupMpConnection(conn, true);
+    } catch (e) {
+      console.warn('[mp-conn] connect failed:', e);
+    }
+  }
+
+  // Tiebreaker：peerId 字串較小的人主動發起連線，避免雙方同時 connect 形成兩條
+  function shouldIInitiate(otherPeerId) {
+    const mine = getMpPeerId();
+    if (!mine || !otherPeerId) return false;
+    return mine < otherPeerId;
+  }
+
+  function manageMpMesh() {
+    if (!window.isMpMulti || !window.mpRoomId) return;
+    const myPid = getMpPeerId();
+    if (!myPid) return;
+    const targetPeerIds = new Set();
+    for (const v of mpPlayersMap.values()) {
+      if (v.peerId && v.peerId !== myPid) targetPeerIds.add(v.peerId);
+    }
+    // 1) 缺少的連線：由 peerId 較小者主動 connect（另一邊會在 peer.on('connection') 收到）
+    for (const pid of targetPeerIds) {
+      const existing = mpConns.get(pid);
+      const isAlive = existing && (existing.open || existing._open !== false);
+      if (!isAlive && shouldIInitiate(pid)) {
+        connectToMpPeer(pid);
+      }
+    }
+    // 2) 不再屬於房間的連線：關閉
+    for (const [pid, c] of mpConns) {
+      if (!targetPeerIds.has(pid)) {
+        try { c.close(); } catch {}
+        mpConns.delete(pid);
+        mpReadyState.delete(pid);
+      }
+    }
+  }
+
+  function broadcastMp(msg) {
+    if (!msg) return;
+    const myPid = getMpPeerId();
+    const payload = Object.assign({ senderPeerId: myPid }, msg);
+    for (const c of mpConns.values()) {
+      if (c && c.open) {
+        try { c.send(payload); } catch (e) { /* swallow */ }
+      }
+    }
+  }
+
+  function sendMpToPeer(targetPeerId, msg) {
+    const c = mpConns.get(targetPeerId);
+    if (!c || !c.open) return false;
+    try {
+      c.send(Object.assign({ senderPeerId: getMpPeerId() }, msg));
+      return true;
+    } catch { return false; }
+  }
+
+  function handleMpMessage(data, fromPeerId) {
+    switch (data.type) {
+      case 'MP_HEARTBEAT':
+        // 已在 onData 統一更新 mpLastSeen
+        // Phase 6+ 補：對方告知目前是否在對戰中，讓中途加入者進入觀戰等待
+        if (data.roundActive) {
+          const ps = mpPlayersMap.get(fromPeerId);
+          if (ps) ps.roundActive = true;
+        } else {
+          const ps = mpPlayersMap.get(fromPeerId);
+          if (ps) ps.roundActive = false;
+        }
+        refreshMpSpectatorState();
+        break;
+      case 'MP_READY':
+        mpReadyState.set(fromPeerId, !!data.ready);
+        updateMpConnStatus();
+        renderMpSlots();
+        maybeStartMpGame();
+        break;
+      case 'MP_START':
+        if (data.seed != null && !gameStarted && countdownValue === 0) {
+          mpStartGame(data.seed, data.mode);
+        }
+        break;
+      case 'MP_ATTACK': {
+        if (!gameOver && gameStarted) {
+          const lines = data.lines || 0;
+          window.recentIncomingAttacks.push({ from: fromPeerId, lines, t: Date.now() });
+          // 限長度避免無限累積
+          if (window.recentIncomingAttacks.length > 200) window.recentIncomingAttacks.shift();
+          myFloatingTexts.push(new FloatingText(`+${lines}`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, '#ff0d62', 50));
+          playSound('drop'); shakeMag = 6;
+          const gen = matchGeneration;
+          setTimeout(() => { if (!gameOver && matchGeneration === gen) nextGarbage += lines; }, 2000);
+        }
+        break;
+      }
+      case 'MP_STATE': {
+        const ps = mpPlayersMap.get(fromPeerId);
+        if (ps) {
+          ps.boardHeight = data.boardHeight || 0;
+          ps.ko = data.ko || 0;
+          ps.linesSent = data.linesSent || 0;
+          ps.boardStr = data.b || '';
+          ps.curPiece = data.cur || null;
+          // 既然對方有送 MP_STATE 過來，就代表他這局有參賽
+          if (ps.boardStr) ps.inCurrentRound = true;
+          updateMpSlotStats(fromPeerId);
+          // 任何人都重畫（包含中途加入的觀戰者 C）
+          if (!ps.eliminated) {
+            drawMpMiniBoardForPeer(fromPeerId);
+          }
+        }
+        break;
+      }
+      case 'MP_KO': {
+        // 凶手 KO++（fromPeerId 是被 KO 的人；killerPeerId 才是擊殺者）
+        if (data.killerPeerId) {
+          if (data.killerPeerId === getMpPeerId()) {
+            myKOs = (typeof myKOs === 'number' ? myKOs : 0) + 1;
+            const myKoEl = document.getElementById('my-ko-display');
+            if (myKoEl) myKoEl.textContent = myKOs;
+          } else {
+            const k = mpPlayersMap.get(data.killerPeerId);
+            if (k) { k.ko = (k.ko || 0) + 1; updateMpSlotStats(data.killerPeerId); }
+          }
+        }
+        break;
+      }
+      case 'MP_ELIMINATED': {
+        // 一般情況下 victim = sender；房主廣播斷線淘汰時，victim 由 _victimPeerId 指定
+        const victimPid = data._victimPeerId || fromPeerId;
+        const p = mpPlayersMap.get(victimPid);
+        if (p) { p.eliminated = true; markMpSlotEliminated(victimPid); }
+        if (data.killerPeerId) {
+          if (data.killerPeerId === getMpPeerId()) {
+            myKOs = (typeof myKOs === 'number' ? myKOs : 0) + 1;
+            const myKoEl = document.getElementById('my-ko-display');
+            if (myKoEl) myKoEl.textContent = myKOs;
+          } else {
+            const k = mpPlayersMap.get(data.killerPeerId);
+            if (k) { k.ko = (k.ko || 0) + 1; updateMpSlotStats(data.killerPeerId); }
+          }
+        }
+        checkLastSurvivor();
+        break;
+      }
+      default:
+        // 忽略未知 type
+        break;
+    }
+  }
+
+  function startMpHeartbeat() {
+    stopMpHeartbeat();
+    mpHeartbeatTimer = setInterval(() => {
+      broadcastMp({ type: 'MP_HEARTBEAT', t: Date.now(), roundActive: !!window.mpGameActive });
+    }, 1000);
+    mpHeartbeatCheckTimer = setInterval(() => {
+      const now = Date.now();
+      // 超過 5 秒沒心跳的連線視為失聯 → 關掉等 manageMpMesh 重連
+      for (const [pid, c] of mpConns) {
+        const last = mpLastSeen.get(pid) || 0;
+        if (last && now - last > 5000) {
+          try { c.close(); } catch {}
+          mpConns.delete(pid);
+          mpReadyState.delete(pid);
+        }
+      }
+      // Phase 9：對「仍在房間但連線已斷」的 peer 嘗試重新發起 mesh 連線
+      if (window.mpRoomId) manageMpMesh();
+    }, 2000);
+  }
+  function stopMpHeartbeat() {
+    if (mpHeartbeatTimer) { clearInterval(mpHeartbeatTimer); mpHeartbeatTimer = null; }
+    if (mpHeartbeatCheckTimer) { clearInterval(mpHeartbeatCheckTimer); mpHeartbeatCheckTimer = null; }
+  }
+  function closeAllMpConns() {
+    for (const c of mpConns.values()) {
+      try { c.close(); } catch {}
+    }
+    mpConns.clear();
+    mpLastSeen.clear();
+    mpReadyState.clear();
+  }
+
+  // ============================================================
+  // Phase 5：攻擊目標選擇器 (Tetris 99 風格)
+  // ============================================================
+  window.recentIncomingAttacks = []; // Phase 6 接攻擊收發時會 push: { from: peerId, lines, t }
+
+  function getMpBoardHeight(p) {
+    // 預留：Phase 6 接 MP_STATE 後會有真實 boardHeight；先回 0
+    return (p && typeof p.boardHeight === 'number') ? p.boardHeight : 0;
+  }
+
+  function pickMpAttackTarget() {
+    if (!window.isMpMulti) return null;
+    const myPid = getMpPeerId();
+    const alive = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.peerId === myPid) continue;
+      if (v.disconnectedAt) continue;     // Phase 9：斷線緩衝中跳過
+      if (v.eliminated) continue;         // Phase 7：已淘汰跳過
+      alive.push(v);
+    }
+    if (!alive.length) return null;
+    const strategy = window.mpAttackStrategy || 'RANDOM';
+    switch (strategy) {
+      case 'COUNTER': {
+        const now = Date.now();
+        const counts = {};
+        for (const a of (window.recentIncomingAttacks || [])) {
+          if (!a || !a.from) continue;
+          if (now - a.t > 10000) continue;
+          counts[a.from] = (counts[a.from] || 0) + (a.lines || 0);
+        }
+        let best = null, bestN = 0;
+        for (const p of alive) {
+          const n = counts[p.peerId] || 0;
+          if (n > bestN) { best = p; bestN = n; }
+        }
+        return (best || alive[Math.floor(Math.random() * alive.length)]).peerId;
+      }
+      case 'THREAT': {
+        const sorted = alive.slice().sort((a, b) => (b.ko || 0) - (a.ko || 0));
+        return sorted[0].peerId;
+      }
+      case 'ELIMINATE': {
+        const sorted = alive.slice().sort((a, b) => getMpBoardHeight(b) - getMpBoardHeight(a));
+        return sorted[0].peerId;
+      }
+      case 'RANDOM':
+      default:
+        return alive[Math.floor(Math.random() * alive.length)].peerId;
+    }
+  }
+  window.pickMpAttackTarget = pickMpAttackTarget;
+  window.sendMpToPeer = function(peerId, msg) { return sendMpToPeer(peerId, msg); };
+
+  // ============================================================
+  // Phase 6：遊戲啟動 / state 廣播 / 攻擊收發
+  // ============================================================
+  let mpStateInterval = null;
+
+  function maybeStartMpGame() {
+    if (!window.isMpMulti || !window.mpIsHost) return;
+    if (gameStarted || countdownValue > 0) return;
+    if (mpPlayersMap.size < 2) return;
+    if (!window.mpIAmReady) return;
+    const myPid = getMpPeerId();
+    for (const v of mpPlayersMap.values()) {
+      if (v.peerId === myPid) continue;
+      if (!mpReadyState.get(v.peerId)) return;
+    }
+    // 全員就緒 → 房主產生 seed 並廣播
+    const seed = Math.floor(Math.random() * 1000000);
+    const mode = (window.mpHostSettings && window.mpHostSettings.mode) || 'BOMB';
+    broadcastMp({ type: 'MP_START', seed, mode });
+    mpStartGame(seed, mode);
+  }
+
+  function mpStartGame(seed, mode) {
+    if (!window.isMpMulti) return;
+    if (gameStarted || countdownValue > 0) return;
+    // 設定 seed：mySeed + oppSeed 會被 checkBothReady → currentSeed 合併使用
+    mySeed = seed;
+    oppSeed = 0;
+    battleMode = (mode === 'CLASSIC') ? 'CLASSIC' : 'BOMB';
+    iAmReady = true;
+    oppIsReady = true;
+    isMultiplayer = true; // 借用既有 1v1 旗標讓遊戲邏輯運作
+    // 新局開始：清掉上局可能殘留的淘汰/重連/板面，並把現役所有人標進這局（中途加入者 inCurrentRound=false）
+    for (const v of mpPlayersMap.values()) {
+      v.eliminated = false;
+      v.disconnectedAt = null;
+      v.boardStr = '';
+      v.curPiece = null;
+      v.inCurrentRound = true;
+    }
+    clearMpSlotEliminatedUI();
+    for (let s = 1; s <= 4; s++) {
+      const el = document.getElementById('mp-slot-' + s);
+      if (!el) continue;
+      const ov = el.querySelector('.mp-reconnect-overlay');
+      if (ov) ov.classList.add('hidden');
+    }
+    window.mpGameActive = true;
+    window.mpMatchStartAt = Date.now();
+    // Phase 8：依勝利條件設定計時上限（線下 startCountdown 才會建 timerInterval；用 window.mpMaxTime 覆寫 1v1 預設 120）
+    const wc = (window.mpHostSettings && window.mpHostSettings.winCondition) || 'LAST_SURVIVOR';
+    window.mpWinCondition = wc;
+    if (wc === 'TIMED_RANK')      window.mpMaxTime = 120;   // 2 分鐘排名
+    else if (wc === 'HYBRID')     window.mpMaxTime = 300;   // 5 分鐘保險 + 最後存活
+    else                          window.mpMaxTime = 99999; // LAST_SURVIVOR 不計時（給超大值）
+    // 觸發倒數開局
+    if (typeof checkBothReady === 'function') checkBothReady();
+    else if (typeof startCountdown === 'function') startCountdown();
+    startMpStateBroadcast();
+    startMpDisconnectMonitor();
+  }
+
+  function startMpStateBroadcast() {
+    stopMpStateBroadcast();
+    mpStateInterval = setInterval(() => {
+      if (!window.isMpMulti || !gameStarted || gameOver) return;
+      // 計算 board height（最高有格的列，從上而下）
+      let h = 0;
+      if (typeof board !== 'undefined' && Array.isArray(board)) {
+        const rows = board.length;
+        for (let r = 0; r < rows; r++) {
+          const row = board[r];
+          if (!row) continue;
+          for (let c = 0; c < row.length; c++) {
+            if (row[c]) { h = rows - r; break; }
+          }
+          if (h > 0) break;
+        }
+      }
+      // 壓縮 board 成 200 字元字串（10 cols x 20 visible rows，從第 VISIBLE_ROWS 列開始）
+      let bStr = '';
+      if (typeof board !== 'undefined' && Array.isArray(board)) {
+        const startR = (typeof VISIBLE_ROWS === 'number') ? VISIBLE_ROWS : 0;
+        const endR = (typeof ROWS === 'number') ? ROWS : board.length;
+        const cols = (typeof COLS === 'number') ? COLS : (board[0] ? board[0].length : 10);
+        const buf = [];
+        for (let r = startR; r < endR; r++) {
+          const row = board[r];
+          if (!row) { for (let c = 0; c < cols; c++) buf.push('.'); continue; }
+          for (let c = 0; c < cols; c++) buf.push(row[c] ? row[c] : '.');
+        }
+        bStr = buf.join('');
+      }
+      // 目前正在掉的方塊（讓對手 mini-board 也看得到）
+      const cur = (typeof current !== 'undefined' && current) ? { t: current.type, r: current.row, c: current.col, m: current.matrix } : null;
+      broadcastMp({
+        type: 'MP_STATE',
+        boardHeight: h,
+        ko: (typeof myKOs === 'number' ? myKOs : 0),
+        linesSent: (typeof myLinesSent === 'number' ? myLinesSent : 0),
+        b: bStr,
+        cur
+      });
+    }, 100); // 10 Hz：mini-board 動畫流暢度
+  }
+  function stopMpStateBroadcast() {
+    if (mpStateInterval) { clearInterval(mpStateInterval); mpStateInterval = null; }
+  }
+
+  function updateMpSlotStats(peerId) {
+    // 找該 peer 對應 UI slot（peerId → others sorted by joinOrder → index）
+    const others = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.slot !== mpMySlot) others.push(v);
+    }
+    others.sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    const idx = others.findIndex(p => p.peerId === peerId);
+    if (idx < 0) return;
+    const slotEl = document.getElementById('mp-slot-' + (idx + 1));
+    if (!slotEl) return;
+    const p = others[idx];
+    const koB = slotEl.querySelector('.mp-slot-ko b');
+    const linesB = slotEl.querySelector('.mp-slot-lines b');
+    if (koB) koB.textContent = String(p.ko || 0);
+    if (linesB) linesB.textContent = String(p.linesSent || 0);
+  }
+
+  function mpEndGame() {
+    stopMpStateBroadcast();
+    window.mpGameActive = false;
+    // 還原旗標讓玩家能回到 mp lobby
+    isMultiplayer = false;
+    window.mpIAmReady = false;
+    iAmReady = false;
+    oppIsReady = false;
+    updateMpReadyButtonUI();
+    updateMpConnStatus();
+  }
+  window.mpEndGame = mpEndGame;
+
+  // ============================================================
+  // Phase 7：KO / 淘汰 / 最後存活者
+  // ============================================================
+  function markMpSlotEliminated(peerId) {
+    const others = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.slot !== mpMySlot) others.push(v);
+    }
+    others.sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    const idx = others.findIndex(p => p.peerId === peerId);
+    if (idx < 0) return;
+    const slotEl = document.getElementById('mp-slot-' + (idx + 1));
+    if (!slotEl) return;
+    slotEl.classList.add('eliminated');
+    slotEl.style.filter = 'grayscale(1)';
+    const overlay = slotEl.querySelector('.mp-eliminated-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.textContent = window.t('multiplayer.eliminated', '淘汰');
+    }
+  }
+
+  function clearMpSlotEliminatedUI() {
+    for (let s = 1; s <= 4; s++) {
+      const el = document.getElementById('mp-slot-' + s);
+      if (!el) continue;
+      el.classList.remove('eliminated');
+      el.style.filter = '';
+      const overlay = el.querySelector('.mp-eliminated-overlay');
+      if (overlay) overlay.classList.add('hidden');
+    }
+  }
+
+  function checkLastSurvivor() {
+    if (!window.mpGameActive) return;
+    const myPid = getMpPeerId();
+    let myEliminated = false;
+    const aliveOthers = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.peerId === myPid) { myEliminated = !!v.eliminated; continue; }
+      // 只算這局有參賽的玩家；中途加入的觀戰者不算「對手」
+      if (!v.inCurrentRound) continue;
+      if (!v.eliminated && !v.disconnectedAt) aliveOthers.push(v);
+    }
+    if (!myEliminated && aliveOthers.length === 0 && !gameOver) {
+      setTimeout(() => mpEndMatch('WIN'), 600);
+    }
+  }
+
+  function mpEndMatch(result) {
+    if (!window.mpGameActive && !window.isMpMulti) return;
+    gameOver = true;
+    if (typeof battleBgm !== 'undefined') battleBgm.pause();
+    stopMpStateBroadcast();
+    stopMpDisconnectMonitor();
+    window.mpGameActive = false;
+    // 還原旗標，避免 1v1 路徑誤觸發
+    isMultiplayer = false;
+    iAmReady = false;
+    oppIsReady = false;
+    window.mpIAmReady = false;
+    window.mpIsSpectatorWaiting = false;
+    // 廣播自己 ready=false（讓對方 status 重新計算）
+    try { broadcastMp({ type: 'MP_READY', ready: false }); } catch {}
+    mpReadyState.clear();
+    // 清掉所有人 eliminated/board 旗標 + inCurrentRound，準備下一場
+    for (const v of mpPlayersMap.values()) {
+      v.eliminated = false;
+      v.boardStr = '';
+      v.curPiece = null;
+      v.inCurrentRound = false;
+    }
+    clearMpSlotEliminatedUI();
+    // 計時超時 → 依 KO/Lines 排名
+    let rankingMsg = '';
+    if (matchEndReason === 'TIMEOUT') {
+      const myPid = getMpPeerId();
+      const all = [];
+      // 加入自己
+      all.push({ peerId: myPid, name: getMpName(), ko: (typeof myKOs === 'number' ? myKOs : 0), linesSent: (typeof myLinesSent === 'number' ? myLinesSent : 0), eliminated: false });
+      // 加入其他人
+      for (const v of mpPlayersMap.values()) {
+        if (v.peerId === myPid) continue;
+        all.push({ peerId: v.peerId, name: v.name || '?', ko: v.ko || 0, linesSent: v.linesSent || 0, eliminated: !!v.eliminated });
+      }
+      // 已淘汰的排在後面；活著的依 KO desc → linesSent desc
+      all.sort((a, b) => {
+        if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+        if ((b.ko || 0) !== (a.ko || 0)) return (b.ko || 0) - (a.ko || 0);
+        return (b.linesSent || 0) - (a.linesSent || 0);
+      });
+      const myRank = all.findIndex(p => p.peerId === myPid) + 1;
+      result = (myRank === 1) ? 'WIN' : 'LOSE';
+      // TIMED_RANK 結算文字用排名版本
+      const headLine = (myRank === 1)
+        ? window.t('mp.timedWin', '🏆 第 1 名！')
+        : window.t('mp.timedRank', '你第 ' + myRank + ' 名');
+      rankingMsg = headLine + '\n' + all.map((p, i) => `${i + 1}. ${p.name}  KO ${p.ko}  L ${p.linesSent}`).join('\n');
+    }
+    // 顯示結算 toast
+    let msgBase;
+    if (rankingMsg) {
+      msgBase = '';
+    } else {
+      msgBase = result === 'WIN' ? window.t('mp.youWin', '🎉 你是最後存活者！')
+              : result === 'LOSE' ? window.t('mp.youLose', '💀 你被淘汰')
+              : window.t('mp.matchEnd', '對戰結束');
+    }
+    if (typeof showToast === 'function') showToast((msgBase + rankingMsg) || window.t('mp.matchEnd', '對戰結束'), 5000);
+    matchEndReason = null;
+    // 短延遲後還原 UI：清淘汰標記、重置 READY、文字、KO/Lines 顯示
+    setTimeout(() => {
+      gameOver = false;
+      clearMpSlotEliminatedUI();
+      const rBtn = document.getElementById('ready-btn');
+      if (rBtn) {
+        rBtn.disabled = false;
+        rBtn.style.cursor = 'pointer';
+        rBtn.style.opacity = '1';
+      }
+      updateMpReadyButtonUI();
+      updateMpConnStatus();
+      renderMpSlots();
+      // 清自己的盤面回到 lobby 視覺
+      if (typeof board !== 'undefined') {
+        board = (typeof createBoard === 'function') ? createBoard() : board;
+      }
+      activeGarbage = 0;
+      nextGarbage = 0;
+      isKOed = false;
+      gameStarted = false;
+      // 把我的 KO/lines 顯示歸零（下一場重新計）
+      myKOs = 0; myLinesSent = 0;
+      const myKoEl = document.getElementById('my-ko-display'); if (myKoEl) myKoEl.textContent = '0';
+      const myLinesEl = document.getElementById('my-lines-sent-display'); if (myLinesEl) myLinesEl.textContent = '0';
+    }, 1500);
+  }
+  window.mpEndMatch = mpEndMatch;
+
+  // ============================================================
+  // Phase 9：斷線重連（30 秒緩衝）
+  // ============================================================
+  let mpDisconnectMonitor = null;
+
+  function getMpUiSlotForPeer(peerId) {
+    const others = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.slot !== mpMySlot) others.push(v);
+    }
+    others.sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    const idx = others.findIndex(p => p.peerId === peerId);
+    return idx >= 0 ? (idx + 1) : -1;
+  }
+
+  function showMpReconnectOverlay(peerId, seconds) {
+    const s = getMpUiSlotForPeer(peerId);
+    if (s < 0) return;
+    const slotEl = document.getElementById('mp-slot-' + s);
+    if (!slotEl) return;
+    const overlay = slotEl.querySelector('.mp-reconnect-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      const t = overlay.querySelector('.mp-reconnect-timer');
+      if (t) t.textContent = String(seconds);
+    }
+  }
+  function clearMpReconnectOverlay(peerId) {
+    const s = getMpUiSlotForPeer(peerId);
+    if (s < 0) return;
+    const slotEl = document.getElementById('mp-slot-' + s);
+    if (!slotEl) return;
+    const overlay = slotEl.querySelector('.mp-reconnect-overlay');
+    if (overlay) overlay.classList.add('hidden');
+  }
+
+  function startMpDisconnectMonitor() {
+    stopMpDisconnectMonitor();
+    mpDisconnectMonitor = setInterval(() => {
+      if (!window.isMpMulti) return;
+      const now = Date.now();
+      for (const v of mpPlayersMap.values()) {
+        if (!v.disconnectedAt) continue;
+        const remain = Math.max(0, 30 - Math.floor((now - v.disconnectedAt) / 1000));
+        showMpReconnectOverlay(v.peerId, remain);
+        if (remain <= 0 && !v.eliminated) {
+          // 超時：宣告淘汰（只有房主廣播，避免重複）
+          v.eliminated = true;
+          markMpSlotEliminated(v.peerId);
+          if (window.mpIsHost && window.mpGameActive) {
+            broadcastMp({ type: 'MP_ELIMINATED', killerPeerId: null, reason: 'DISCONNECT_TIMEOUT', _victimPeerId: v.peerId });
+          }
+          checkLastSurvivor();
+        }
+      }
+    }, 1000);
+  }
+  function stopMpDisconnectMonitor() {
+    if (mpDisconnectMonitor) { clearInterval(mpDisconnectMonitor); mpDisconnectMonitor = null; }
+  }
+  window.startMpDisconnectMonitor = startMpDisconnectMonitor;
+  window.stopMpDisconnectMonitor = stopMpDisconnectMonitor;
+
+  function updateMpTargetIndicator() {
+    if (!window.isMpMulti) return;
+    // 先全部隱藏
+    document.querySelectorAll('.mp-target-indicator').forEach(el => el.classList.add('hidden'));
+    const strategy = window.mpAttackStrategy || 'RANDOM';
+    // RANDOM：每次攻擊才隨機，不預先標記 🎯
+    if (strategy === 'RANDOM') return;
+    const targetPid = pickMpAttackTarget();
+    if (!targetPid) return;
+    // peerId → UI slot 1~4
+    const others = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.slot !== mpMySlot) others.push(v);
+    }
+    others.sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    const idx = others.findIndex(p => p.peerId === targetPid);
+    if (idx >= 0) {
+      const slotEl = document.getElementById('mp-slot-' + (idx + 1));
+      if (slotEl) {
+        const ind = slotEl.querySelector('.mp-target-indicator');
+        if (ind) ind.classList.remove('hidden');
+        slotEl.classList.add('is-target');
+      }
+    }
+    // 沒有 target 的 slot 移除 is-target class
+    for (let i = 1; i <= 4; i++) {
+      const el = document.getElementById('mp-slot-' + i);
+      if (!el) continue;
+      const ind = el.querySelector('.mp-target-indicator');
+      if (ind && ind.classList.contains('hidden')) el.classList.remove('is-target');
+    }
+  }
+
+  function renderMpSlots() {
+    // 取得「除了我以外」的所有玩家，按 joinOrder（server slot）排序
+    const others = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.slot !== mpMySlot) others.push(v);
+    }
+    others.sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    for (let i = 0; i < 4; i++) {
+      const slotEl = document.getElementById('mp-slot-' + (i + 1));
+      if (!slotEl) continue;
+      const p = others[i] || null;
+      const nameEl = slotEl.querySelector('.mp-slot-name');
+      const koB = slotEl.querySelector('.mp-slot-ko b');
+      const linesB = slotEl.querySelector('.mp-slot-lines b');
+      const canvas = slotEl.querySelector('canvas.mp-mini-board');
+      if (p) {
+        slotEl.classList.remove('empty');
+        if (nameEl) nameEl.textContent = p.name || '—';
+        if (canvas) {
+          const anyRoundActive = window.mpGameActive || isAnyMpRoundActive();
+          if (p.eliminated) {
+            // 留著上次的板面快照 + .mp-eliminated-overlay 覆蓋（由 markMpSlotEliminated 處理）
+            drawMpMiniBoardPlay(canvas, p.boardStr || '', null);
+          } else if (p.boardStr && p.inCurrentRound) {
+            // 有實際板面資料 → 畫真實板面
+            drawMpMiniBoardPlay(canvas, p.boardStr, p.curPiece || null);
+          } else if (anyRoundActive) {
+            // 有人在打但這位是觀戰者 → 顯示「WAITING FOR ROUND END」
+            drawMpMiniBoardSpectatorText(canvas);
+          } else {
+            // 大廳狀態 → READY/WAITING text
+            drawMpMiniBoardReadyText(canvas, !!mpReadyState.get(p.peerId));
+          }
+        }
+      } else {
+        slotEl.classList.add('empty');
+        if (nameEl) nameEl.textContent = '—';
+        if (koB) koB.textContent = '0';
+        if (linesB) linesB.textContent = '0';
+        if (canvas) {
+          const c = canvas.getContext('2d');
+          c.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+    }
+  }
+
+  function drawMpMiniBoardPlay(canvas, boardStr, curPiece) {
+    if (!canvas) return;
+    const c = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    c.clearRect(0, 0, w, h);
+    // 背景
+    c.fillStyle = 'rgba(6,0,79,0.6)';
+    c.fillRect(0, 0, w, h);
+    const cols = (typeof COLS === 'number') ? COLS : 10;
+    const rows = boardStr ? Math.floor(boardStr.length / cols) : 20;
+    const cell = Math.min(Math.floor(w / cols), Math.floor(h / rows));
+    const ox = Math.floor((w - cell * cols) / 2);
+    const oy = Math.floor((h - cell * rows) / 2);
+    // 畫格線（水平 + 垂直）
+    c.strokeStyle = 'rgba(255,255,255,0.12)';
+    c.lineWidth = 1;
+    c.beginPath();
+    for (let r = 0; r <= rows; r++) {
+      c.moveTo(ox + 0.5, oy + r * cell + 0.5);
+      c.lineTo(ox + cell * cols + 0.5, oy + r * cell + 0.5);
+    }
+    for (let col = 0; col <= cols; col++) {
+      c.moveTo(ox + col * cell + 0.5, oy + 0.5);
+      c.lineTo(ox + col * cell + 0.5, oy + cell * rows + 0.5);
+    }
+    c.stroke();
+    // 畫盤面
+    if (boardStr) {
+      for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < cols; col++) {
+          const ch = boardStr[r * cols + col];
+          if (!ch || ch === '.') continue;
+          const color = COLORS[ch] || '#ffffff';
+          c.fillStyle = color;
+          c.fillRect(ox + col * cell, oy + r * cell, cell - 1, cell - 1);
+        }
+      }
+    }
+    // 畫掉落中方塊
+    if (curPiece && curPiece.m) {
+      const color = COLORS[curPiece.t] || '#ffffff';
+      c.fillStyle = color;
+      const startR = (typeof VISIBLE_ROWS === 'number') ? VISIBLE_ROWS : 0;
+      for (let r = 0; r < curPiece.m.length; r++) {
+        for (let col = 0; col < curPiece.m[r].length; col++) {
+          if (!curPiece.m[r][col]) continue;
+          const drawR = (curPiece.r + r) - startR;
+          const drawC = curPiece.c + col;
+          if (drawR < 0 || drawR >= rows || drawC < 0 || drawC >= cols) continue;
+          c.fillRect(ox + drawC * cell, oy + drawR * cell, cell - 1, cell - 1);
+        }
+      }
+    }
+  }
+
+  function drawMpMiniBoardForPeer(peerId) {
+    const others = [];
+    for (const v of mpPlayersMap.values()) {
+      if (v.slot !== mpMySlot) others.push(v);
+    }
+    others.sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    const idx = others.findIndex(p => p.peerId === peerId);
+    if (idx < 0) return;
+    const slotEl = document.getElementById('mp-slot-' + (idx + 1));
+    if (!slotEl) return;
+    const canvas = slotEl.querySelector('canvas.mp-mini-board');
+    if (!canvas) return;
+    const p = others[idx];
+    drawMpMiniBoardPlay(canvas, p.boardStr || '', p.curPiece || null);
+  }
+
+  function isAnyMpRoundActive() {
+    for (const v of mpPlayersMap.values()) {
+      if (v.roundActive) return true;
+    }
+    return false;
+  }
+
+  function drawMpMiniBoardSpectatorText(canvas) {
+    if (!canvas) return;
+    const c = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    c.clearRect(0, 0, w, h);
+    c.fillStyle = 'rgba(6,0,79,0.8)';
+    c.fillRect(0, 0, w, h);
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = '#38bdee';
+    c.font = '900 13px Arial';
+    c.fillText('WAITING', w / 2, h / 2 - 18);
+    c.fillText('FOR ROUND', w / 2, h / 2);
+    c.fillText('END', w / 2, h / 2 + 18);
+  }
+
+  function drawMpMiniBoardReadyText(canvas, ready) {
+    if (!canvas) return;
+    const c = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    c.clearRect(0, 0, w, h);
+    c.fillStyle = 'rgba(6,0,79,0.8)';
+    c.fillRect(0, 0, w, h);
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    if (ready) {
+      c.fillStyle = '#48d62f';
+      c.font = '900 18px Arial';
+      c.fillText('READY !', w / 2, h / 2);
+    } else {
+      c.fillStyle = '#f2f2f2';
+      c.font = '900 14px Arial';
+      c.fillText('WAITING...', w / 2, h / 2 - 8);
+      c.fillStyle = 'rgba(255,255,255,0.6)';
+      c.font = '700 11px Arial';
+      c.fillText('NOT READY', w / 2, h / 2 + 10);
+    }
+  }
+
+  function syncMpHostPanelUI() {
+    const codeEl = document.getElementById('mp-room-code');
+    if (codeEl) codeEl.textContent = window.mpHostSettings.roomCode || '------';
+    document.querySelectorAll('#mp-host-panel .mode-btn[data-mp-mode]').forEach(b => {
+      b.classList.toggle('selected', b.dataset.mpMode === window.mpHostSettings.mode);
+    });
+    document.querySelectorAll('#mp-wincond-group [data-wincond]').forEach(b => {
+      b.classList.toggle('selected', b.dataset.wincond === window.mpHostSettings.winCondition);
+    });
+    const readonly = !window.mpIsHost;
+    document.querySelectorAll('#mp-host-panel .mode-btn[data-mp-mode], #mp-wincond-group [data-wincond]').forEach(b => {
+      b.style.opacity = readonly ? '0.7' : '';
+      b.style.cursor = readonly ? 'default' : 'pointer';
+    });
+  }
+
+  async function pushMpHostSettings() {
+    if (!window.mpRoomId || !window.mpIsHost) return;
+    try {
+      await rtdb.ref('/mpRooms/' + window.mpRoomId).update({
+        mode: window.mpHostSettings.mode,
+        winCondition: window.mpHostSettings.winCondition
+      });
+    } catch (e) { console.warn('pushMpHostSettings err', e); }
+  }
+
+  // 提供給 INVITE 流程：受邀者進來時不要 auto-create，要 join 邀請者的房間
+  window.enterMpMultiAndJoin = async function(code) {
+    if (!code) return false;
+    if (isMultiplayer) return false; // 1v1 中拒絕
+    if (window.isMpMulti) {
+      await leaveMpRoom();
+      return joinMpRoomByCode(code);
+    }
+    enterMpMultiPreview({ skipAutoCreate: true });
+    return joinMpRoomByCode(code);
+  };
+
+  function enterMpMultiPreview(opts) {
+    opts = opts || {};
+    if (isMultiplayer) return;
+    if (isPracticeMode) {
+      const pb = document.getElementById('practice-btn');
+      if (pb) pb.click();
+    }
+    window.isMpMulti = true;
+    document.body.classList.add('battle-mode'); // 隱藏 EN 切換鈕，與 1v1 對戰一致
+    const layout = document.getElementById('layout');
+    // 同時套用 1v1 的 is-multiplayer (排版) 與 mp-multi 標記 (右邊網格 override)
+    if (layout) {
+      layout.classList.add('is-multiplayer');
+      layout.classList.add('is-mp-multi');
+    }
+    // 只隱藏排行榜（leaderboard-container）。leaderboard-column 殼留著占位，
+    // 才能維持左翼 540px 對稱結構，未來 Phase 2 在這放房主設定面板
+    const lbContainer = document.getElementById('leaderboard-container');
+    if (lbContainer) lbContainer.style.display = 'none';
+    // 隱藏單機計分面板（有 inline display:flex 必須用 style 蓋過）
+    const singleUI = document.getElementById('singleplayer-ui');
+    if (singleUI) singleUI.style.display = 'none';
+    // 顯示 4 槽網格與攻擊策略條
+    const grid = document.getElementById('mp-opp-grid');
+    if (grid) { grid.classList.remove('hidden'); grid.style.display = 'grid'; }
+    const strat = document.getElementById('mp-attack-strategy');
+    if (strat) { strat.classList.remove('hidden'); strat.style.display = 'flex'; }
+    // 顯示房主設定面板（取代排行榜位置）
+    const hostPanel = document.getElementById('mp-host-panel');
+    if (hostPanel) hostPanel.classList.remove('hidden');
+    // 顯示自己側的 KO / LINES SENT（複用 1v1 的 .mp-only 元件）
+    document.querySelectorAll('.mp-only').forEach(el => el.classList.remove('hidden'));
+    // Phase 4：啟動 mesh 心跳（連線在 RTDB listener 進來後 manageMpMesh 才會建立）
+    window.mpIAmReady = false;
+    startMpHeartbeat();
+    // Phase 3：自動建立 RTDB 房間（成為房主）。失敗時退回本地 fallback code。
+    // 若是被邀請進來（skipAutoCreate）則交給呼叫端 joinMpRoomByCode
+    if (!opts.skipAutoCreate) {
+      createMpRoom().then(ok => {
+        if (!ok) {
+          if (!window.mpHostSettings.roomCode) window.mpHostSettings.roomCode = generateMpRoomCode();
+          syncMpHostPanelUI();
+        }
+        updateMpConnStatus();
+      });
+    }
+    // 立即顯示「等待玩家加入…」
+    const el0 = document.getElementById('conn-status');
+    if (el0) { el0.textContent = window.t('multiplayer.waitingPlayers', 'Status: 等待玩家加入…'); el0.style.color = 'var(--O)'; }
+    // 顯示計時器與離開按鈕（重用 1v1 既有元件、既有位置）
+    const vsTimer = document.getElementById('vs-timer');
+    if (vsTimer) vsTimer.classList.remove('hidden');
+    const leaveBtn = document.getElementById('mp-leave-btn');
+    if (leaveBtn) leaveBtn.classList.remove('hidden');
+    // 沿用 1v1 的 settings-container 重新定位（這樣 FPS / EN 按鈕會搬到 layout 內，
+    // LEAVE ROOM 與 FPS 按鈕並排，跟 AI 對戰一模一樣）
+    const settingsContainer = document.getElementById('settings-container');
+    const fpsBtn = document.getElementById('fps-mode-btn');
+    const isMobileLayoutEnter = window.matchMedia('(max-width: 820px)').matches;
+    // ONLINE 框：搬進 #layout 本體（會跟 layout 一起 transform scale），用絕對定位放在
+    // LEAVE ROOM 下方右靠的位置——和原本未縮放前視覺一致，但這次會跟著縮放
+    const onlinePanelMp = document.getElementById('online-panel');
+    if (onlinePanelMp && layout && !isMobileLayoutEnter) {
+      window.__mpOnlineOriginalParent = onlinePanelMp.parentElement;
+      window.__mpOnlineOriginalNext = onlinePanelMp.nextElementSibling;
+      window.__mpOnlineOriginalStyles = {
+        position: onlinePanelMp.style.position,
+        right: onlinePanelMp.style.right,
+        top: onlinePanelMp.style.top,
+        width: onlinePanelMp.style.width,
+        maxHeight: onlinePanelMp.style.maxHeight,
+        margin: onlinePanelMp.style.margin,
+        zIndex: onlinePanelMp.style.zIndex
+      };
+      layout.appendChild(onlinePanelMp);
+      onlinePanelMp.style.position = 'absolute';
+      onlinePanelMp.style.right = '0';
+      onlinePanelMp.style.top = '0';
+      onlinePanelMp.style.width = '220px';
+      onlinePanelMp.style.maxHeight = '420px';
+      onlinePanelMp.style.margin = '0';
+      onlinePanelMp.style.zIndex = '90';
+    }
+    if (settingsContainer && layout && !isMobileLayoutEnter) {
+      window.__mpSettingsOriginalParent = settingsContainer.parentElement;
+      window.__mpSettingsOriginalNext = settingsContainer.nextElementSibling;
+      layout.appendChild(settingsContainer);
+      settingsContainer.style.top = '-60px';
+      settingsContainer.style.right = '175px';
+      settingsContainer.style.width = '160px';
+      if (fpsBtn) {
+        fpsBtn.style.width = '160px';
+        fpsBtn.style.padding = '10px 0';
+        fpsBtn.style.textAlign = 'center';
+        fpsBtn.style.fontSize = '14px';
+        fpsBtn.style.borderRadius = '25px';
+        fpsBtn.style.background = 'transparent';
+        fpsBtn.style.backdropFilter = 'blur(4px)';
+      }
+    }
+    // MULTIPLAYER 框內容切換成 1v1 對戰模式樣子
+    const mpInputGroupMp = document.getElementById('mp-input-group');
+    if (mpInputGroupMp) mpInputGroupMp.style.display = 'none';
+    const mpReadyGroupMp = document.getElementById('mp-ready-group');
+    if (mpReadyGroupMp) mpReadyGroupMp.style.display = 'flex';
+    const aiBtnMp = document.getElementById('ai-btn');
+    if (aiBtnMp) aiBtnMp.classList.add('hidden');
+    const scoreboardMp = document.getElementById('scoreboard');
+    if (scoreboardMp) scoreboardMp.style.display = 'block';
+    const emojiPanelMp = document.getElementById('emoji-hint-panel');
+    if (emojiPanelMp) emojiPanelMp.classList.remove('hidden');
+    // 按鈕變狀態
+    const btn = document.getElementById('multiplayer-btn');
+    if (btn) {
+      btn.textContent = window.t('multiplayer.leaveRoom', '🚪 離開房間');
+      btn.style.background = 'var(--I)';
+      btn.style.color = 'var(--bg)';
+    }
+    if (typeof fitLayout === 'function') fitLayout();
+  }
+
+  function exitMpMultiPreview() {
+    window.isMpMulti = false;
+    // 還原 EN 切換鈕（若已進入真正對戰，battle-mode 由 enterMultiplayerMode 維持）
+    if (!isMultiplayer) document.body.classList.remove('battle-mode');
+    const layout = document.getElementById('layout');
+    if (layout) {
+      layout.classList.remove('is-mp-multi');
+      layout.classList.remove('is-multiplayer');
+    }
+    const lbContainer = document.getElementById('leaderboard-container');
+    if (lbContainer) lbContainer.style.display = 'flex';
+    const singleUI = document.getElementById('singleplayer-ui');
+    if (singleUI) singleUI.style.display = 'flex';
+    const grid = document.getElementById('mp-opp-grid');
+    if (grid) { grid.style.display = ''; grid.classList.add('hidden'); }
+    const strat = document.getElementById('mp-attack-strategy');
+    if (strat) { strat.style.display = ''; strat.classList.add('hidden'); }
+    const hostPanel = document.getElementById('mp-host-panel');
+    if (hostPanel) hostPanel.classList.add('hidden');
+    // 還原 .mp-only 隱藏狀態（若仍在 1v1 對戰會由 enterMultiplayerMode 自己處理）
+    if (!isMultiplayer) {
+      document.querySelectorAll('.mp-only').forEach(el => el.classList.add('hidden'));
+    }
+    // Phase 4：關掉 mesh 連線與心跳
+    stopMpHeartbeat();
+    closeAllMpConns();
+    // Phase 6：關掉 state 廣播 & 還原 1v1 旗標
+    stopMpStateBroadcast();
+    stopMpDisconnectMonitor();
+    // 清掉所有 reconnect overlay 與淘汰旗標的 UI
+    for (let s = 1; s <= 4; s++) {
+      const el = document.getElementById('mp-slot-' + s);
+      if (!el) continue;
+      const ov = el.querySelector('.mp-reconnect-overlay');
+      if (ov) ov.classList.add('hidden');
+      el.style.filter = '';
+      el.classList.remove('eliminated');
+    }
+    if (window.mpGameActive) {
+      window.mpGameActive = false;
+      isMultiplayer = false;
+      iAmReady = false;
+      oppIsReady = false;
+    }
+    window.mpIAmReady = false;
+    window.mpIsSpectatorWaiting = false;
+    // Phase 3：離開 RTDB 房間並清空本地代碼
+    leaveMpRoom().finally(() => { window.mpHostSettings.roomCode = null; });
+    const vsTimer = document.getElementById('vs-timer');
+    if (vsTimer) vsTimer.classList.add('hidden');
+    const leaveBtn = document.getElementById('mp-leave-btn');
+    if (leaveBtn) leaveBtn.classList.add('hidden');
+    // 還原 settings-container 位置
+    const settingsContainer = document.getElementById('settings-container');
+    const fpsBtn = document.getElementById('fps-mode-btn');
+    if (settingsContainer) {
+      const origParent = window.__mpSettingsOriginalParent;
+      const origNext = window.__mpSettingsOriginalNext;
+      if (origParent) {
+        if (origNext && origNext.parentElement === origParent) origParent.insertBefore(settingsContainer, origNext);
+        else origParent.appendChild(settingsContainer);
+      }
+      // 恢復原 inline 樣式（HTML 上就有 right:20px; top:20px; 用 '' 會把那行擦掉）
+      settingsContainer.style.top = '20px';
+      settingsContainer.style.right = '20px';
+      settingsContainer.style.width = '220px';
+      if (fpsBtn) {
+        fpsBtn.style.width = '220px';
+        fpsBtn.style.padding = '10px';
+        fpsBtn.style.textAlign = 'center';
+        fpsBtn.style.fontSize = '14px';
+        fpsBtn.style.borderRadius = '8px';
+        fpsBtn.style.background = 'transparent';
+        fpsBtn.style.backdropFilter = 'none';
+      }
+      window.__mpSettingsOriginalParent = null;
+      window.__mpSettingsOriginalNext = null;
+    }
+    // 還原 ONLINE 框回原本 settings-container 內
+    const onlinePanelMpExit = document.getElementById('online-panel');
+    if (onlinePanelMpExit && window.__mpOnlineOriginalParent) {
+      const oParent = window.__mpOnlineOriginalParent;
+      const oNext = window.__mpOnlineOriginalNext;
+      if (oNext && oNext.parentElement === oParent) oParent.insertBefore(onlinePanelMpExit, oNext);
+      else oParent.appendChild(onlinePanelMpExit);
+      const s = window.__mpOnlineOriginalStyles || {};
+      onlinePanelMpExit.style.position = s.position || 'static';
+      onlinePanelMpExit.style.right = s.right || '';
+      onlinePanelMpExit.style.top = s.top || '';
+      onlinePanelMpExit.style.width = s.width || '220px';
+      onlinePanelMpExit.style.maxHeight = s.maxHeight || 'calc(100vh - 120px)';
+      onlinePanelMpExit.style.margin = s.margin || '0';
+      onlinePanelMpExit.style.zIndex = s.zIndex || '';
+      window.__mpOnlineOriginalParent = null;
+      window.__mpOnlineOriginalNext = null;
+      window.__mpOnlineOriginalStyles = null;
+    }
+    // 還原 MULTIPLAYER 框內容
+    if (!isMultiplayer) {
+      const mpInputGroupMpExit = document.getElementById('mp-input-group');
+      if (mpInputGroupMpExit) mpInputGroupMpExit.style.display = 'flex';
+      const mpReadyGroupMpExit = document.getElementById('mp-ready-group');
+      if (mpReadyGroupMpExit) mpReadyGroupMpExit.style.display = 'none';
+      const aiBtnMpExit = document.getElementById('ai-btn');
+      if (aiBtnMpExit) aiBtnMpExit.classList.remove('hidden');
+      const scoreboardMpExit = document.getElementById('scoreboard');
+      if (scoreboardMpExit) scoreboardMpExit.style.display = 'none';
+      const emojiPanelMpExit = document.getElementById('emoji-hint-panel');
+      if (emojiPanelMpExit) emojiPanelMpExit.classList.add('hidden');
+    }
+    const btn = document.getElementById('multiplayer-btn');
+    if (btn) {
+      btn.textContent = window.t('btn.multiplayer', '🌐 多人對戰');
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--I)';
+    }
+    if (typeof fitLayout === 'function') fitLayout();
+  }
+
+  const multiplayerBtn = document.getElementById('multiplayer-btn');
+  if (multiplayerBtn) {
+    multiplayerBtn.addEventListener('click', () => {
+      if (window.isMpMulti) exitMpMultiPreview();
+      else enterMpMultiPreview();
+    });
+  }
+
+  // 攻擊策略按鈕：選中態切換（實際送出邏輯在 Phase 5）
+  document.querySelectorAll('#mp-attack-strategy .mp-strategy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#mp-attack-strategy .mp-strategy-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      window.mpAttackStrategy = btn.dataset.strategy;
+      updateMpTargetIndicator(); // Phase 5：切策略時即時更新 🎯
+    });
+  });
+  // 鍵盤 1~4 切換攻擊策略（Tetris 99 風）
+  document.addEventListener('keydown', (e) => {
+    if (!window.isMpMulti) return;
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    const map = { 'Digit1': 'RANDOM', 'Digit2': 'COUNTER', 'Digit3': 'THREAT', 'Digit4': 'ELIMINATE' };
+    const strat = map[e.code];
+    if (!strat) return;
+    const btn = document.querySelector(`#mp-attack-strategy .mp-strategy-btn[data-strategy="${strat}"]`);
+    if (btn) btn.click();
+  });
+
+  // === Phase 2：房主設定面板互動 ===
+  // 模式（BOMB / CLASSIC）按鈕
+  document.querySelectorAll('#mp-host-panel .mode-btn[data-mp-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!window.mpIsHost) return; // 非房主：唯讀
+      document.querySelectorAll('#mp-host-panel .mode-btn[data-mp-mode]').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      window.mpHostSettings.mode = btn.dataset.mpMode;
+      pushMpHostSettings();
+    });
+  });
+  // 勝利條件按鈕
+  document.querySelectorAll('#mp-wincond-group [data-wincond]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!window.mpIsHost) return;
+      document.querySelectorAll('#mp-wincond-group [data-wincond]').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      window.mpHostSettings.winCondition = btn.dataset.wincond;
+      pushMpHostSettings();
+    });
+  });
+  // 複製房間代碼
+  const mpCopyBtn = document.getElementById('mp-copy-code-btn');
+  if (mpCopyBtn) {
+    mpCopyBtn.addEventListener('click', async () => {
+      const code = window.mpHostSettings.roomCode;
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        // 後備：選取一個臨時 input
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch {}
+        document.body.removeChild(ta);
+      }
+      const orig = mpCopyBtn.textContent;
+      mpCopyBtn.textContent = window.t('multiplayer.copied', '已複製！');
+      setTimeout(() => { mpCopyBtn.textContent = window.t('multiplayer.copyCode', '📋 複製'); }, 1200);
+    });
+  }
+
+  // 加入房間（用代碼）：先離開本地自動建立的房間，再 join
+  const mpJoinBtn = document.getElementById('mp-join-code-btn');
+  const mpJoinInput = document.getElementById('mp-join-code-input');
+  if (mpJoinInput) {
+    mpJoinInput.addEventListener('input', () => {
+      mpJoinInput.value = mpJoinInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    });
+    mpJoinInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && mpJoinBtn) mpJoinBtn.click();
+    });
+  }
+  if (mpJoinBtn) {
+    mpJoinBtn.addEventListener('click', async () => {
+      const code = (mpJoinInput && mpJoinInput.value || '').trim().toUpperCase();
+      if (!code || code.length < 4) { setMpJoinStatus(window.t('multiplayer.joinNotFound', '找不到房間代碼')); return; }
+      mpJoinBtn.disabled = true;
+      setMpJoinStatus(window.t('multiplayer.searching', '查詢中…'), 'info');
+      try {
+        // 1) 先確認代碼存在 → 才動我自己的房間，避免失敗後卡住
+        const idxSnap = await rtdb.ref('/mpRoomCodes/' + code).once('value');
+        const idx = idxSnap.val();
+        if (!idx || !idx.roomId) { setMpJoinStatus(window.t('multiplayer.joinNotFound', '找不到房間代碼') + ': ' + code); return; }
+        // 2) 離開自己原本的房間
+        await leaveMpRoom();
+        // 3) 加入
+        const ok = await joinMpRoomByCode(code);
+        if (ok) {
+          if (mpJoinInput) mpJoinInput.value = '';
+          setMpJoinStatus('');
+        } else {
+          // 加入失敗 → 重新建一個自己的房間
+          await createMpRoom();
+        }
+      } catch (e) {
+        console.warn('JOIN error:', e);
+        setMpJoinStatus(window.t('multiplayer.joinError', '加入失敗：') + (e && e.message ? e.message : 'unknown'));
+      } finally {
+        mpJoinBtn.disabled = false;
+      }
+    });
+  }
 
   if (practiceBtn) {
     practiceBtn.addEventListener('click', () => {
       if (isMultiplayer) return; // 對戰中不允許切換
+      if (window.isMpMulti) return; // 多人對戰預覽中不允許切換
 
       isPracticeMode = !isPracticeMode;
 
+      const leaderboardColumn = document.getElementById('leaderboard-column');
       if (isPracticeMode) {
         practiceBtn.textContent = window.t('practice.btnExit', '🟩 離開練習模式');
         practiceBtn.style.background = 'var(--S)';
         practiceBtn.style.color = 'var(--bg)';
         practiceBtn.style.borderColor = 'var(--S)';
+        // 先記住排行榜目前的高度，鎖到欄位 min-height，避免換成練習面板後整體變矮、頁面位移
+        if (leaderboardColumn && comboLeaderboardContainer) {
+          const h = comboLeaderboardContainer.offsetHeight;
+          if (h > 0) leaderboardColumn.style.minHeight = h + 'px';
+        }
+        // 隱藏排行榜、顯示 Combo Room / 自由排版 入口
+        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'none';
+        if (practiceModeActions) practiceModeActions.classList.remove('hidden');
         // Combo Room 進行中時，名稱優先顯示 Combo Room 標示
-        if (myNameDisplay && !isNarrowMode) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
+        if (myNameDisplay && !isNarrowMode && !isFreeMode) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
       } else {
         practiceBtn.textContent = window.t('btn.practice', '🟨 進入練習模式');
         practiceBtn.style.background = 'transparent';
         practiceBtn.style.color = 'var(--O)';
         practiceBtn.style.borderColor = 'var(--O)';
-        if (myNameDisplay && !isNarrowMode) myNameDisplay.innerHTML = 'You';
+        // 離開練習模式時，順便退出 Combo Room / 自由排版
+        if (typeof exitNarrowMode === 'function') exitNarrowMode();
+        if (typeof exitFreeMode === 'function') exitFreeMode();
+        if (practiceModeActions) practiceModeActions.classList.add('hidden');
+        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'flex';
+        if (leaderboardColumn) leaderboardColumn.style.minHeight = '';
+        if (myNameDisplay) myNameDisplay.innerHTML = 'You';
       }
 
-      // 如果遊戲正在進行中，強制重新開始以套用設定
-      if (gameStarted || countdownValue > 0) {
-        gameOver = true;
-        startCountdown();
-      }
+      // 切換練習模式時把單機盤面徹底收乾淨：
+      // 進練習模式 → 等使用者選 Combo Room 或 自由排版
+      // 出練習模式 → 回到 PRESS ENTER 起始畫面
+      resetToPressEnter();
     });
   }
 
@@ -8551,37 +10309,36 @@
   if (comboRoomBtn) {
     comboRoomBtn.addEventListener('click', () => {
       if (isMultiplayer) return; // 對戰中（含 AI 對戰）不允許切換
+      if (!isPracticeMode) return; // 必須先進練習模式才能用
 
       isNarrowMode = !isNarrowMode;
 
       if (isNarrowMode) {
         // 互斥：進 Combo Room 時自動退出自由排版
         if (typeof exitFreeMode === 'function') exitFreeMode();
+        const am = document.getElementById('action-msg');
+        if (am) am.textContent = '';
         setComboRoomBtnState(true);
-        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'none';
         if (comboRoomPanel) comboRoomPanel.classList.remove('hidden');
         if (myNameDisplay) myNameDisplay.innerHTML = `You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(${narrowWidth}-Wide Combo Room，不計排名)</span>`;
       } else {
         setComboRoomBtnState(false);
         if (comboRoomPanel) comboRoomPanel.classList.add('hidden');
-        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'flex';
         if (myNameDisplay) {
-          // 還原名稱顯示：若同時也在練習模式，保留練習模式的標示
-          if (isPracticeMode) {
-            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
-          } else {
-            myNameDisplay.innerHTML = 'You';
-          }
+          // 仍在練習模式 → 回到練習模式的標示
+          myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
         }
       }
 
-      // 套用新的場地寬度：若遊戲進行中強制重啟，否則只重畫盤面預覽
-      if (gameStarted || countdownValue > 0) {
-        gameOver = true;
+      if (isNarrowMode) {
+        // 進入 Combo Room：重啟以套用新寬度（startCountdown 因為 isNarrowMode 已 true 不會被擋）
+        if (gameStarted || countdownValue > 0) {
+          gameOver = true;
+        }
         startCountdown();
       } else {
-        board = createBoard();
-        if (typeof draw === 'function') draw();
+        // 離開 Combo Room：仍在練習模式無法重啟，徹底清乾淨回到 PRESS ENTER
+        resetToPressEnter();
       }
     });
   }
@@ -8665,29 +10422,34 @@
   if (freeModeBtn) {
     freeModeBtn.addEventListener('click', () => {
       if (isMultiplayer) return; // 對戰中不允許切換
+      if (!isPracticeMode) return; // 必須先進練習模式才能用
 
       isFreeMode = !isFreeMode;
 
       if (isFreeMode) {
         exitNarrowMode(); // 互斥：進 Free Mode 自動退 Combo Room
+        const am = document.getElementById('action-msg');
+        if (am) am.textContent = '';
         setFreeModeBtnState(true);
-        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'none';
         if (freeModePanel) freeModePanel.classList.remove('hidden');
         if (myNameDisplay) myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">(自由排版，不計排名)</span>';
       } else {
         setFreeModeBtnState(false);
         if (freeModePanel) freeModePanel.classList.add('hidden');
-        if (comboLeaderboardContainer) comboLeaderboardContainer.style.display = 'flex';
         if (myNameDisplay) {
-          if (isPracticeMode) {
-            myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
-          } else {
-            myNameDisplay.innerHTML = 'You';
-          }
+          // 仍在練習模式 → 回到練習模式的標示
+          myNameDisplay.innerHTML = 'You<br><span style="font-size:12px; color:rgba(255,255,255,0.7); letter-spacing:0px;">' + window.t('practice.subtitle', '(練習模式，不計排名)') + '</span>';
         }
       }
       applyQueueVisibility();
-      maybeRestartGame();
+      if (isFreeMode) {
+        if (gameStarted || countdownValue > 0) {
+          gameOver = true;
+        }
+        startCountdown();
+      } else {
+        resetToPressEnter();
+      }
     });
   }
 

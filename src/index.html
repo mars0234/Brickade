@@ -238,6 +238,168 @@
     justify-content: flex-start;
   }
 
+  /* ====== 多人對戰 (最多 5 人) ======
+     做法：套用 1v1 對戰排版 (.is-multiplayer)，只在右邊把對手框換成 4 格網格。
+     不動左翼、不動標題、不動 LEAVE ROOM。完全複用 1v1 已調好的排版。 */
+  .battle-layout.is-mp-multi #opp-panel { display: none !important; }
+  .battle-layout.is-mp-multi #mp-opp-grid { display: grid !important; }
+  .battle-layout.is-mp-multi #mp-attack-strategy { display: flex !important; }
+  .battle-layout.is-mp-multi .right-wing {
+    flex-direction: column !important;
+    align-items: flex-start;
+    /* 1v1 的右翼是完整對手 game-section ~570px 寬，但 mp 模式網格只有 ~330px。
+       用 padding-right 補上 240px 視覺寬度差 → 左右對稱 → YOU 框落回視窗中心 */
+    padding-right: 240px !important;
+    box-sizing: content-box !important;
+  }
+
+  #mp-opp-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 160px);
+    grid-template-rows: repeat(2, 290px);
+    gap: 10px;
+    margin-top: 65px; /* 對齊 .game-section 內 .game-title 的高度 */
+  }
+
+  .mp-opp-slot {
+    position: relative;
+    background: rgba(8, 12, 35, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+  }
+  .mp-opp-slot.empty {
+    background: rgba(8, 12, 35, 0.4);
+    border-style: dashed;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  .mp-opp-slot.empty .mp-mini-board,
+  .mp-opp-slot.empty .mp-slot-name,
+  .mp-opp-slot.empty .mp-slot-stats { opacity: 0.15; }
+  .mp-opp-slot:not(.empty) .mp-slot-empty-label { display: none; }
+  .mp-opp-slot.empty .mp-slot-empty-label {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 13px;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 2px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .mp-opp-slot.is-target {
+    border-color: var(--Z);
+    box-shadow: 0 0 14px rgba(255, 13, 98, 0.65), inset 0 0 8px rgba(255, 13, 98, 0.35);
+  }
+
+  .mp-mini-board {
+    width: 120px;
+    height: 240px;
+    background: var(--cell-bg, #06004f);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+
+  .mp-slot-name {
+    font-size: 12px;
+    font-weight: 900;
+    color: var(--white);
+    letter-spacing: 1px;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mp-slot-stats {
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .mp-slot-stats .mp-slot-ko b { color: var(--Z); }
+  .mp-slot-stats .mp-slot-lines b { color: var(--I); }
+
+  .mp-target-indicator {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 18px;
+    text-shadow: 0 0 6px var(--Z);
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .mp-reconnect-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--O);
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    z-index: 4;
+    text-shadow: 0 0 8px var(--O);
+    backdrop-filter: blur(2px);
+  }
+  .mp-reconnect-overlay .mp-reconnect-timer { color: var(--white); }
+
+  .mp-eliminated-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 4;
+    filter: grayscale(1);
+  }
+
+  /* 攻擊策略選擇器（暫時放在 6 槽網格下方；正式版要移到 YOU 遊戲框上方） */
+  #mp-attack-strategy {
+    display: none;
+    gap: 6px;
+    margin-top: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .mp-strategy-btn {
+    background: rgba(8, 12, 35, 0.85);
+    color: rgba(255, 255, 255, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mp-strategy-btn:hover { color: var(--white); border-color: rgba(255, 255, 255, 0.5); }
+  .mp-strategy-btn.selected {
+    color: var(--white);
+    border-color: var(--Z);
+    background: rgba(255, 13, 98, 0.18);
+    box-shadow: 0 0 8px rgba(255, 13, 98, 0.5);
+  }
+
   /* 戰鬥競技場 (用來置中與縮放) */
   .battle-layout {
     display: flex;
@@ -2448,7 +2610,7 @@
         </div>
       </div>
       <div style="display: flex; gap: 20px; width: 100%;">
-        <div style="width: 260px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0;">
+        <div id="leaderboard-column" style="width: 260px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0;">
 
           <!-- 排行榜（預設顯示） -->
           <div id="leaderboard-container" style="display:flex; flex-direction:column; gap:12px;">
@@ -2498,27 +2660,86 @@
             </div>
           </div>
 
-          <!-- Combo Room 設定面板（進 Combo Room 才顯示，取代排行榜） -->
-          <div class="info-panel hidden" id="combo-room-panel" style="border-color:var(--Z); box-shadow:0 0 10px rgba(255,13,98,0.3);">
-            <h2 style="text-align:center; color:var(--Z); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--Z); letter-spacing:2px;">⚡ COMBO ROOM</h2>
+          <!-- 多人對戰：房主設定面板（mp-multi 模式才顯示，取代排行榜） -->
+          <div class="info-panel hidden" id="mp-host-panel" style="border-color:var(--I); box-shadow:0 0 10px rgba(56,189,238,0.3);">
+            <h2 data-i18n="multiplayer.hostSettings" style="text-align:center; color:var(--I); margin:0 0 12px 0; font-size:22px; text-shadow:0 0 8px var(--I); letter-spacing:2px;">🎮 房主設定</h2>
+
+            <!-- 房間代碼 -->
+            <div style="margin-bottom:10px;">
+              <div class="ai-setting-label" data-i18n="multiplayer.roomCodeLabel" style="margin-bottom:6px;">房間代碼</div>
+              <div style="display:flex; gap:6px; align-items:stretch;">
+                <div id="mp-room-code" style="flex:1; padding:8px; background:rgba(56,189,238,0.12); border:2px solid var(--I); border-radius:6px; text-align:center; font-family:monospace; font-weight:900; font-size:20px; letter-spacing:3px; color:var(--I);">------</div>
+                <button id="mp-copy-code-btn" data-i18n="multiplayer.copyCode" style="padding:0 12px; background:transparent; border:2px solid var(--I); color:var(--I); border-radius:6px; cursor:pointer; font-weight:900; font-size:12px;">📋 複製</button>
+              </div>
+            </div>
+
+            <!-- 加入別人的房間 -->
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label" data-i18n="comboRoom.widthLabel">📐 場地寬度</div>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="combo-width-group">
-                <button class="ai-option-btn" data-width="3">3-Wide</button>
-                <button class="ai-option-btn selected" data-width="4">4-Wide</button>
+              <div class="ai-setting-label" data-i18n="multiplayer.joinByCode" style="margin-bottom:6px;">輸入代碼加入</div>
+              <div style="display:flex; gap:5px; align-items:stretch; min-width:0;">
+                <input id="mp-join-code-input" maxlength="6" placeholder="ABC123" style="flex:1; min-width:0; padding:7px 4px; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.2); border-radius:6px; color:#fff; text-align:center; font-family:monospace; font-weight:900; font-size:14px; letter-spacing:1px; text-transform:uppercase; box-sizing:border-box;" />
+                <button id="mp-join-code-btn" data-i18n="multiplayer.joinBtn" style="flex:0 0 auto; padding:0 8px; background:var(--S); border:2px solid var(--S); color:var(--bg); border-radius:6px; cursor:pointer; font-weight:900; font-size:11px;">JOIN</button>
               </div>
-              <div data-i18n="comboRoom.iWarning" style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:10px; line-height:1.5;">
-                ⚠️ 3-Wide 的 I 方塊會自動鎖死直立姿態。
+              <div id="mp-join-status" style="margin-top:6px; min-height:14px; font-size:11px; text-align:center; color:var(--Z);"></div>
+            </div>
+
+            <!-- 對戰模式 -->
+            <div style="margin-bottom:14px;">
+              <div class="ai-setting-label" data-i18n="multiplayer.modeLabel" style="margin-bottom:6px;">對戰模式</div>
+              <div class="mode-buttons-row">
+                <button class="mode-btn selected" data-mp-mode="BOMB" id="mp-mode-bomb-btn">
+                  <span class="mode-btn-icon">💣</span>
+                  <span class="mode-btn-name">BOMB</span>
+                  <span class="mode-btn-desc" data-i18n="matchMode.bombDesc">炸彈引爆消行</span>
+                </button>
+                <button class="mode-btn" data-mp-mode="CLASSIC" id="mp-mode-classic-btn">
+                  <span class="mode-btn-icon">🧱</span>
+                  <span class="mode-btn-name">CLASSIC</span>
+                  <span class="mode-btn-desc" data-i18n="matchMode.classicDesc">原版垃圾行</span>
+                </button>
               </div>
             </div>
-            <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(255,13,98,0.1); border-radius:6px;">
-              <span data-i18n="comboRoom.rulesText">📜 規則：掉落速度固定，盡量拉高 COMBO。</span><br>
-              <span data-i18n="comboRoom.notRanked">不計排名、不上傳最高分。</span>
+
+            <!-- 勝利條件 -->
+            <div style="margin-bottom:10px;">
+              <div class="ai-setting-label" data-i18n="multiplayer.winCondLabel" style="margin-bottom:6px;">勝利條件</div>
+              <div style="display:flex; flex-direction:column; gap:5px;" id="mp-wincond-group">
+                <button class="ai-option-btn selected" data-wincond="LAST_SURVIVOR" data-i18n="multiplayer.winCondLastSurvivor">最後存活者</button>
+                <button class="ai-option-btn" data-wincond="TIMED_RANK" data-i18n="multiplayer.winCondTimedRank">計時排名 (2 分鐘)</button>
+                <button class="ai-option-btn" data-wincond="HYBRID" data-i18n="multiplayer.winCondHybrid">混合 (5 分鐘保險)</button>
+              </div>
             </div>
+
+            <div data-i18n="multiplayer.minPlayers" style="margin-top:10px; padding:6px 8px; text-align:center; font-size:11px; color:rgba(255,255,255,0.6); background:rgba(56,189,238,0.08); border-radius:4px;">至少 2 人即可開始</div>
           </div>
 
-          <!-- 自由排版設定面板（進自由排版才顯示，取代排行榜） -->
-          <div class="info-panel hidden" id="free-mode-panel" style="border-color:var(--I); box-shadow:0 0 10px rgba(56,189,238,0.3);">
+          <!-- 練習模式：Combo Room / 自由排版 入口（取代排行榜） -->
+          <div class="hidden" id="practice-mode-actions" style="display:flex; flex-direction:column; gap:12px;">
+            <button id="combo-room-btn" data-i18n="btn.comboRoom" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18)); color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; box-shadow:0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25); text-shadow:0 0 6px rgba(255,13,98,0.7);">⚡ 進入 COMBO ROOM</button>
+
+            <!-- Combo Room 設定面板（按下 Combo Room 才顯示，緊接在按鈕下方） -->
+            <div class="info-panel hidden" id="combo-room-panel" style="border-color:var(--Z); box-shadow:0 0 10px rgba(255,13,98,0.3);">
+              <h2 style="text-align:center; color:var(--Z); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--Z); letter-spacing:2px;">⚡ COMBO ROOM</h2>
+              <div style="margin-bottom:14px;">
+                <div class="ai-setting-label" data-i18n="comboRoom.widthLabel">📐 場地寬度</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;" id="combo-width-group">
+                  <button class="ai-option-btn" data-width="3">3-Wide</button>
+                  <button class="ai-option-btn selected" data-width="4">4-Wide</button>
+                </div>
+                <div data-i18n="comboRoom.iWarning" style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:10px; line-height:1.5;">
+                  ⚠️ 3-Wide 的 I 方塊會自動鎖死直立姿態。
+                </div>
+              </div>
+              <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(255,13,98,0.1); border-radius:6px;">
+                <span data-i18n="comboRoom.rulesText">📜 規則：掉落速度固定，盡量拉高 COMBO。</span><br>
+                <span data-i18n="comboRoom.notRanked">不計排名、不上傳最高分。</span>
+              </div>
+            </div>
+
+            <button id="free-mode-btn" data-i18n="btn.freeMode" title="自由排版：1-7 數字鍵選方塊、可關閉重力或 NEXT/QUEUE，純手動擺位練習" style="width:100%; padding:10px; background:transparent; color:var(--I); border:2px solid var(--I); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; box-shadow:0 0 8px rgba(56,189,238,0.4);">🧩 進入自由排版</button>
+
+            <!-- 自由排版設定面板（按下自由排版才顯示，緊接在按鈕下方） -->
+            <div class="info-panel hidden" id="free-mode-panel" style="border-color:var(--I); box-shadow:0 0 10px rgba(56,189,238,0.3);">
             <h2 style="text-align:center; color:var(--I); margin:0 0 14px 0; font-size:24px; text-shadow:0 0 8px var(--I); letter-spacing:2px;">🧩 FREE PLACEMENT</h2>
 
             <div style="margin-bottom:14px;">
@@ -2555,6 +2776,7 @@
             <div style="font-size:13px; color:rgba(255,255,255,0.85); line-height:1.5; padding:10px; background:rgba(56,189,238,0.1); border-radius:6px;">
               <span data-i18n="free.rulesText">📜 規則：10 格滿寬場地，自由練習擺位。</span><br>
               <span data-i18n="free.notRanked">不計排名、不上傳最高分。</span>
+            </div>
             </div>
           </div>
 
@@ -2754,9 +2976,7 @@
 
         <button id="practice-btn" data-i18n="btn.practice" style="width:100%; padding:10px; background:transparent; color:var(--O); border:2px solid var(--O); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:-5px;">🟨 進入練習模式</button>
 
-        <button id="combo-room-btn" data-i18n="btn.comboRoom" title="窄場 Combo 練習：寬度只有 N 格，盡可能拉高 COMBO" style="width:100%; padding:10px; background:linear-gradient(135deg, rgba(56,189,238,0.18), rgba(255,13,98,0.18)); color:var(--Z); border:2px solid var(--Z); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 12px rgba(255,13,98,0.55), inset 0 0 8px rgba(56,189,238,0.25); text-shadow:0 0 6px rgba(255,13,98,0.7);">⚡ 進入 COMBO ROOM</button>
-
-        <button id="free-mode-btn" data-i18n="btn.freeMode" title="自由排版：1-7 數字鍵選方塊、可關閉重力或 NEXT/QUEUE，純手動擺位練習" style="width:100%; padding:10px; background:transparent; color:var(--I); border:2px solid var(--I); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:2px; margin-top:-5px; box-shadow:0 0 8px rgba(56,189,238,0.4);">🧩 進入自由排版</button>
+        <button id="multiplayer-btn" data-i18n="btn.multiplayer" style="width:100%; padding:10px; background:transparent; color:var(--I); border:2px solid var(--I); font-weight:900; font-size:14px; cursor:pointer; border-radius:8px; letter-spacing:1px; margin-top:8px;">🌐 多人對戰</button>
 
         <div class="info-panel" id="controls-section" style="font-size: 14px;">
             <h2 style="text-align:center; color:var(--I); margin:0 0 12px 0;">CONTROLS</h2>
@@ -2797,6 +3017,66 @@
           <div><div class="mini-title">NEXT</div><canvas id="opp-next-canvas" width="116" height="120" class="mini-block-canvas"></canvas></div>
           <div><div class="mini-title">QUEUE</div><canvas id="opp-queue-canvas" width="116" height="348" class="mini-block-canvas"></canvas></div>
         </div>
+      </div>
+
+      <!-- 多人對戰：6 個對手槽（最多 7 人連線：自己 + 6 對手） -->
+      <div id="mp-opp-grid" class="hidden">
+        <div class="mp-opp-slot empty" id="mp-slot-1" data-slot="1">
+          <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
+          <canvas class="mp-mini-board" width="120" height="240"></canvas>
+          <div class="mp-slot-name">—</div>
+          <div class="mp-slot-stats">
+            <span class="mp-slot-ko">KO <b>0</b></span>
+            <span class="mp-slot-lines">L <b>0</b></span>
+          </div>
+          <div class="mp-target-indicator hidden">🎯</div>
+          <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
+          <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+        </div>
+        <div class="mp-opp-slot empty" id="mp-slot-2" data-slot="2">
+          <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
+          <canvas class="mp-mini-board" width="120" height="240"></canvas>
+          <div class="mp-slot-name">—</div>
+          <div class="mp-slot-stats">
+            <span class="mp-slot-ko">KO <b>0</b></span>
+            <span class="mp-slot-lines">L <b>0</b></span>
+          </div>
+          <div class="mp-target-indicator hidden">🎯</div>
+          <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
+          <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+        </div>
+        <div class="mp-opp-slot empty" id="mp-slot-3" data-slot="3">
+          <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
+          <canvas class="mp-mini-board" width="120" height="240"></canvas>
+          <div class="mp-slot-name">—</div>
+          <div class="mp-slot-stats">
+            <span class="mp-slot-ko">KO <b>0</b></span>
+            <span class="mp-slot-lines">L <b>0</b></span>
+          </div>
+          <div class="mp-target-indicator hidden">🎯</div>
+          <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
+          <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+        </div>
+        <div class="mp-opp-slot empty" id="mp-slot-4" data-slot="4">
+          <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
+          <canvas class="mp-mini-board" width="120" height="240"></canvas>
+          <div class="mp-slot-name">—</div>
+          <div class="mp-slot-stats">
+            <span class="mp-slot-ko">KO <b>0</b></span>
+            <span class="mp-slot-lines">L <b>0</b></span>
+          </div>
+          <div class="mp-target-indicator hidden">🎯</div>
+          <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
+          <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+        </div>
+      </div>
+
+      <!-- 多人對戰：攻擊目標選擇器（Tetris 99 風格） -->
+      <div id="mp-attack-strategy" class="hidden">
+        <button class="mp-strategy-btn selected" data-strategy="RANDOM" data-i18n="multiplayer.targetRandom" title="隨機">🎲 RANDOM</button>
+        <button class="mp-strategy-btn" data-strategy="COUNTER" data-i18n="multiplayer.targetCounter" title="反擊">🔁 COUNTER</button>
+        <button class="mp-strategy-btn" data-strategy="THREAT" data-i18n="multiplayer.targetThreat" title="KO 威脅">💀 K.O</button>
+        <button class="mp-strategy-btn" data-strategy="ELIMINATE" data-i18n="multiplayer.targetEliminate" title="淘汰邊緣">⚠️ ELIM</button>
       </div>
     </div>
 
