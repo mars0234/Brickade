@@ -371,6 +371,21 @@
     z-index: 4;
     filter: grayscale(1);
   }
+  .mp-winner-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(72, 214, 47, 0.18);
+    color: #48d62f;
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    text-shadow: 0 0 12px #48d62f, 0 0 22px rgba(72, 214, 47, 0.6);
+    pointer-events: none;
+  }
 
   /* 攻擊策略選擇器（暫時放在 6 槽網格下方；正式版要移到 YOU 遊戲框上方） */
   #mp-attack-strategy {
@@ -3032,6 +3047,7 @@
           <div class="mp-target-indicator hidden">🎯</div>
           <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
           <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+          <div class="mp-winner-overlay hidden" data-i18n="multiplayer.winner">WIN</div>
         </div>
         <div class="mp-opp-slot empty" id="mp-slot-2" data-slot="2">
           <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
@@ -3044,6 +3060,7 @@
           <div class="mp-target-indicator hidden">🎯</div>
           <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
           <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+          <div class="mp-winner-overlay hidden" data-i18n="multiplayer.winner">WIN</div>
         </div>
         <div class="mp-opp-slot empty" id="mp-slot-3" data-slot="3">
           <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
@@ -3056,6 +3073,7 @@
           <div class="mp-target-indicator hidden">🎯</div>
           <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
           <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+          <div class="mp-winner-overlay hidden" data-i18n="multiplayer.winner">WIN</div>
         </div>
         <div class="mp-opp-slot empty" id="mp-slot-4" data-slot="4">
           <div class="mp-slot-empty-label" data-i18n="multiplayer.slotEmpty">EMPTY</div>
@@ -3068,6 +3086,7 @@
           <div class="mp-target-indicator hidden">🎯</div>
           <div class="mp-reconnect-overlay hidden"><span data-i18n="multiplayer.reconnecting">重連中</span> <span class="mp-reconnect-timer">30</span></div>
           <div class="mp-eliminated-overlay hidden" data-i18n="multiplayer.eliminated">淘汰</div>
+          <div class="mp-winner-overlay hidden" data-i18n="multiplayer.winner">WIN</div>
         </div>
       </div>
 
