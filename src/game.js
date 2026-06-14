@@ -656,9 +656,51 @@
   let aiLastGarbageHole = -1;
   let aiConsecutiveGarbageHoles = 0;
   let aiCombo = -1;  // 記錄 AI 的連擊數
+  let aiB2b = 0;     // AI 的 Back-to-Back 連鎖（與玩家同規則：T-Spin/Quad 接續）
+  let aiLastMoveWasRotate = false; // AI 最後動作是否為旋轉（T-Spin 判定用）
+  let aiLastKickIndex = 0;         // AI 最後旋轉用了第幾個踢牆測試
   let aiSelfDestructed = false; // 記錄 AI 是否自爆
   // --- AI 設定（使用者可調整）---
-  let aiSpeedMode = 'adaptive'; // 'rookie'|'casual'|'adaptive'|'pro'|'god'
+  let aiSpeedMode = 'adaptive'; // 'rookie'|'casual'|'adaptive'|'pro'|'god'|'custom'
+  let aiCustomSpeed = 50;       // 自訂速度滑桿值 0-100（custom 模式用）
+
+  // 速度模式 → 操作參數。custom 用指數內插，讓滑桿低段也有感
+  function aiSpeedParams() {
+    if (aiSpeedMode === 'custom') {
+      const s = aiCustomSpeed / 100;
+      return {
+        hesChance: 0.35 * (1 - s) * (1 - s) + 0.01,
+        hesMs: 300 * (1 - s) + 15,
+        fingerDelay: 150 * Math.pow(5 / 150, s),   // 0%→150ms, 50%→27ms, 100%→5ms
+        dropSpeed: Math.max(1, Math.round(1 + s * 19)),
+      };
+    }
+    return {
+      hesChance: { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.1, god: 0.01 }[aiSpeedMode] || 0.12,
+      hesMs: { rookie: 300, casual: 180, adaptive: 100, pro: 120, god: 15 }[aiSpeedMode] || 100,
+      fingerDelay: { rookie: 120, casual: 60, adaptive: 30, pro: 40, god: 5 }[aiSpeedMode] || 30,
+      dropSpeed: { rookie: 1, casual: 1, adaptive: 2, pro: 4, god: 20 }[aiSpeedMode] || 2,
+    };
+  }
+
+  // 估算執行這個 target 需要幾個「手指 tick」（適應模式精準配速用）
+  function aiEstimateTicks(target, dropSpeed) {
+    let ticks = target.useHold ? 1 : 0;
+    const p = target.path || '';
+    if (p) {
+      for (let i = 0; i < p.length;) {
+        if (p[i] === 'D') {
+          let j = i;
+          while (j < p.length && p[j] === 'D') j++;
+          ticks += Math.ceil((j - i) / dropSpeed);
+          i = j;
+        } else { ticks++; i++; }
+      }
+    } else {
+      ticks += 5 + Math.ceil(20 / dropSpeed); // 沒路徑時的粗估
+    }
+    return ticks + 1; // 最後鎖定那一下
+  }
   let aiWideMode = 'auto';      // 'auto'|1|2|3|4 (right-side columns to keep empty)
   
 
@@ -4244,287 +4286,148 @@
     return true;
   }
 
-  // 終極 PD 演算法
-  function aiEvaluate(simData, currentCombo) {
-    const board = simData.b;
-    const linesCleared = simData.lines;
-    const bombsCleared = simData.bombs;
+  // === 名牌開局書（auto / 各開局選項用）===
+  // 版型來源：TKI-3 由 tools/tki_solve.js 枚舉驗證；PCO 與 DT 砲由正典 fumen
+  // 解碼還原（tools/fumen_decode.js）。步驟由 tools/book_gen.js 產生，
+  // 每步帶「精確落點格子」：執行時直落模擬對不上格子（支撐還沒蓋）就先跳過，
+  // 不需要手寫依賴關係。蓋完收書，解題子留在 hold，引擎自己收尾。
+  const AI_OPENER_BOOKS = {
+    // TKI-3：T 槽在 col2、Z 當屋簷；T 留 hold → 開場 TSD
+    TKI3: { steps: [{"t":"I","rot":0,"col":3,"cells":[393,394,395,396],"needs":[]},{"t":"L","rot":1,"col":-1,"cells":[370,380,390,391],"needs":[]},{"t":"O","rot":0,"col":8,"cells":[388,389,398,399],"needs":[]},{"t":"Z","rot":0,"col":3,"cells":[373,374,384,385],"needs":[0]},{"t":"S","rot":1,"col":4,"cells":[365,375,376,386],"needs":[0,3]},{"t":"J","rot":1,"col":6,"cells":[377,378,387,397],"needs":[2]}] },
+    // PCO（完美清除開局，正典 84.6% 版）：I 留 hold → 第二包收 Perfect Clear
+    PCO: { steps: [{"t":"J","rot":0,"col":0,"cells":[380,390,391,392],"needs":[]},{"t":"O","rot":0,"col":1,"cells":[371,372,381,382],"needs":[0]},{"t":"L","rot":2,"col":0,"cells":[360,361,362,370],"needs":[0,1]},{"t":"Z","rot":0,"col":6,"cells":[386,387,397,398],"needs":[]},{"t":"T","rot":3,"col":8,"cells":[379,388,389,399],"needs":[3]},{"t":"S","rot":0,"col":7,"cells":[368,369,377,378],"needs":[3,4]},{"t":"I","rot":1,"col":1,"cells":[363,373,383,393],"needs":[],"optional":true}] },
+    // DT 砲（正典，跨兩包 13 步）：第二包的 T 留 hold → TSD，第三包 T → TST
+    DT: { steps: [{"t":"I","rot":1,"col":4,"cells":[366,376,386,396],"needs":[]},{"t":"J","rot":3,"col":4,"cells":[375,385,394,395],"needs":[]},{"t":"L","rot":1,"col":6,"cells":[377,387,397,398],"needs":[]},{"t":"Z","rot":1,"col":2,"cells":[374,383,384,393],"needs":[1]},{"t":"S","rot":1,"col":7,"cells":[378,388,389,399],"needs":[2]},{"t":"O","rot":0,"col":0,"cells":[380,381,390,391],"needs":[]},{"t":"T","rot":0,"col":3,"cells":[354,363,364,365],"needs":[1,3]},{"t":"J","rot":1,"col":-1,"cells":[350,351,360,370],"needs":[0,1,2,3,4,5,6]},{"t":"L","rot":3,"col":2,"cells":[332,333,343,353],"needs":[0,1,2,3,4,5,6]},{"t":"O","rot":0,"col":7,"cells":[357,358,367,368],"needs":[0,1,2,3,4,5,6]},{"t":"I","rot":1,"col":7,"cells":[349,359,369,379],"needs":[0,1,2,3,4,5,6]},{"t":"Z","rot":0,"col":4,"cells":[344,345,355,356],"needs":[0,1,2,3,4,5,6]},{"t":"S","rot":0,"col":7,"cells":[338,339,347,348],"needs":[0,1,2,3,4,5,6,9,10]}] },
+  };
+  let aiBook = { active: false, name: null, done: [] };
+  let aiOpenerChoice = 'random'; // 'random'＝自動隨機 | 'TKI3'|'PCO'|'DT' | null＝wide 模式不用書
 
-    const colHeights = new Array(COLS).fill(0);
-    for (let c = 0; c < COLS; c++) {
-      for (let r = 0; r < ROWS; r++) {
-        if (board[r][c]) { colHeights[c] = ROWS - r; break; }
-      }
+  function aiPickOpener() {
+    if (aiWideMode !== 'auto') { aiBook.active = false; aiBook.name = null; aiBook.done = []; return; }
+    let pick = aiOpenerChoice;
+    if (pick === 'random') {
+      const pool = [null, ...Object.keys(AI_OPENER_BOOKS)];
+      pick = pool[Math.floor(Math.random() * pool.length)];
     }
-    const maxHeight = Math.max(...colHeights);
-
-    if (maxHeight > 18) return -999999999; 
-
-    let score = 0;
-
-    if (aiWideMode === 'auto') {
-      // --- Auto 模式 ---
-      let holes = 0;
-      let bumpiness = 0;
-      for (let c = 0; c < COLS; c++) {
-        let foundTop = false;
-        for (let r = 0; r < ROWS; r++) {
-          if (board[r][c]) foundTop = true;
-          else if (foundTop) holes++;
-        }
-        if (c > 0) bumpiness += Math.abs(colHeights[c] - colHeights[c-1]);
-      }
-      
-      score -= holes * 500000;
-      score -= bumpiness * 20000;
-      score -= maxHeight * 10000;
-
-      // 加入 aiNextGarbage >= 1，看到「黃色垃圾條」立刻防守
-      if (maxHeight >= 14 || aiActiveGarbage >= 1 || aiNextGarbage >= 1) {
-        if (linesCleared > 0) {
-          score += linesCleared * 200000;
-          if (currentCombo >= 0) score += (currentCombo + 1) * 300000;
-        }
-      } else {
-         if (linesCleared === 4) score += 3000000; 
-         else if (linesCleared > 0) {
-             if (currentCombo >= 0) score += (currentCombo + 1) * 200000;
-             else score -= linesCleared * 20000;
-         }
-      }
-    } else {
-      // --- Wide 模式（與 C++ 同步的大進化版）---
-      const keepEmpty = parseInt(aiWideMode);
-      const wellStart = COLS - keepEmpty;
-      const targetResidue = keepEmpty - 1; // 4-wide 時為 3
-
-      let buildHoles = 0;
-      let wellHoles = 0;
-      let buildBumpiness = 0;
-      let wellBlocks = 0;
-      let wellMaxHeight = 0;
-      let rightBottomBlocks = 0;
-
-      for (let c = 0; c < COLS; c++) {
-        let foundTop = false;
-        for (let r = 0; r < ROWS; r++) {
-          if (board[r][c]) {
-            foundTop = true;
-            if (c >= wellStart) {
-              wellBlocks++;
-              if (r === ROWS - 1) rightBottomBlocks++;
-            }
-          } else if (foundTop) {
-            if (c < wellStart) buildHoles++;
-            else wellHoles++;
-          }
-        }
-        if (c > 0 && c < wellStart) {
-          buildBumpiness += Math.abs(colHeights[c] - colHeights[c-1]);
-        }
-        if (c >= wellStart && colHeights[c] > wellMaxHeight) {
-          wellMaxHeight = colHeights[c];
-        }
-      }
-
-      const buildMin = Math.min(...colHeights.slice(0, wellStart));
-      const buildMax = Math.max(...colHeights.slice(0, wellStart));
-
-      // 主塔和井洞永遠是大罪
-      score -= buildHoles * 5000000;
-      score -= wellHoles * 5000000;
-
-      // ★ 複合就緒度評估
-      let isOpeningPhase;
-      if (aiCombo >= 0) {
-        isOpeningPhase = false;
-      } else {
-        let readiness = 0;
-        if (buildMin >= 8) readiness++;
-        if (buildMin >= 10) readiness++;
-        if (buildMax - buildMin <= 2) readiness++;
-        const wellDepth = buildMin - wellMaxHeight;
-        if (wellDepth >= 6) readiness++;
-        if (wellBlocks <= targetResidue + 1) readiness++;
-        isOpeningPhase = (readiness < 4);
-      }
-
-      if (isOpeningPhase) {
-        // 【蓄力期】
-        score += buildMin * 15000;
-        score -= buildBumpiness * buildBumpiness * 2000;
-        score -= (buildMax - buildMin) * (buildMax - buildMin) * 5000;
-
-        if (wellMaxHeight > 1) {
-          score -= (wellMaxHeight - 1) * 3000000;
-        }
-
-        if (rightBottomBlocks > targetResidue) {
-          score -= (rightBottomBlocks - targetResidue) * 5000000;
-        } else if (rightBottomBlocks === targetResidue) {
-          score += 500000;
-        } else {
-          score += rightBottomBlocks * 80000;
-        }
-
-        const wellDepth = buildMin - wellMaxHeight;
-        score += Math.min(wellDepth, 12) * 50000;
-        if (wellDepth < 6) score -= (6 - wellDepth) * 500000;
-
-        if (linesCleared > 0) score -= linesCleared * 3000000;
-      } else {
-        // 【爆發期】
-        if (linesCleared > 0) {
-          score += currentCombo * 1500000;
-          if (linesCleared === 1) score += 500000;
-          else score += linesCleared * 100000;
-
-          // 4n+3 規則
-          const remainder = wellBlocks % keepEmpty;
-          const target = keepEmpty - 1;
-          if (remainder === target) {
-            score += 1000000;
-          } else {
-            score -= Math.abs(remainder - target) * 400000;
-          }
-        } else {
-          if (currentCombo >= 0) {
-            score -= 50000000; // 斷 combo 重罪
-          } else {
-            score += buildMin * 1000;
-            if (wellBlocks > targetResidue) {
-              score -= (wellBlocks - targetResidue) * 2000000;
-            }
-          }
-        }
-      }
-    }
-
-    // 賦予炸彈「絕對權重」(800 萬分)！
-    // 即使在蓄力期消行會被扣 500 萬，點燃炸彈的 +800 萬也能強勢覆蓋，逼迫 AI 成為炸彈狂人
-    if (bombsCleared > 0) score += bombsCleared * 8000000;
-
-    return score;
+    if (pick && !AI_OPENER_BOOKS[pick]) pick = null;
+    aiBook.name = pick;
+    aiBook.active = !!pick;
+    aiBook.done = [];
   }
 
-  // 模擬將方塊精準放在「特定行與列」(支援 T轉與滑動塞入)
-  function aiSimulatePlacement(board, matrix, row, col) {
-    const newBoard = board.map(r => r.slice());
+  function aiBookNextMove() {
+    const book = AI_OPENER_BOOKS[aiBook.name];
+    if (!book) { aiBook.active = false; return null; }
+    const steps = book.steps;
 
-    for (let r = 0; r < matrix.length; r++) {
-      for (let c = 0; c < matrix[r].length; c++) {
-        if (!matrix[r][c]) continue;
-        const br = row + r, bc = col + c;
-        if (br >= 0 && br < ROWS) newBoard[br][bc] = 'AI';
-      }
-    }
+    // 全部蓋完 → 收書（解題子在 hold：TKI3/DT 是 T、PCO 是 I，引擎自然收尾）
+    // optional 步驟（PCO 的直立 I＝7 顆變體降級閥）不算完成條件
+    let remaining = 0;
+    for (let i = 0; i < steps.length; i++) if (!aiBook.done[i] && !steps[i].optional) remaining++;
+    if (remaining === 0) { aiBook.active = false; return null; }
 
-    let detonatedRows = new Set();
-    for (let r = 0; r < matrix.length; r++) {
-      for (let c = 0; c < matrix[r].length; c++) {
-        if (!matrix[r][c]) continue;
-        const br = row + r, bc = col + c;
-        let checkR = br + 1;
-        while (checkR < ROWS && newBoard[checkR][bc] === 'B') {
-           detonatedRows.add(checkR);
-           checkR++;
+    // 找這個 type 目前「可放且落點完全吻合」的步驟
+    const tryPlace = (type, allowOptional) => {
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        if (aiBook.done[i] || s.t !== type) continue;
+        if (s.optional && !allowOptional) continue; // 降級閥只在卡關時用
+        if (s.needs && s.needs.some(n => !aiBook.done[n])) continue; // 前置步驟還沒蓋
+        const mat = clone(PIECES[type][s.rot]);
+        let row = type === 'I' ? 18 : 19;
+        if (!aiValid(mat, row, s.col, aiBoard)) continue;
+        while (aiValid(mat, row + 1, s.col, aiBoard)) row++;
+        const got = [];
+        for (let r = 0; r < mat.length; r++) for (let c = 0; c < mat[r].length; c++) {
+          if (mat[r][c]) got.push((row + r) * COLS + (s.col + c));
+        }
+        got.sort((a, b) => a - b);
+        if (got.length === s.cells.length && got.every((v, j) => v === s.cells[j])) {
+          return { idx: i, mv: { col: s.col, row, rot: s.rot, useHold: false, path: '' } };
         }
       }
-    }
+      return null;
+    };
 
-    const fullRows = [];
-    for (let r = 0; r < ROWS; r++) {
-      let full = true;
-      let isGarbage = false;
-      for (let c = 0; c < COLS; c++) {
-        if (!newBoard[r][c]) { full = false; break; }
-        if (newBoard[r][c] === 'G' || newBoard[r][c] === 'B') isGarbage = true;
+    let r = tryPlace(aiCurrent.type, false);
+    if (r) { aiBook.done[r.idx] = true; return r.mv; }
+
+    // 當前方塊放不了（解題子、或支撐還沒蓋好）→ hold 調度：
+    // 換進來的那顆必須「立刻」有可放步驟（useHold 的語意是換完直接照 mv 走）
+    if (!aiHoldUsed) {
+      if (aiHoldType === null) {
+        const next = aiQueue[0];
+        if (next) {
+          r = tryPlace(next, false);
+          if (r) { aiBook.done[r.idx] = true; r.mv.useHold = true; return r.mv; }
+        }
+      } else {
+        // 卡關：把 hold 裡的換出來救場（含 optional 降級閥——
+        // 例如 PCO 停在 hold 的 I 改放 col3，釋放 hold 給後續調度）
+        r = tryPlace(aiHoldType, true);
+        if (r) { aiBook.done[r.idx] = true; r.mv.useHold = true; return r.mv; }
       }
-      if (full && !isGarbage) fullRows.push(r);
     }
-
-    const allRowsToClear = [...new Set([...fullRows, ...detonatedRows])].sort((a,b) => a - b);
-    let bombsCleared = 0;
-    allRowsToClear.forEach(r => {
-      if (newBoard[r].includes('B')) bombsCleared++;
-    });
-
-    const finalBoard = newBoard.filter((_, i) => !allRowsToClear.includes(i));
-    while (finalBoard.length < ROWS) finalBoard.unshift(Array(COLS).fill(null));
-
-    return { b: finalBoard, lines: fullRows.length, bombs: bombsCleared };
+    // 調度不開（例如關鍵支撐的方塊太晚來）→ 棄書，交回正常 AI
+    aiBook.active = false;
+    return null;
   }
 
-  // 2-Step 光束搜索大腦 (Beam Search Lookahead)
-  function aiFindBestMove(board, piece, depth = 1, currentComboState = aiCombo) {
-    let bestScore = -Infinity;
-    let bestMove = { col: piece.col, rot: piece.rot, row: piece.row, score: -Infinity, path: [] };
-
-    let queue = [{ r: piece.row, c: piece.col, rot: piece.rot, path: "" }];
-    let visited = new Set();
-    let validPlacements = [];
-
-    // 1. 找出當前方塊所有可能的合法落點
-    while (queue.length > 0) {
-      let curr = queue.shift();
-      let key = `${curr.r},${curr.c},${curr.rot}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
-
-      const matrix = PIECES[piece.type][curr.rot];
-
-      if (!aiValid(matrix, curr.r + 1, curr.c, board)) {
-        validPlacements.push(curr);
+  // AI 的旋轉（與玩家 tryRotate 同一套 SRS 踢牆表與順序）
+  function aiTryRotate(dir) {
+    if (!aiCurrent) return false;
+    const from = aiCurrent.rot;
+    const to = (from + (dir === 1 ? 1 : 3)) % 4;
+    const rotated = clone(PIECES[aiCurrent.type][to]);
+    if (aiCurrent.type === 'O') {
+      if (aiValid(rotated, aiCurrent.row, aiCurrent.col, aiBoard)) {
+        aiCurrent.matrix = rotated; aiCurrent.rot = to;
+        return true;
       }
-
-      if (aiValid(matrix, curr.r + 1, curr.c, board)) queue.push({ r: curr.r + 1, c: curr.c, rot: curr.rot, path: curr.path + 'D' });
-      if (aiValid(matrix, curr.r, curr.c - 1, board)) queue.push({ r: curr.r, c: curr.c - 1, rot: curr.rot, path: curr.path + 'L' });
-      if (aiValid(matrix, curr.r, curr.c + 1, board)) queue.push({ r: curr.r, c: curr.c + 1, rot: curr.rot, path: curr.path + 'R' });
-      
-      const nextRot = (curr.rot + 1) % 4;
-      const nextMatrix = PIECES[piece.type][nextRot];
-      if (aiValid(nextMatrix, curr.r, curr.c, board)) {
-        queue.push({ r: curr.r, c: curr.c, rot: nextRot, path: curr.path + 'C' });
-      } else if (aiValid(nextMatrix, curr.r, curr.c - 1, board)) {
-        queue.push({ r: curr.r, c: curr.c - 1, rot: nextRot, path: curr.path + '1' }); 
-      } else if (aiValid(nextMatrix, curr.r, curr.c + 1, board)) {
-        queue.push({ r: curr.r, c: curr.c + 1, rot: nextRot, path: curr.path + '2' }); 
+      return false;
+    }
+    const key = `${from}>${to}`;
+    const kicks = aiCurrent.type === 'I' ? I_KICKS[key] : JLSTZ_KICKS[key];
+    for (let i = 0; i < kicks.length; i++) {
+      const [dx, dy] = kicks[i];
+      const nr = aiCurrent.row - dy;
+      const nc = aiCurrent.col + dx;
+      if (aiValid(rotated, nr, nc, aiBoard)) {
+        aiCurrent.matrix = rotated;
+        aiCurrent.rot = to;
+        aiCurrent.row = nr;
+        aiCurrent.col = nc;
+        aiLastMoveWasRotate = true;
+        aiLastKickIndex = i;
+        return true;
       }
     }
+    return false;
+  }
 
-    // 2. 評分並加入「未來預判」
-    validPlacements.forEach(pos => {
-      const matrix = clone(PIECES[piece.type][pos.rot]);
-      const simData = aiSimulatePlacement(board, matrix, pos.r, pos.c);
-      if (!simData) return;
+  // AI 的 T-Spin 判定（與玩家 getTSpinType 同一套 3-corner 規則）
+  function aiGetTSpinType() {
+    if (!aiCurrent || aiCurrent.type !== 'T' || !aiLastMoveWasRotate) return null;
+    const r = aiCurrent.row + 1;
+    const c = aiCurrent.col + 1;
+    const corners = [ [r-1, c-1], [r-1, c+1], [r+1, c-1], [r+1, c+1] ];
+    const frontIdx = {0:[0,1], 1:[1,3], 2:[2,3], 3:[0,2]}[aiCurrent.rot];
 
-      // 模擬這一步放下去後的 Combo 狀態變化
-      let simulatedCombo = currentComboState;
-      if (simData.lines > 0) simulatedCombo++;
-      else simulatedCombo = -1;
-
-      // 當下這步的基礎分數 (使用模擬後的 Combo)
-      let score = aiEvaluate(simData, simulatedCombo);
-
-      // 預判未來 (Lookahead)
-      if (depth === 1 && aiQueue.length > 0) {
-          const nextPieceSim = aiMakePiece(aiQueue[0]);
-          // ★ 核心修復：把模擬的 Combo 狀態傳遞遞迴給未來！讓 AI 能「看見」連擊
-          const futureBestMove = aiFindBestMove(simData.b, nextPieceSim, 0, simulatedCombo); 
-          
-          if (futureBestMove.score !== -Infinity) {
-              score += futureBestMove.score * 0.8; 
-          }
+    let filled = 0, frontFilled = 0, backFilled = 0;
+    for (let i = 0; i < 4; i++) {
+      const [cr, cc] = corners[i];
+      if (cr < 0 || cr >= ROWS || cc < 0 || cc >= COLS || aiBoard[cr][cc]) {
+        filled++;
+        if (frontIdx.includes(i)) frontFilled++;
+        else backFilled++;
       }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = { col: pos.c, rot: pos.rot, row: pos.r, score: score, path: pos.path.split('') };
-      }
-    });
-
-    if (bestScore === -Infinity) bestMove.path = [];
-    return bestMove;
+    }
+    if (filled >= 3) {
+      if (aiLastKickIndex === 4) return 'Full';
+      if (frontFilled === 2) return 'Full';
+      if (frontFilled === 1 && backFilled === 2) return 'Mini';
+    }
+    return null;
   }
 
   // AI 備用瞬間移動 (當擬人化卡住時的終極保險機制)
@@ -4557,6 +4460,7 @@
           while (aiValid(aiCurrent.matrix, aiCurrent.row + 1, aiCurrent.col, aiBoard)) aiCurrent.row++;
         }
       }
+      aiLastMoveWasRotate = false; // 瞬移修正不算旋轉，不給 T-Spin
       console.warn("⚠️ AI 落點無效，已自動修正到安全位置");
     } else {
       aiCurrent.matrix = mat;
@@ -4589,6 +4493,20 @@
     }
 
     if (!aiCurrent.target) {
+      // TKI-3 開局書：開局前幾顆照書蓋，被攻擊就立刻放棄改用正常思考
+      if (aiBook.active && !isAiThinking) {
+        if (aiActiveGarbage > 0 || aiNextGarbage > 0) {
+          aiBook.active = false;
+        } else {
+          const bookMove = aiBookNextMove();
+          if (bookMove) {
+            aiCurrent.target = bookMove;
+            aiSyncOppState();
+            return;
+          }
+        }
+      }
+
       if (!aiCurrent._hesitating) {
         // 純 loop 求最高列，避免 Array.from + spread 每次產生一次性陣列
         let maxH = 0;
@@ -4600,10 +4518,9 @@
         const pressureBonus = Math.max(0, (maxH - 10) * 50);
         
         // 🪀 套用橡皮筋：領先時發呆機率變高、想更久；落後時變專心
-        const baseHesChance = { rookie: 0.35, casual: 0.2, adaptive: 0.12, pro: 0.1, god: 0.01 }[aiSpeedMode] || 0.12;
-        const baseHesMs = { rookie: 300, casual: 180, adaptive: 100, pro: 120, god: 15 }[aiSpeedMode] || 100;
-        const hesitateChance = baseHesChance * rubberBand; 
-        const hesitateMs = baseHesMs * rubberBand;
+        const sp = aiSpeedParams();
+        const hesitateChance = sp.hesChance * rubberBand;
+        const hesitateMs = sp.hesMs * rubberBand;
         
         if (Math.random() < hesitateChance) {
           aiCurrent._hesitating = true;
@@ -4626,7 +4543,10 @@
       let _idx = 0;
       for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; c++) {
-              window._aiWasmBuffer[_idx++] = aiBoard[r][c] ? '1' : '.'; 
+              // ★ 垃圾 'G' 與炸彈 'B' 要原樣傳給 C++：
+              // 含 G/B 的行不能用填滿消除，只能疊在炸彈上引爆，AI 必須知道這件事
+              const cell = aiBoard[r][c];
+              window._aiWasmBuffer[_idx++] = cell ? (cell === 'G' ? 'G' : (cell === 'B' ? 'B' : '1')) : '.';
           }
       }
       let boardStr = window._aiWasmBuffer.join('');
@@ -4652,7 +4572,10 @@
             holdPiece: holdPiece,
             queueStr: queueStr,
             aiCombo: aiCombo,
-            keepEmpty: keepEmpty
+            keepEmpty: keepEmpty,
+            holdUsed: aiHoldUsed,                              // 這回合是否已用過 hold（C++ 要尊重）
+            incomingGarbage: aiActiveGarbage + aiNextGarbage,  // 即將承受的垃圾，AI 據此決定守或爆
+            b2b: aiB2b                                         // B2B 連鎖狀態（攻擊計算需要）
           }
         });
 
@@ -4669,8 +4592,18 @@
     // ---------------------------------------------------------
     
     // 套用橡皮筋：領先時手指移動變慢；落後時飆手速
-    const baseFingerDelay = { rookie: 120, casual: 60, adaptive: Math.max(16, currentAiThinkInterval / 8), pro: 40, god: 5 }[aiSpeedMode] || 30;
-    const fingerDelay = baseFingerDelay * rubberBand;
+    const speedParams = aiSpeedParams();
+    let fingerDelay;
+    if (aiSpeedMode === 'adaptive' && aiCurrent.target && typeof aiCurrent.target === 'object') {
+      // ★ 精準配速：玩家單顆時間（中位數）= AI 的單顆預算。
+      // 路徑步數是已知的，預算扣掉思考往返後除以步數，就是每步該花的時間
+      const t = aiCurrent.target;
+      if (t._ticks === undefined) t._ticks = aiEstimateTicks(t, speedParams.dropSpeed);
+      const budget = Math.max(150, currentAiThinkInterval * rubberBand - 120);
+      fingerDelay = Math.min(250, Math.max(8, budget / Math.max(4, t._ticks)));
+    } else {
+      fingerDelay = speedParams.fingerDelay * rubberBand;
+    }
 
     aiThinkTimer += delta;
     // 確保上限「絕對大於」AI 移動所需的最低時間 (給予 1.5 倍的緩衝空間)
@@ -4685,6 +4618,9 @@
 
       // 處理 Hold 邏輯
       if (aiCurrent.target.useHold && !aiHoldUsed) {
+         // C++ 回傳的 col/row/rot 本來就是為「換出來的那顆方塊」算的，
+         // 換牌後直接沿用同一個 target，不必重新思考一輪
+         const keepTarget = aiCurrent.target;
          if (!aiHoldType) {
             aiHoldType = aiCurrent.type;
             aiCurrent = aiMakePiece(aiQueue.shift());
@@ -4695,27 +4631,60 @@
             aiCurrent = aiMakePiece(swap);
          }
          aiHoldUsed = true;
-         aiCurrent.target = null;
+         aiCurrent.target = keepTarget;
          aiSyncOppState();
          return; // 換牌需要花掉剩餘的時間，直接跳出這幀的計算
       }
 
       let moved = false;
       let target = aiCurrent.target;
+      const dropSpeed = speedParams.dropSpeed;
 
-      if (aiCurrent.rot !== target.rot) {
-        aiCurrent.rot = target.rot;
-        aiCurrent.matrix = clone(PIECES[aiCurrent.type][aiCurrent.rot]);
-        moved = true;
-      }
-      else if (aiCurrent.col !== target.col) {
-        aiCurrent.col += (target.col > aiCurrent.col) ? 1 : -1;
-        moved = true;
-      }
-      else if (aiCurrent.row < target.row) {
-        let dropSpeed = { rookie: 1, casual: 1, adaptive: 2, pro: 4, god: 20 }[aiSpeedMode] || 2;
-        aiCurrent.row = Math.min(aiCurrent.row + dropSpeed, target.row);
-        moved = true;
+      if (typeof target.path === 'string' && target.path.length > 0) {
+        // ★ 路徑回放：照 C++ BFS 算出的操作序列走，才做得出 tuck 與 T轉/Z轉等 spin 落點
+        if (target._pathIdx === undefined) target._pathIdx = 0;
+        if (target._pathIdx < target.path.length) {
+          const a = target.path[target._pathIdx];
+          if (a === 'D') {
+            // 連續軟降一個 tick 吃掉 dropSpeed 步，動畫速度跟舊版直落一致
+            let steps = 0;
+            while (steps < dropSpeed && target.path[target._pathIdx] === 'D') {
+              if (!aiValid(aiCurrent.matrix, aiCurrent.row + 1, aiCurrent.col, aiBoard)) break;
+              aiCurrent.row++; target._pathIdx++; steps++;
+            }
+            if (steps === 0) target._pathIdx++; // 防呆：走不動就跳過
+            aiLastMoveWasRotate = false;
+          } else if (a === 'L' || a === 'R') {
+            const nc = aiCurrent.col + (a === 'R' ? 1 : -1);
+            if (aiValid(aiCurrent.matrix, aiCurrent.row, nc, aiBoard)) aiCurrent.col = nc;
+            target._pathIdx++;
+            aiLastMoveWasRotate = false;
+          } else if (a === 'c' || a === 'z') {
+            aiTryRotate(a === 'c' ? 1 : -1); // 含 SRS 踢牆，會設定 aiLastMoveWasRotate
+            target._pathIdx++;
+          } else {
+            target._pathIdx++; // 不認識的動作字元，跳過
+          }
+          moved = true;
+        }
+        // 路徑播完 → moved 維持 false → 走下方的鎖定流程
+      } else {
+        // 沒有路徑（防呆回退）：傳統「轉 → 平移 → 直落」
+        if (aiCurrent.rot !== target.rot) {
+          aiCurrent.rot = target.rot;
+          aiCurrent.matrix = clone(PIECES[aiCurrent.type][aiCurrent.rot]);
+          aiLastMoveWasRotate = false; // 高空原地轉不算 spin
+          moved = true;
+        }
+        else if (aiCurrent.col !== target.col) {
+          aiCurrent.col += (target.col > aiCurrent.col) ? 1 : -1;
+          moved = true;
+        }
+        else if (aiCurrent.row < target.row) {
+          aiCurrent.row = Math.min(aiCurrent.row + dropSpeed, target.row);
+          aiLastMoveWasRotate = false;
+          moved = true;
+        }
       }
 
       if (!moved) {
@@ -4737,6 +4706,10 @@
   function aiLockPiece() {
     if (!aiCurrent) return;
     _aiBoardDirty = true; // 鎖定會改變盤面，標記快取失效
+
+    // T-Spin 判定要在消行前做（角落是斜角格，放置與否不影響，但消行會位移）
+    const tSpinType = aiGetTSpinType();
+
     for (let r = 0; r < aiCurrent.matrix.length; r++) {
       for (let c = 0; c < aiCurrent.matrix[r].length; c++) {
         if (!aiCurrent.matrix[r][c]) continue;
@@ -4785,13 +4758,55 @@
       while (aiBoard.length < ROWS) aiBoard.unshift(Array(COLS).fill(null));
 
       aiLines += fullRows.length;
-      aiScore += [0, 100, 300, 500, 800][fullRows.length] * aiLevel;
+      // 計分與攻擊（與玩家 applyScore 的攻擊表一字不差）
+      let baseScore;
+      if (tSpinType === 'Full') baseScore = [400, 800, 1200, 1600][fullRows.length] || 0;
+      else if (tSpinType === 'Mini') baseScore = [100, 200, 400, 0][fullRows.length] || 0;
+      else baseScore = [0, 100, 300, 500, 800][fullRows.length] || 0;
+      aiScore += baseScore * aiLevel;
       aiLevel = Math.floor(aiLines / 10) + 1;
 
       // --- AI 專屬 Combo 系統 ---
-      aiCombo++; 
-      let attack = [0, 0, 1, 2, 4][fullRows.length] || 0;
-      
+      aiCombo++;
+
+      // --- T-Spin / B2B 攻擊計算 ---
+      let attack;
+      let difficult = false;
+      if (tSpinType === 'Full') {
+        attack = [0, 2, 4, 6][fullRows.length] || 0;
+        difficult = true;
+      } else if (tSpinType === 'Mini') {
+        attack = [0, 1, 0, 0][fullRows.length] || 0;
+        difficult = true;
+      } else {
+        attack = [0, 0, 1, 2, 4][fullRows.length] || 0;
+        if (fullRows.length === 4) difficult = true;
+      }
+      if (difficult) {
+        if (fullRows.length > 0) {
+          if (aiB2b > 0) {
+            // B2B 攻擊表覆蓋（與玩家相同）
+            if (!tSpinType && fullRows.length === 4) attack = 6;
+            else if (tSpinType === 'Mini' && fullRows.length === 1) attack = 2;
+            else if (tSpinType === 'Full' && fullRows.length === 1) attack = 3;
+            else if (tSpinType === 'Full' && fullRows.length === 2) attack = 6;
+            else if (tSpinType === 'Full' && fullRows.length === 3) attack = 9;
+          }
+          aiB2b++;
+        }
+      } else if (fullRows.length > 0) {
+        aiB2b = 0;
+      }
+
+      // T-Spin 視覺回饋（讓玩家看得到 AI 在轉）
+      if (tSpinType && fullRows.length > 0) {
+        const tMsg = tSpinType === 'Full'
+          ? `T-SPIN ${['','SINGLE','DOUBLE','TRIPLE'][fullRows.length] || ''}!`
+          : `MINI T-SPIN!`;
+        oppFloatingTexts.push(new FloatingText(tMsg, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 80, '#c84cf0', 30));
+        playSound('tspin');
+      }
+
       if (aiCombo > 0) {
         const comboBonuses = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4];
         attack += comboBonuses[Math.min(aiCombo, 10)] || 0;
@@ -4811,9 +4826,16 @@
          playSound('drop'); shakeMag = 6;
       }
 
+      // 完美清除（全場淨空 +10 攻擊，與玩家相同）
+      if (aiBoard.every(row => row.every(cell => !cell))) {
+        attack += 10;
+        oppFloatingTexts.push(new FloatingText('PERFECT CLEAR!', (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 110, '#4cf0c8', 34));
+        playSound('perfect');
+      }
+
       if (attack > 0) {
         let remainingAttack = attack;
-        
+
         // 抵消邏輯
         if (aiActiveGarbage > 0) {
           if (remainingAttack >= aiActiveGarbage) { remainingAttack -= aiActiveGarbage; aiActiveGarbage = 0; }
@@ -4869,6 +4891,7 @@
     aiEnsureQueue();
     aiCurrent = aiMakePiece(type);
     aiHoldUsed = false; // 每次出新方塊時，重置 Hold 狀態
+    aiLastMoveWasRotate = false; // 新方塊還沒旋轉過
     
     // 如果出生點就碰壁，檢查生死
     if (!aiValid(aiCurrent.matrix, aiCurrent.row, aiCurrent.col, aiBoard)) {
@@ -4914,6 +4937,7 @@
         aiActiveGarbage = 0;
         aiNextGarbage = 0;
         aiCombo = -1; // 復活後斷連擊
+        aiB2b = 0;    // B2B 也歸零
         aiSyncOppState();
 
         // 1秒後復活
@@ -5010,6 +5034,8 @@
     aiHoldUsed = false;     // 重置 Hold 狀態
     aiScore = 0; aiLines = 0; aiLevel = 1;
     aiCombo = -1;
+    aiB2b = 0;
+    aiLastMoveWasRotate = false;
     aiGameOver = false; aiGravityTimer = 0; aiThinkTimer = 0;
     aiSelfDestructed = false;
 
@@ -5019,10 +5045,18 @@
     aiLastGarbageHole = -1;
     aiConsecutiveGarbageHoles = 0;
 
+    // 名牌開局書：依玩家選擇（或自動隨機）決定這一局用哪本
+    aiPickOpener();
+
     // 初始化適應性 AI 數據
     // 根據玩家選擇的速度模式初始化思考間距
-    const speedMap = { rookie: 900, casual: 600, adaptive: 4000, pro: 400, god: 80 };
-    currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
+    // （adaptive 從 1100ms 起跳：開場就有正常節奏，幾顆內收斂到玩家手速）
+    const speedMap = { rookie: 900, casual: 600, adaptive: 1100, pro: 400, god: 80 };
+    if (aiSpeedMode === 'custom') {
+      currentAiThinkInterval = 900 * Math.pow(80 / 900, aiCustomSpeed / 100);
+    } else {
+      currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
+    }
     myLastLockTime = performance.now();
     myLockIntervals = [currentAiThinkInterval, currentAiThinkInterval];
 
@@ -5255,18 +5289,16 @@
     if (isAIMode && gameStarted && aiSpeedMode === 'adaptive') {
       const now = performance.now();
       if (myLastLockTime > 0) {
-        let interval = now - myLastLockTime;
-        // 如果玩家發呆、剛經歷復活或暫停，時間會拉很長，最高限制在 10000ms
-        if (interval > 10000) interval = 10000; 
-        
-        myLockIntervals.push(interval);
-        if (myLockIntervals.length > 5) myLockIntervals.shift(); // 只抓取最近 5 次的平均值
-        
-        // 計算你最近的平均手速
-        let avg = myLockIntervals.reduce((a, b) => a + b, 0) / myLockIntervals.length;
-        
-        // 設定 AI 的速度：完美模仿你的平均速度
-        currentAiThinkInterval = Math.max(120, avg);
+        const interval = now - myLastLockTime;
+        // ★ 發呆 / 復活 / 收垃圾的長間隔不是「手速」，直接剔除而不是拉進平均
+        //（舊版把 10 秒的發呆平均進去，AI 會突然慢半拍——這就是不精準的主因）
+        if (interval >= 150 && interval <= 4000) {
+          myLockIntervals.push(interval);
+          if (myLockIntervals.length > 7) myLockIntervals.shift();
+          // 用中位數取代平均值：單次猶豫不會再汙染整體節奏
+          const sorted = [...myLockIntervals].sort((a, b) => a - b);
+          currentAiThinkInterval = Math.max(150, sorted[Math.floor(sorted.length / 2)]);
+        }
       }
       myLastLockTime = now;
     } else if (isAIMode && gameStarted && aiSpeedMode !== 'adaptive') {
@@ -7266,27 +7298,56 @@
     '2':  'aiHint.2',
     '3':  'aiHint.3',
     '4':  'aiHint.4',
+    TKI3: 'aiHint.tki3',
+    PCO:  'aiHint.pco',
   };
 
   function initAIConfigButtons() {
     // 速度按鈕
+    const customSpeedWrap = document.getElementById('ai-custom-speed-wrap');
+    const customSpeedSlider = document.getElementById('ai-custom-speed');
+    const customSpeedLabel = document.getElementById('ai-custom-speed-label');
+
+    const updateCustomSpeedLabel = () => {
+      if (!customSpeedLabel) return;
+      // 估一下實際手速給玩家參考：每顆 ≈ 思考 100ms + 約 12 步操作
+      const s = aiCustomSpeed / 100;
+      const fd = 150 * Math.pow(5 / 150, s);
+      const pps = 1000 / (100 + 12 * fd);
+      customSpeedLabel.textContent = `${aiCustomSpeed}% · ~${pps.toFixed(1)} pps`;
+    };
+
     document.querySelectorAll('#ai-speed-group .ai-option-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#ai-speed-group .ai-option-btn').forEach(b => b.classList.remove('selected-speed'));
         btn.classList.add('selected-speed');
         aiSpeedMode = btn.dataset.speed;
+        if (customSpeedWrap) customSpeedWrap.classList.toggle('hidden', aiSpeedMode !== 'custom');
         // --- 切換速度時的「即時反應」機制 ---
         aiThinkTimer = 0; // 直接沒收時間債，防止舊的延遲干擾
         if (aiCurrent) {
            aiCurrent._hesitating = false;
            aiCurrent._hesitateEnd = 0;
         }
-        if (isAIMode && aiSpeedMode !== 'adaptive') {
+        if (isAIMode && aiSpeedMode === 'custom') {
+          currentAiThinkInterval = 900 * Math.pow(80 / 900, aiCustomSpeed / 100);
+          updateCustomSpeedLabel();
+        } else if (isAIMode && aiSpeedMode !== 'adaptive') {
           const speedMap = { rookie: 900, casual: 600, pro: 250, god: 80 };
           currentAiThinkInterval = speedMap[aiSpeedMode] || 600;
         }
       });
     });
+
+    // 自訂速度滑桿
+    if (customSpeedSlider) {
+      customSpeedSlider.addEventListener('input', () => {
+        aiCustomSpeed = parseInt(customSpeedSlider.value) || 0;
+        currentAiThinkInterval = 900 * Math.pow(80 / 900, aiCustomSpeed / 100);
+        updateCustomSpeedLabel();
+      });
+      updateCustomSpeedLabel();
+    }
 
     // Wide 按鈕
     const wideHintEl = document.getElementById('ai-wide-hint');
@@ -7294,12 +7355,19 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('#ai-wide-group .ai-option-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        aiWideMode = btn.dataset.wide === 'auto' ? 'auto' : parseInt(btn.dataset.wide);
-        if (wideHintEl) wideHintEl.textContent = window.t(AI_WIDE_HINTS[btn.dataset.wide] || '', '');
+        if (btn.dataset.opener) {
+          // 名牌開局選項：固定用該開局書，中盤接 T-Spin 流（keepEmpty=0 引擎）
+          aiWideMode = 'auto';
+          aiOpenerChoice = btn.dataset.opener;
+        } else {
+          aiWideMode = btn.dataset.wide === 'auto' ? 'auto' : parseInt(btn.dataset.wide);
+          aiOpenerChoice = btn.dataset.wide === 'auto' ? 'random' : null;
+        }
+        if (wideHintEl) wideHintEl.textContent = window.t(AI_WIDE_HINTS[btn.dataset.opener || btn.dataset.wide] || '', '');
       });
       // 初始化 hint
       if (btn.classList.contains('selected') && wideHintEl) {
-        wideHintEl.textContent = window.t(AI_WIDE_HINTS[btn.dataset.wide] || '', '');
+        wideHintEl.textContent = window.t(AI_WIDE_HINTS[btn.dataset.opener || btn.dataset.wide] || '', '');
       }
     });
   }

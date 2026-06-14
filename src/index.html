@@ -2806,17 +2806,27 @@
                 <button class="ai-option-btn selected-speed" data-i18n="ai.adaptive" data-i18n-title="ai.adaptiveTip" data-speed="adaptive" style="grid-column:1/-1;">🎯 適應模式（跟著你的手速）</button>
                 <button class="ai-option-btn" data-i18n="ai.pro" data-speed="pro">💀 高手</button>
                 <button class="ai-option-btn" data-i18n="ai.god" data-speed="god">👾 神</button>
+                <button class="ai-option-btn" data-i18n="ai.customSpeed" data-speed="custom" style="grid-column:1/-1;">🎚 自訂速度</button>
+              </div>
+              <div id="ai-custom-speed-wrap" class="hidden" style="margin-top:8px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <input type="range" id="ai-custom-speed" min="0" max="100" value="50" step="1" style="flex:1; accent-color:var(--T);">
+                  <span id="ai-custom-speed-label" style="font-size:13px; color:rgba(255,255,255,0.85); min-width:96px; text-align:right;"></span>
+                </div>
               </div>
             </div>
 
             <div style="margin-bottom:14px;">
-              <div class="ai-setting-label" data-i18n="ai.style">📐 打法風格（右側保留坑寬）</div>
+              <div class="ai-setting-label" data-i18n="ai.style">📐 打法風格</div>
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;" id="ai-wide-group">
                 <button class="ai-option-btn selected" data-i18n="ai.auto" data-wide="auto" style="grid-column:1/-1;">🧠 自動（AI 自行決策）</button>
                 <button class="ai-option-btn" data-wide="1">1-wide</button>
                 <button class="ai-option-btn" data-wide="2">2-wide</button>
                 <button class="ai-option-btn" data-wide="3">3-wide</button>
-                <button class="ai-option-btn" data-wide="4" style="grid-column:2/4;">4-wide Combo</button>
+                <button class="ai-option-btn" data-wide="4">4-wide Combo</button>
+                <button class="ai-option-btn" data-i18n="ai.opener.tki3" data-opener="TKI3">TKI-3</button>
+                <button class="ai-option-btn" data-i18n="ai.opener.dt" data-opener="DT">DT 砲</button>
+                <button class="ai-option-btn" data-i18n="ai.opener.pco" data-opener="PCO" style="grid-column:1/-1;">PCO 完美清除開局</button>
               </div>
               <div id="ai-wide-hint" style="font-size:14px; color:rgba(255,255,255,0.85); margin-top:6px; line-height:1.5; min-height:30px;"></div>
             </div>

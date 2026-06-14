@@ -1,7 +1,7 @@
 // Service Worker: network-first + offline fallback.
 // 線上永遠最新版、離線時 PWA 仍能載入（單人模式可玩；對戰需要網路）。
 
-const CACHE_NAME = 'brickade-v22';
+const CACHE_NAME = 'brickade-v27';
 
 const PRECACHE_URLS = [
   '/',

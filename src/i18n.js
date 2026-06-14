@@ -103,13 +103,14 @@
       // === AI 設定面板 ===
       'ai.title': '🤖 AI 設定',
       'ai.speedDifficulty': '⚡ 速度 / 難度',
-      'ai.style': '📐 打法風格（右側保留坑寬）',
+      'ai.style': '📐 打法風格',
       'ai.rookie': '🐢 菜鳥',
       'ai.casual': '😊 休閒',
       'ai.adaptive': '🎯 適應模式（跟著你的手速）',
       'ai.adaptiveTip': '依你的下子速度動態調整 AI 反應快慢',
       'ai.pro': '💀 高手',
       'ai.god': '👾 神',
+      'ai.customSpeed': '🎚 自訂速度',
       'ai.auto': '🧠 自動（AI 自行決策）',
 
       // === Player stats tooltips（hover 時顯示）===
@@ -437,11 +438,17 @@
       'rankModalTitle': '🏆 段位規則',
 
       // === AI 打法風格 hint（按 1-wide / 2-wide / Auto 等按鈕後出現的說明）===
-      'aiHint.auto': '🧠 AI 自行選擇最佳落點，追求 Quad 建塔策略',
-      'aiHint.1': '1-wide：右側留 1 列深坑，用 I 磚反覆插坑，適合練 Quad 節奏',
-      'aiHint.2': '2-wide：右側留 2 列，穩定版 Quad 策略，適合中高難度 AI',
+      'aiHint.auto': '🧠 AI 臨場應變：T-Spin / 挖垃圾 / 防守自由切換，開局還會隨機抽名牌開局，每場都不一樣',
+      'aiHint.1': '1-wide：右側留 1 列深坑，B2B Quad 流，用 I 磚反覆插坑',
+      'aiHint.2': '2-wide：右側留 2 列，穩定版 Combo 策略，適合中高難度 AI',
       'aiHint.3': '3-wide：右側留 3 列，兼顧平整與消行，節奏型打法',
-      'aiHint.4': '4-wide Combo：右側留 4 列通道，每顆方塊都消行，持續 Combo 輸出！',
+      'aiHint.4': '4-wide Combo：右側留 4 列通道，蓄力疊高後一波高 Combo 輸出！',
+      'aiHint.tki3': 'TKI-3：經典名牌開局，第一包蓋 T 槽、開場就甩 T-Spin Double，之後接 T-Spin 流',
+      'ai.opener.tki3': 'TKI-3',
+      'ai.opener.dt': 'DT 砲',
+      'ai.opener.pco': 'PCO 完美清除開局',
+      'aiHint.dt': 'DT 砲：跨兩包蓋砲台，T-Spin Double 接 T-Spin Triple 雙連擊（第一包順序合適時施放）',
+      'aiHint.pco': 'PCO：第一包蓋完美清除模板，第二包整面清空 +10 攻擊（第一包順序合適時施放）',
 
       // === Game state ===
       'game.gameOver': 'GAME OVER',
@@ -544,13 +551,14 @@
       // === AI panel ===
       'ai.title': '🤖 AI Settings',
       'ai.speedDifficulty': '⚡ Speed / Difficulty',
-      'ai.style': '📐 Strategy (right-side well width)',
+      'ai.style': '📐 Strategy',
       'ai.rookie': '🐢 Rookie',
       'ai.casual': '😊 Casual',
       'ai.adaptive': '🎯 Adaptive',
       'ai.adaptiveTip': 'AI dynamically matches your placement speed',
       'ai.pro': '💀 Pro',
       'ai.god': '👾 God',
+      'ai.customSpeed': '🎚 Custom Speed',
       'ai.auto': '🧠 Auto (AI decides)',
 
       // === Player stats tooltips ===
@@ -878,11 +886,17 @@
       'rankModalTitle': '🏆 Rank Rules',
 
       // === AI strategy hints ===
-      'aiHint.auto': '🧠 AI auto-selects best placement, building Quad-stack strategy',
-      'aiHint.1': '1-wide: Keep a 1-column well on the right, slot I-pieces for Quad practice',
-      'aiHint.2': '2-wide: 2-column well, stable Quad strategy, suits mid-high AI',
+      'aiHint.auto': '🧠 Adaptive AI: T-Spins, garbage digging, defense — plus a random named opener each game',
+      'aiHint.1': '1-wide: 1-column well on the right, B2B Quad style with I-pieces',
+      'aiHint.2': '2-wide: 2-column well, stable combo strategy, suits mid-high AI',
       'aiHint.3': '3-wide: 3-column well, balanced clears, rhythm-style play',
-      'aiHint.4': '4-wide Combo: 4-column corridor, every piece clears, sustained combos!',
+      'aiHint.4': '4-wide Combo: 4-column corridor, stack high then unleash a long combo!',
+      'aiHint.tki3': 'TKI-3: classic named opener — builds a T-slot in bag one, fires a T-Spin Double, then T-Spin style',
+      'ai.opener.tki3': 'TKI-3',
+      'ai.opener.dt': 'DT Cannon',
+      'ai.opener.pco': 'PCO Perfect Clear',
+      'aiHint.dt': 'DT Cannon: two-bag cannon firing TSD into TST (when first-bag order allows)',
+      'aiHint.pco': 'PCO: builds the perfect-clear template, then wipes the board for +10 attack (when first-bag order allows)',
 
       // === Game state ===
       'game.gameOver': 'GAME OVER',

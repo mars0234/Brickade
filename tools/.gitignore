@@ -1,0 +1,3 @@
+# emcc 測試編譯產物（用 npm run build:ai 或 emcc 重新產生）
+test_ai.js
+test_ai.wasm

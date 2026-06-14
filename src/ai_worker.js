@@ -16,10 +16,10 @@ Module.onRuntimeInitialized = () => {
 self.onmessage = function(e) {
   if (e.data.type === 'THINK' && wasmAI) {
     try {
-      const { boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty } = e.data.payload;
+      const { boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty, holdUsed, incomingGarbage, b2b } = e.data.payload;
 
       // 執行極度消耗 CPU 的思考運算 (這時主畫面依然能保持 60 FPS)
-      const bestMove = wasmAI.findBestMove(boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty);
+      const bestMove = wasmAI.findBestMove(boardStr, currentPiece, holdPiece, queueStr, aiCombo, keepEmpty, !!holdUsed, incomingGarbage | 0, b2b | 0);
 
       // 算完後，把結果丟回給主程式
       postMessage({
@@ -28,7 +28,8 @@ self.onmessage = function(e) {
           col: bestMove.col,
           row: bestMove.row,
           rot: bestMove.rot,
-          useHold: bestMove.useHold
+          useHold: bestMove.useHold,
+          path: bestMove.path || ''   // BFS 操作序列（L/R/D/c/z），照著播放才能做出 tuck 與 spin
         }
       });
     } catch (err) {

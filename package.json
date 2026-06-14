@@ -5,7 +5,9 @@
   "main": "build.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy": "node build.js"
+    "deploy": "node build.js",
+    "build:ai": "emcc src/ai.cpp -O3 --bind -s ALLOW_MEMORY_GROWTH=1 -o src/brickade_ai.js",
+    "test:ai": "node tools/ai_test.js ./test_ai.js"
   },
   "repository": {
     "type": "git",
