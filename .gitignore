@@ -71,6 +71,7 @@ node_modules/
 node_modules/
 public/
 emsdk/
+.worktrees/
 
 # Firebase migration secrets — service account JSONs grant FULL admin access to project
 # 絕對不能 commit。如果不小心暴露，立刻到 Console 撤銷該 key 並重新產生
