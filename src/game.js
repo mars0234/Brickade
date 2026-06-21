@@ -196,6 +196,57 @@
   let maxCombo = 0;           // 對戰紀錄用：本局最高 combo
   let piecesPlaced = 0;       // 對戰紀錄用：本局放下的方塊總數 (算 PPM/APM)
   let matchStartTime = 0;     // 對戰紀錄用：本局開始時間戳 (ms)
+  let activeReplayRecorder = null;
+  let activeReplayEventRecorder = null;
+  let lastReplayStateSignature = '';
+
+  function replayBoardString(source) {
+    if (!source) return '';
+    if (typeof source === 'string') return source;
+    return source.map(row => row.map(cell => cell || '.').join('')).join('');
+  }
+  function replayPiece(piece) {
+    return window.ReplaySystem ? window.ReplaySystem.serializePiece(piece) : null;
+  }
+  function captureReplayFrame(force = false) {
+    if (!activeReplayRecorder && !activeReplayEventRecorder) return;
+    const state = {
+      me: { board: replayBoardString(board), current: replayPiece(current), hold: holdType, queue: queue.slice(0, 5), score, lines, combo, b2b, kos: myKOs, sent: myLinesSent, garbage: activeGarbage, pendingGarbage: nextGarbage },
+      opponent: { board: (oppState && oppState.b) || replayBoardString(aiBoard), current: replayPiece((oppState && oppState.c) || aiCurrent), hold: (oppState && oppState.h) || aiHoldType || null, score: (oppState && oppState.s) || aiScore || 0, combo: (oppState && oppState.cb) || -1, b2b: (oppState && oppState.bb) || aiB2b || 0, kos: oppKOs, sent: oppLinesSent, garbage: (oppState && oppState.g) || aiActiveGarbage || 0, pendingGarbage: (oppState && oppState.ng) || aiNextGarbage || 0 }
+    };
+    if (activeReplayRecorder) activeReplayRecorder.capture(performance.now(), state, force);
+    if (activeReplayEventRecorder) {
+      const signature = JSON.stringify(state);
+      if (force || signature !== lastReplayStateSignature) {
+        activeReplayEventRecorder.record(performance.now(), 'both', state);
+        lastReplayStateSignature = signature;
+      }
+    }
+  }
+  function writeFreeReplay(replayId, replay, metadata) {
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const events = replay.events || [];
+    const segments = [];
+    for (let i = 0; i < events.length; i += 20) segments.push(events.slice(i, i + 20));
+    return db.collection('replays').doc(replayId).set(Object.assign({ version: 4, ownerUid: currentUserUID, expiresAt, segmentCount: segments.length, highlights: replay.highlights || [], frames: replay.frames || [] }, metadata))
+      .then(() => Promise.all(segments.map((events, i) => db.collection('replays').doc(replayId).collection('segments').doc(String(i).padStart(5, '0')).set({ events }))));
+  }
+  async function cleanupExpiredReplays() {
+    if (!currentUserUID) return;
+    const history = await db.collection('users').doc(currentUserUID).collection('matchHistory').get();
+    const now = Date.now();
+    for (const row of history.docs) {
+      const data = row.data(); if (!data.replayId) continue;
+      const replayRef = db.collection('replays').doc(data.replayId);
+      const replay = await replayRef.get();
+      const expires = replay.exists && replay.data().expiresAt;
+      const expireMs = expires && (expires.toMillis ? expires.toMillis() : new Date(expires).getTime());
+      if (!expireMs || expireMs > now) continue;
+      const segments = await replayRef.collection('segments').get();
+      const batch = db.batch(); segments.docs.forEach(doc => batch.delete(doc.ref)); batch.delete(replayRef); batch.update(row.ref, { replayId: null, replayExpired: true });
+      await batch.commit();
+    }
+  }
   let matchEndReason = null;  // 對戰紀錄用：'TIMEOUT' | 'KO' | 'SURRENDER' | 'HEIGHT'
   const actionMsgEl = document.getElementById('action-msg');
   let msgTimeout = null;
@@ -1477,6 +1528,12 @@
     matchResult = null; // 重置上一局的勝負結果，防止復活卡死
     maxCombo = 0; piecesPlaced = 0; matchEndReason = null;
     matchStartTime = Date.now();
+    if (isMultiplayer && window.ReplaySystem) {
+      activeReplayRecorder = window.ReplaySystem.createRecorder({ startedAt: performance.now(), frameIntervalMs: 5000 });
+      activeReplayEventRecorder = window.ReplaySystem.createEventRecorder({ startedAt: performance.now() });
+      lastReplayStateSignature = '';
+      captureReplayFrame(true);
+    }
     const myKoEl = document.getElementById('my-ko-display');
     const oppKoEl = document.getElementById('opp-ko-display');
     const myLinesEl = document.getElementById('my-lines-sent-display');
@@ -2237,6 +2294,7 @@
         } else if (data.type === 'I_AM_KO') {
            oppKOTimer = 1000;
            myKOs++; // 對手死掉，是我得分！
+           if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'KO', 'me', { target: 'opponent', y: 340, size: 100, color: '#ff0d62' });
            const myKoEl = document.getElementById('my-ko-display'); // 更新左邊「You」面板的紅圈數字
            if (myKoEl) myKoEl.textContent = myKOs;
            oppFloatingTexts.push(new FloatingText("K.O.", (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2, '#ff0d62', 100));
@@ -2925,6 +2983,7 @@
       activeGarbage = 0;
       nextGarbage = 0;
       oppKOs++;
+      if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'KO', 'opponent', { target: 'me', y: 340, size: 100, color: '#ff0d62' });
       const oppKoEl = document.getElementById('opp-ko-display');
       if (oppKoEl) oppKoEl.textContent = oppKOs;
 
@@ -3062,6 +3121,30 @@
         isValidMatch = true;
       }
 
+      // AI 對戰是練習局：保留公開戰績與重播，但絕不進入 LP／排位結算。
+      if (isAIMode && currentUserUID && currentPlayer !== 'Admin_Mars') {
+        const durationSec = Math.max(1, Math.round((Date.now() - (matchStartTime || Date.now())) / 1000) - 3);
+        captureReplayFrame(true);
+        const replayId = activeReplayRecorder ? db.collection('replays').doc().id : null;
+        const aiSettings = { speedMode: aiSpeedMode, customSpeed: aiCustomSpeed, wideMode: String(aiWideMode) };
+        if (replayId) {
+          const replay = activeReplayRecorder.toReplay();
+          replay.events = activeReplayEventRecorder ? activeReplayEventRecorder.toReplay().events : [];
+          replay.version = 2;
+          writeFreeReplay(replayId, replay, { matchType: 'AI', participants: [{ name: currentPlayer }, { name: 'AI' }], durationSec, result: matchResult, aiSettings, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('AI 重播寫入失敗:', err));
+        }
+        db.collection('users').doc(currentUserUID).collection('matchHistory').add({
+          ts: firebase.firestore.FieldValue.serverTimestamp(), result: matchResult,
+          reason: matchEndReason || (forcedResult ? 'KO' : 'TIMEOUT'), opponent: 'AI', opponentUid: null,
+          matchType: 'AI', aiSettings, replayId, lpChange: 0, myLP, oppLP: 0,
+          myRank: getRankInfo(myLP).name, oppRank: '—', myScore: score, oppScore: aiScore || 0,
+          myLines: lines, oppLines: aiLines || 0, myLinesSent, oppLinesSent, myKOs, oppKOs,
+          myMaxCombo: maxCombo, oppMaxCombo: (oppState && oppState.mc) || 0,
+          myApm: Math.round(myLinesSent / (durationSec / 60)), oppApm: Math.round(oppLinesSent / (durationSec / 60)),
+          myPps: +(piecesPlaced / durationSec).toFixed(2), oppPps: +(((oppState && oppState.pp) || 0) / durationSec).toFixed(2), durationSec
+        }).catch(err => console.error('AI 對戰紀錄寫入失敗:', err));
+      }
+
       // 4. 排位積分 (LP) 結算邏輯
       if (isValidMatch) {
         let lpChange = 0;
@@ -3155,6 +3238,22 @@
             if (forcedResult && battleTime > 0) reason = 'KO';
             else reason = 'TIMEOUT';
           }
+          let replayId = null;
+          if (activeReplayRecorder && currentUserUID) {
+            captureReplayFrame(true);
+            replayId = db.collection('replays').doc().id;
+            const replay = activeReplayRecorder.toReplay();
+            replay.events = activeReplayEventRecorder ? activeReplayEventRecorder.toReplay().events : [];
+            replay.version = 2;
+            writeFreeReplay(replayId, replay, { matchType: isAIMode ? 'AI' : 'PLAYER', participants: [{ name: currentPlayer }, { name: isAIMode ? 'AI' : oppName }], durationSec, result: matchResult, aiSettings: isAIMode ? { speedMode: aiSpeedMode, customSpeed: aiCustomSpeed, wideMode: String(aiWideMode) } : null }).catch(err => console.error('Replay write failed:', err));
+            if (false) db.collection('replays').doc(replayId).set({
+              version: 2, ownerUid: currentUserUID, matchType: isAIMode ? 'AI' : 'PLAYER',
+              participants: [{ name: currentPlayer }, { name: isAIMode ? 'AI' : oppName }],
+              durationSec, result: matchResult, frames: replay.frames, events: replay.events, highlights: replay.highlights,
+              aiSettings: isAIMode ? { speedMode: aiSpeedMode, customSpeed: aiCustomSpeed, wideMode: String(aiWideMode) } : null,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(err => { console.error('重播寫入失敗:', err); });
+          }
           const historyEntry = {
             ts: firebase.firestore.FieldValue.serverTimestamp(),
             result: matchResult,            // WIN / LOSE / DRAW
@@ -3184,7 +3283,10 @@
             maxCombo: maxCombo,
             apm: myAPM,
             pps: myPPS,
-            durationSec: durationSec
+            durationSec: durationSec,
+            replayId: replayId,
+            matchType: isAIMode ? 'AI' : 'PLAYER',
+            aiSettings: isAIMode ? { speedMode: aiSpeedMode, customSpeed: aiCustomSpeed, wideMode: String(aiWideMode) } : null
           };
           // GoatCounter：對戰結束結果（WIN / LOSE / DRAW），可看到全站勝負分布
           if (window.goatcounter && window.goatcounter.count && matchResult) {
@@ -3869,6 +3971,19 @@
         const curr = oppState.c;
         if (curr) {
           const matrix = PIECES[curr.t][curr.rot];
+          const replayPiece = window.ReplaySystem && window.ReplaySystem.serializePiece(curr);
+          const ghostBaseRow = replayPiece && window.ReplaySystem.ghostRowForPiece(replayPiece, bStr, ROWS, COLS);
+          if (typeof ghostBaseRow === 'number' && ghostBaseRow !== curr.r) {
+            for (let r = 0; r < matrix.length; r++) {
+              for (let c = 0; c < matrix[r].length; c++) {
+                if (matrix[r][c]) {
+                  const rr = ghostBaseRow + r;
+                  const cc = curr.c + c;
+                  if (rr >= VISIBLE_ROWS) drawCell(oppCtx, cc * oppSize, (rr - VISIBLE_ROWS) * oppSize, oppSize, COLORS[curr.t], 1, 0.6, true);
+                }
+              }
+            }
+          }
           for (let r = 0; r < matrix.length; r++) {
             for (let c = 0; c < matrix[r].length; c++) {
               if (matrix[r][c]) {
@@ -4772,6 +4887,7 @@
       // --- T-Spin / B2B 攻擊計算 ---
       let attack;
       let difficult = false;
+      const wasAiB2b = aiB2b > 0;
       if (tSpinType === 'Full') {
         attack = [0, 2, 4, 6][fullRows.length] || 0;
         difficult = true;
@@ -4803,6 +4919,7 @@
         const tMsg = tSpinType === 'Full'
           ? `T-SPIN ${['','SINGLE','DOUBLE','TRIPLE'][fullRows.length] || ''}!`
           : `MINI T-SPIN!`;
+        if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'TSPIN', 'opponent', { label: tSpinType === 'Full' && wasAiB2b ? `B2B ${tMsg.replace('!', '')}` : tMsg.replace('!', ''), timeline: tSpinType === 'Full' && wasAiB2b, target: 'opponent', y: 260, size: 30, color: '#c84cf0' });
         oppFloatingTexts.push(new FloatingText(tMsg, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 80, '#c84cf0', 30));
         playSound('tspin');
       }
@@ -4814,8 +4931,11 @@
         const comboColor = aiCombo >= 5 ? '#ff0d62' : (aiCombo >= 3 ? '#f7dd16' : '#48d62f'); 
         const comboSize = 24 + Math.min(aiCombo * 3, 20);
         oppFloatingTexts.push(new FloatingText(`${aiCombo} COMBO!`, (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 + 40, comboColor, comboSize));
+        if (activeReplayRecorder && aiCombo >= 2) activeReplayRecorder.highlight(performance.now(), 'COMBO', 'opponent', { combo: aiCombo, timeline: aiCombo >= 5, target: 'opponent', y: 380, size: comboSize, color: comboColor });
         playSound('clear', aiCombo); 
       }
+
+      if (activeReplayRecorder && fullRows.length === 4) activeReplayRecorder.highlight(performance.now(), 'QUAD', 'opponent', { label: 'QUAD', target: 'opponent', y: 320, size: 34, color: '#38bdee' });
 
       // 加上炸彈爆發的攻擊力
       if (bombsCleared > 0) {
@@ -4829,6 +4949,7 @@
       // 完美清除（全場淨空 +10 攻擊，與玩家相同）
       if (aiBoard.every(row => row.every(cell => !cell))) {
         attack += 10;
+        if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'PERFECT_CLEAR', 'opponent', { target: 'opponent', y: 230, size: 34, color: '#4cf0c8' });
         oppFloatingTexts.push(new FloatingText('PERFECT CLEAR!', (COLS * 34) / 2, (VISIBLE_ROWS * 34) / 2 - 110, '#4cf0c8', 34));
         playSound('perfect');
       }
@@ -4918,6 +5039,7 @@
       } else {
         // 有垃圾，進入 KO 復活流程
         myKOs++;
+        if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'KO', 'me', { target: 'opponent', y: 340, size: 100, color: '#ff0d62' });
         const myKoEl = document.getElementById('my-ko-display');
         if (myKoEl) myKoEl.textContent = myKOs;
 
@@ -5119,6 +5241,7 @@
     if (linesCleared > 0) combo++;
     else combo = -1;
     if (combo > maxCombo) maxCombo = combo;
+    if (activeReplayRecorder && combo >= 2) activeReplayRecorder.highlight(performance.now(), 'COMBO', 'me', { combo, timeline: combo >= 5, target: 'me', y: 380, size: 24 + Math.min(combo * 3, 20), color: combo >= 5 ? '#ff0d62' : (combo >= 3 ? '#f7dd16' : '#48d62f') });
 
     if (linesCleared > 0) {
       lines += linesCleared;
@@ -5127,6 +5250,7 @@
 
     // 依照競技攻擊表設定基礎分數與攻擊力
     if (tSpinType) {
+      if (activeReplayRecorder && linesCleared > 0) activeReplayRecorder.highlight(performance.now(), 'TSPIN', 'me', { label: tSpinType === 'Full' && b2b > 0 ? `B2B T-SPIN ${['','SINGLE','DOUBLE','TRIPLE'][linesCleared] || ''}`.trim() : `T-SPIN ${['','SINGLE','DOUBLE','TRIPLE'][linesCleared] || ''}`.trim(), timeline: tSpinType === 'Full' && b2b > 0, target: 'me', y: 320, size: 32, color: '#b144f7' });
       difficult = true;
       if (tSpinType === 'Full') {
         // T-Spin=400 / TSS=800 / TSD=1200 / TST=1600
@@ -5144,6 +5268,7 @@
       base = [0, 100, 300, 500, 800][linesCleared] || 0;
       attack = [0, 0, 1, 2, 4][linesCleared] || 0;
       if (linesCleared === 4) {
+        if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'QUAD', 'me', { label: 'QUAD', target: 'me', y: 320, size: 34, color: '#38bdee' });
         difficult = true;
         msg = 'Quad';
       }
@@ -5189,6 +5314,7 @@
 
       // 完美清除
       if (isPerfectClear) {
+        if (activeReplayRecorder) activeReplayRecorder.highlight(performance.now(), 'PERFECT_CLEAR', 'me', { target: 'me', y: 230, size: 40, color: '#f7dd16' });
         attack += 10; 
         msg = 'PERFECT CLEAR!';
         shakeMag = 10; 
@@ -6710,6 +6836,7 @@
   }
 
   function update(delta) {
+    if (isMultiplayer && gameStarted && !gameOver) captureReplayFrame();
     // 觀戰中：完全不執行本機遊戲邏輯，只靠 frame 灌入 + draw() 渲染
     if (isSpectating) return;
 
@@ -11362,9 +11489,11 @@
   const historyContent = document.getElementById('history-content');
   const historySummary = document.getElementById('history-summary');
   const historyFilterTabs = document.getElementById('history-filter-tabs');
+  const historyModeTabs = document.getElementById('history-mode-tabs');
 
   let historyDocsCache = [];      // 記住全部紀錄，切換 tab 時不用重新抓
   let historyFilter = 'ALL';
+  let historyMode = 'PLAYER';
 
   function formatHistoryTime(ts) {
     if (!ts) return '—';
@@ -11387,6 +11516,7 @@
 
   function renderHistoryList() {
     const docs = historyDocsCache.filter(d => {
+      if ((d.data().matchType || 'PLAYER') !== historyMode) return false;
       if (historyFilter === 'ALL') return true;
       return d.data().result === historyFilter;
     });
@@ -11492,6 +11622,8 @@
       `;
 
       const oppName = m.opponent || 'Unknown';
+      const aiMeta = m.matchType === 'AI' && m.aiSettings
+        ? `<div style="text-align:center;color:var(--T);font-size:10px;margin:5px 0;">🤖 AI · ${m.aiSettings.speedMode || 'adaptive'} · ${m.aiSettings.wideMode || 'auto'}</div>` : '';
 
       const html = `
         <div style="background:${bgColor}; border-left:5px solid ${borderColor}; border-radius:6px; padding:10px 12px; font-size:12px;">
@@ -11516,12 +11648,19 @@
               <div style="color:var(--white); font-weight:900; font-size:14px; margin-top:3px;">${(m.oppScore || 0).toLocaleString()}</div>
             </div>
           </div>
+          ${aiMeta}
           ${statTable}
+          ${m.replayId ? `<button class="history-replay-btn" data-replay-id="${m.replayId}" style="margin-top:8px;width:100%;padding:6px;border:1px solid var(--T);background:rgba(177,68,247,.15);color:var(--T);font-weight:bold;cursor:pointer;">▶ REPLAY</button>` : ''}
         </div>
       `;
       historyContent.innerHTML += html;
     });
   }
+
+  historyContent?.addEventListener('click', e => {
+    const button = e.target.closest('.history-replay-btn');
+    if (button) { e.stopPropagation(); openReplay(button.dataset.replayId); }
+  });
 
   function setHistoryFilter(f) {
     historyFilter = f;
@@ -11538,6 +11677,16 @@
         else if (btn.dataset.filter === 'LOSE') btn.style.color = 'var(--Z)';
         else btn.style.color = 'var(--O)';
       }
+    });
+    renderHistoryList();
+  }
+
+  function setHistoryMode(mode) {
+    historyMode = mode;
+    historyModeTabs?.querySelectorAll('.history-mode-tab').forEach(btn => {
+      const active = btn.dataset.mode === mode;
+      btn.style.background = active ? 'var(--T)' : 'transparent';
+      btn.style.color = active ? 'var(--white)' : 'var(--T)';
     });
     renderHistoryList();
   }
@@ -11560,6 +11709,7 @@
     historyContent.innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); padding:30px; font-size:13px;">讀取中...</div>';
     historySummary.innerHTML = '';
     playSound('move');
+    cleanupExpiredReplays().catch(err => console.warn('重播過期清理失敗:', err));
 
     db.collection('users').doc(currentUserUID)
       .collection('matchHistory')
@@ -11579,6 +11729,130 @@
   }
 
   let _historyViewingPlayer = null;
+
+  let replayController = null;
+  function formatReplayTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+  historyModeTabs?.querySelectorAll('.history-mode-tab').forEach(btn => btn.addEventListener('click', () => { playSound('move'); setHistoryMode(btn.dataset.mode); }));
+  function closeReplay() {
+    if (replayController && replayController.raf) cancelAnimationFrame(replayController.raf);
+    replayController = null;
+    const modal = document.getElementById('replay-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+  function openReplay(replayId) {
+    const modal = document.getElementById('replay-modal');
+    const status = document.getElementById('replay-status');
+    const timeline = document.getElementById('replay-timeline');
+    const highlights = document.getElementById('replay-highlights');
+    if (!modal || !status || !timeline || !highlights || !replayId) return;
+    const replayPlayButton = document.getElementById('replay-play-btn');
+    modal.classList.remove('hidden'); modal.scrollTop = 0; status.textContent = 'Loading replay…'; highlights.innerHTML = '';
+    if (replayPlayButton) replayPlayButton.textContent = 'PLAY';
+    db.collection('replays').doc(replayId).get().then(async snap => {
+      const replay = snap.exists ? snap.data() : null;
+      if (!replay || ![1, 2, 4].includes(replay.version) || !Array.isArray(replay.frames)) throw new Error('Replay unavailable');
+      const segmentSnap = replay.version === 4 ? await db.collection('replays').doc(replayId).collection('segments').orderBy(firebase.firestore.FieldPath.documentId()).get() : null;
+      const sourceEvents = segmentSnap ? segmentSnap.docs.flatMap(doc => doc.data().events || []) : (Array.isArray(replay.events) ? replay.events : []);
+      const duration = Math.max(0, (replay.durationSec || 0) * 1000, ...(replay.frames.map(f => f.t || 0)), ...(sourceEvents.map(e => e.t || 0)));
+      const drawReplayBoard = (canvas, boardText, currentPiece, garbage, pendingGarbage) => {
+        const ctx = canvas && canvas.getContext('2d'); if (!ctx) return;
+        const cols = 10, rows = 20, totalRows = 40, visibleStart = 20, cell = canvas.width / cols;
+        const colors = { I:'#38bdee', J:'#2a7fff', L:'#ff9800', O:'#f7dd16', S:'#48d62f', T:'#b144f7', Z:'#ff0d62', G:'#666666', B:'#ff1111', X:'#ff1111' };
+        const cellAt = (row, col) => (boardText && boardText[row * cols + col]) || '.';
+        const drawCell = (col, row, color, alpha = 1, ghost = false) => {
+          if (row < visibleStart || row >= totalRows || col < 0 || col >= cols) return;
+          const x = col * cell, y = (row - visibleStart) * cell;
+          ctx.save(); ctx.globalAlpha = alpha;
+          if (ghost) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(x + 3, y + 3, cell - 6, cell - 6); ctx.restore(); return; }
+          if (color === '#ff1111') {
+            const cx = x + cell / 2, cy = y + cell / 2, radius = cell / 2 - 2;
+            ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = '#111'; ctx.stroke();
+            ctx.fillStyle = '#ff1111'; ctx.beginPath(); ctx.arc(cx, cy, radius * .5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.arc(cx - radius * .3, cy - radius * .3, radius * .25, 0, Math.PI * 2); ctx.fill();
+          } else { ctx.fillStyle = color; ctx.fillRect(x, y, cell, cell); ctx.strokeStyle = '#06004f'; ctx.lineWidth = 4; ctx.strokeRect(x, y, cell, cell); }
+          ctx.restore();
+        };
+        ctx.fillStyle = '#06004f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { ctx.fillStyle = '#0b0767'; ctx.fillRect(c * cell, r * cell, cell, cell); ctx.strokeStyle = '#06004f'; ctx.lineWidth = 4; ctx.strokeRect(c * cell, r * cell, cell, cell); }
+        for (let r = visibleStart; r < totalRows; r++) for (let c = 0; c < cols; c++) { const value = cellAt(r, c); if (value !== '.') drawCell(c, r, colors[value] || '#fff'); }
+        const cells = window.ReplaySystem.currentPieceCells(currentPiece);
+        if (cells.length) {
+          let ghostOffset = 0;
+          const blocked = offset => cells.some(({ row, col }) => { const testRow = row + offset; return testRow >= totalRows || col < 0 || col >= cols || (testRow >= 0 && cellAt(testRow, col) !== '.'); });
+          while (!blocked(ghostOffset + 1)) ghostOffset++;
+          const color = colors[currentPiece.type] || '#fff';
+          if (ghostOffset) cells.forEach(({ row, col }) => drawCell(col, row + ghostOffset, color, .6, true));
+          cells.forEach(({ row, col }) => drawCell(col, row, color));
+        }
+        const active = Math.min(Math.max(0, garbage || 0), rows), pending = Math.min(Math.max(0, pendingGarbage || 0), rows - active);
+        if (active) { ctx.fillStyle = '#ff0d62'; ctx.fillRect(0, canvas.height - active * cell, 6, active * cell); }
+        if (pending) { ctx.fillStyle = '#f7dd16'; ctx.fillRect(0, canvas.height - (active + pending) * cell, 6, pending * cell); }
+      };
+      const clock = window.ReplaySystem.createPlaybackClock(duration);
+      replayController = { replay, clock, speed: 1, last: performance.now(), raf: 0 };
+      timeline.max = String(duration); timeline.value = '0';
+      const timelineEvents = window.ReplaySystem.timelineHighlightEntries(replay.highlights || []);
+      highlights.innerHTML = timelineEvents.map(({ highlight: h, index }) => `<button data-highlight-index="${index}" style="border:1px solid var(--O);background:rgba(247,221,22,.12);color:var(--O);padding:4px 7px;cursor:pointer">★ ${formatReplayTime(h.t || 0)} ${h.actor === 'me' ? 'YOU' : 'OPP'} · ${h.label || h.kind}</button>`).join('') || '<span style="color:rgba(255,255,255,.55)">No highlights in this match</span>';
+      function tick(now) {
+        if (!replayController) return;
+        const c = replayController; c.clock.tick(now - c.last, c.speed); c.last = now;
+        if (replayPlayButton) replayPlayButton.textContent = c.clock.playing ? 'PAUSE' : 'PLAY';
+        timeline.value = String(c.clock.time);
+        const frame = sourceEvents.length ? window.ReplaySystem.findFrameAtOrBefore(sourceEvents, c.clock.time) : window.ReplaySystem.findFrameAtOrBefore(c.replay.frames, c.clock.time);
+        if (frame) {
+          drawReplayBoard(document.getElementById('replay-my-board'), frame.state.me.board, frame.state.me.current, frame.state.me.garbage, frame.state.me.pendingGarbage);
+          drawReplayBoard(document.getElementById('replay-opp-board'), frame.state.opponent.board, frame.state.opponent.current, frame.state.opponent.garbage, frame.state.opponent.pendingGarbage);
+          const hud = document.getElementById('replay-hud');
+          const stat = (s) => `COMBO <b>${Math.max(0,s.combo||0)}</b> · B2B <b>${s.b2b||0}</b><br>KO <b>${s.kos||0}</b> · ATTACK <b>${s.sent||0}</b><br><span style="color:#aaa">GARBAGE</span> <span style="color:#ff0d62">${s.garbage||0}</span> + <span style="color:#f7dd16">${s.pendingGarbage||0}</span>`;
+          const myOverlay = document.getElementById('replay-my-overlay'); const oppOverlay = document.getElementById('replay-opp-overlay');
+          if (myOverlay) myOverlay.innerHTML = stat(frame.state.me);
+          if (oppOverlay) oppOverlay.innerHTML = stat(frame.state.opponent);
+          if (hud) hud.innerHTML = `<span>YOU ${frame.state.me.score || 0}</span><span>TIME ${formatReplayTime(c.clock.time)}</span><span>OPP ${frame.state.opponent.score || 0}</span>`;
+          const action = document.getElementById('replay-action-overlay');
+          const recent = (c.replay.highlights || []).filter(h => c.clock.time >= (h.t || 0) && c.clock.time - (h.t || 0) < 1700).pop();
+          const myFloat = document.getElementById('replay-my-float'); const oppFloat = document.getElementById('replay-opp-float');
+          if (myFloat) myFloat.textContent = ''; if (oppFloat) oppFloat.textContent = '';
+          if (recent) {
+            const target = (recent.target || recent.actor) === 'me' ? myFloat : oppFloat;
+            const color = recent.color || (recent.kind === 'KO' ? '#ff0d62' : (recent.kind === 'BOMB' ? '#ff5b3d' : (recent.kind.includes('COMBO') ? '#f7dd16' : '#b144f7')));
+            if (target) {
+              const elapsed = c.clock.time - recent.t;
+              target.textContent = recent.label || recent.kind;
+              target.style.color = color;
+              target.style.fontSize = `${recent.size || 28}px`;
+              target.style.alignItems = 'flex-start';
+              target.style.boxSizing = 'border-box';
+              target.style.paddingTop = `${Math.max(0, (recent.y || 340) - (recent.size || 28) / 2)}px`;
+              target.style.opacity = String(Math.max(0, 1 - elapsed / 1700));
+              target.style.transform = `translateY(${-Math.min(30, elapsed / 35)}px)`;
+            }
+            if (action) action.textContent = recent.actor === 'me' ? 'YOU →' : '← OPP';
+          } else if (action) action.textContent = 'VS';
+        }
+        const replayState = !c.clock.playing && c.clock.time >= duration && duration > 0 ? 'FINISHED' : (c.clock.playing ? 'PLAYING' : 'PAUSED');
+        status.textContent = `${replayState} ${formatReplayTime(c.clock.time)} / ${formatReplayTime(duration)}${frame ? ` · ${frame.state.me.score || 0} VS ${frame.state.opponent.score || 0}` : ''}`;
+        c.raf = requestAnimationFrame(tick);
+      }
+      replayController.raf = requestAnimationFrame(tick);
+    }).catch(err => { status.textContent = `Replay unavailable: ${err.message || err}`; });
+  }
+  document.getElementById('close-replay-btn')?.addEventListener('click', closeReplay);
+  document.getElementById('replay-play-btn')?.addEventListener('click', e => {
+    if (!replayController) return; const c = replayController;
+    if (c.clock.playing) { c.clock.pause(); e.currentTarget.textContent = 'PLAY'; } else { c.clock.play(); e.currentTarget.textContent = 'PAUSE'; }
+  });
+  document.getElementById('replay-timeline')?.addEventListener('input', e => { if (replayController) replayController.clock.seek(Number(e.target.value)); });
+  document.getElementById('replay-modal')?.addEventListener('click', e => {
+    const speed = e.target.dataset.replaySpeed; const jump = e.target.dataset.replayJump; const hi = e.target.dataset.highlightIndex;
+    if (!replayController) return;
+    if (speed) replayController.speed = Number(speed);
+    if (jump) replayController.clock.seek(replayController.clock.time + Number(jump));
+    if (hi !== undefined) replayController.clock.seek(Math.max(0, (replayController.replay.highlights[Number(hi)].t || 0) - 5000));
+  });
 
   function buildPlayerStatsCard(data, username) {
     const lp = data.lp || 0;

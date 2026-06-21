@@ -2386,6 +2386,10 @@
   <div id="history-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.95); border: 2px solid var(--O); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(255,167,0,0.4); color: var(--white); display: flex; flex-direction: column; gap: 12px; box-sizing: border-box;">
     <h2 id="history-title" data-i18n="history.title" style="margin: 0; color: var(--O); text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-size: 20px; letter-spacing: 2px; flex-shrink: 0;">📜 對戰紀錄</h2>
     <div id="history-summary" style="display:flex; justify-content:space-around; font-size:13px; font-weight:bold; color:rgba(255,255,255,0.85); flex-shrink: 0;"></div>
+    <div id="history-mode-tabs" style="display:flex; gap:6px; justify-content:center; flex-shrink:0;">
+      <button class="history-mode-tab" data-mode="PLAYER" style="flex:1; padding:7px 0; background:var(--T); color:var(--white); font-weight:900; border:none; border-radius:4px; cursor:pointer;">⚔ 玩家對戰</button>
+      <button class="history-mode-tab" data-mode="AI" style="flex:1; padding:7px 0; background:transparent; color:var(--T); font-weight:900; border:1px solid var(--T); border-radius:4px; cursor:pointer;">🤖 AI 對戰</button>
+    </div>
     <div id="history-filter-tabs" style="display:flex; gap:6px; justify-content:center; flex-shrink: 0;">
       <button class="history-tab" data-i18n="history.filterAll" data-filter="ALL" style="flex:1; padding:6px 0; background:var(--O); color:var(--bg); font-weight:900; border:none; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">全部</button>
       <button class="history-tab" data-i18n="history.filterWin" data-filter="WIN" style="flex:1; padding:6px 0; background:transparent; color:var(--S); font-weight:900; border:2px solid var(--S); border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px;">勝</button>
@@ -2394,6 +2398,19 @@
     <div id="history-content" style="max-height: 440px; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; display:flex; flex-direction:column; gap:10px;">
     </div>
     <button id="close-history-btn" style="width: 100%; padding: 10px; background: var(--O); color: var(--bg); font-weight: 900; font-size: 15px; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 2px; flex-shrink: 0;">CLOSE</button>
+  </div>
+
+  <div id="replay-modal" class="hidden" style="position:fixed; top:5vh; right:2vw; bottom:2vh; left:2vw; max-height:93vh; overflow-y:auto; background:rgba(6,0,79,.98); border:2px solid var(--T); border-radius:8px; padding:18px; z-index:2100; color:#fff; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between"><b id="replay-title">REPLAY</b><button id="close-replay-btn">×</button></div>
+    <div id="replay-status">Loading…</div>
+    <div id="replay-hud" style="display:flex;justify-content:center;gap:18px;font:12px monospace;color:rgba(255,255,255,.75)"></div>
+    <div id="replay-controls" style="position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:7px;padding:8px 0;background:rgba(6,0,79,.98)"><input id="replay-timeline" type="range" min="0" max="0" value="0"><div style="display:flex;gap:8px"><button id="replay-play-btn">PLAY</button><button data-replay-jump="-5000">-5s</button><button data-replay-jump="5000">+5s</button><button data-replay-speed="0.5">0.5×</button><button data-replay-speed="1">1×</button><button data-replay-speed="2">2×</button><button data-replay-speed="4">4×</button></div></div>
+    <div style="display:flex;gap:28px;justify-content:center;align-items:center;flex-shrink:0">
+      <div style="position:relative;display:flex;flex-direction:column;gap:6px"><div style="position:relative"><canvas id="replay-my-board" width="340" height="680" style="background:#06004f;border:2px solid var(--T)"></canvas><div id="replay-my-float" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:28px;font-weight:900;text-shadow:0 0 10px currentColor;transition:opacity .05s linear"></div></div><div id="replay-my-overlay" style="border-left:4px solid var(--T);padding:6px;font:12px monospace;background:rgba(6,0,79,.75)"></div></div>
+      <div id="replay-action-overlay" style="width:170px;text-align:center;font-weight:900;font-size:16px;color:var(--O);text-shadow:0 0 8px var(--O)">VS</div>
+      <div style="position:relative;display:flex;flex-direction:column;gap:6px"><div style="position:relative"><canvas id="replay-opp-board" width="340" height="680" style="background:#06004f;border:2px solid var(--Z)"></canvas><div id="replay-opp-float" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:28px;font-weight:900;text-shadow:0 0 10px currentColor;transition:opacity .05s linear"></div></div><div id="replay-opp-overlay" style="border-left:4px solid var(--Z);padding:6px;font:12px monospace;background:rgba(6,0,79,.75)"></div></div>
+    </div>
+    <div id="replay-highlights" style="display:flex;gap:6px;flex-wrap:wrap"></div>
   </div>
 
   <div id="rank-modal" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 580px; max-width: 95vw; max-height: 90vh; background: rgba(6,0,79,0.96); border: 2px solid var(--T); border-radius: 8px; padding: 25px; z-index: 2000; box-shadow: 0 0 30px rgba(177,68,247,0.4); color: var(--white); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box;">
@@ -3135,6 +3152,7 @@
 
 </div>
 
+<script src="./replay.js"></script>
 <script src="./game.js"></script>
 
 <script>
